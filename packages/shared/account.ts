@@ -66,3 +66,17 @@ export type ProviderRegistryOption = {
   supportsJsonImport: boolean;
   priority: number;
 };
+
+export type ManualUsageInput = {
+  providerAccountId: string;
+  modelId?: string;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  requestCount?: number | null;
+  messageCount?: number | null;
+  costAmount?: number | null;
+  costCurrency?: string;
+  observedAt: string;
+  sourceRef?: string;
+};

@@ -1,4 +1,4 @@
-import type { AccountSettingsInput, DashboardPayload, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
+import type { AccountSettingsInput, DashboardPayload, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -94,4 +94,18 @@ export async function fetchProviderRegistry(): Promise<ProviderRegistryOption[]>
 
   const data = await response.json() as { providers: ProviderRegistryOption[] };
   return data.providers;
+}
+
+export async function createManualUsage(input: ManualUsageInput) {
+  const response = await fetch(getApiUrl("/api/usage/manual"), {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
 }

@@ -1,5 +1,5 @@
 import type { UsageRecord } from "@knut/providers";
-import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
+import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
 import { and, asc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
@@ -258,6 +258,61 @@ export async function createUsageRecords(records: UsageRecord[]) {
   return {
     rowsProcessed: records.length,
     rowsFailed: 0
+  };
+}
+
+export async function createManualUsageRecord(userId: string, input: ManualUsageInput) {
+  const [account] = await getDb()
+    .select({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId
+    })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.id, input.providerAccountId), eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .limit(1);
+
+  if (!account) {
+    throw new Error("Provider account was not found for this user.");
+  }
+
+  const inputTokens = input.inputTokens ?? null;
+  const outputTokens = input.outputTokens ?? null;
+  const totalTokens = input.totalTokens ?? (inputTokens ?? 0) + (outputTokens ?? 0);
+
+  const [record] = await getDb()
+    .insert(usageRecords)
+    .values({
+      userId,
+      providerAccountId: account.id,
+      providerId: account.providerId,
+      modelId: input.modelId?.trim() || null,
+      sourceType: "manual_usage_entry",
+      sourceRef: input.sourceRef?.trim() || null,
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      requestCount: input.requestCount ?? null,
+      messageCount: input.messageCount ?? null,
+      costAmount: input.costAmount == null ? null : String(input.costAmount),
+      costCurrency: input.costCurrency ?? "USD",
+      confidence: "manual",
+      observedAt: new Date(input.observedAt)
+    })
+    .returning({
+      id: usageRecords.id,
+      providerAccountId: usageRecords.providerAccountId,
+      providerId: usageRecords.providerId,
+      totalTokens: usageRecords.totalTokens,
+      costAmount: usageRecords.costAmount,
+      costCurrency: usageRecords.costCurrency,
+      confidence: usageRecords.confidence,
+      observedAt: usageRecords.observedAt
+    });
+
+  return {
+    ...record,
+    costAmount: record.costAmount == null ? null : Number(record.costAmount),
+    observedAt: record.observedAt.toISOString()
   };
 }
 
