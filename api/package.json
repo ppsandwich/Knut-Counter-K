@@ -8,8 +8,7 @@
   "dependencies": {
     "@knut/db": "workspace:*",
     "@knut/pricing": "workspace:*",
-    "@knut/providers": "workspace:*",
-    "@supabase/supabase-js": "^2.106.1"
+    "@knut/providers": "workspace:*"
   },
   "devDependencies": {
     "@vercel/node": "^5.1.0",

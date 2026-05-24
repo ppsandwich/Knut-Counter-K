@@ -32,9 +32,6 @@ importers:
       '@knut/providers':
         specifier: workspace:*
         version: link:../packages/providers
-      '@supabase/supabase-js':
-        specifier: ^2.106.1
-        version: 2.106.1
     devDependencies:
       '@vercel/node':
         specifier: ^5.1.0

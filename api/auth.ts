@@ -1,9 +1,13 @@
 import type { VercelRequest } from "@vercel/node";
-import { createClient } from "@supabase/supabase-js";
 
 export type AuthenticatedUser = {
   id: string;
   email: string;
+};
+
+type SupabaseAuthUserResponse = {
+  id?: string;
+  email?: string;
 };
 
 function getBearerToken(req: VercelRequest) {
@@ -25,20 +29,24 @@ export async function requireUser(req: VercelRequest): Promise<AuthenticatedUser
     throw new Error("Missing bearer token.");
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${token}`
     }
   });
 
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user.email) {
+  if (!response.ok) {
     throw new Error("Invalid session.");
   }
 
+  const data = (await response.json()) as SupabaseAuthUserResponse;
+  if (!data.id || !data.email) {
+    throw new Error("Invalid session user.");
+  }
+
   return {
-    id: data.user.id,
-    email: data.user.email
+    id: data.id,
+    email: data.email
   };
 }
