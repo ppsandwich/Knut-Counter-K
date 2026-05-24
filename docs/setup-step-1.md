@@ -95,7 +95,23 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY
 EXPO_PUBLIC_API_BASE_URL
 ```
 
-## 7. Smoke Test
+## 7. Optional Cron Jobs
+
+The default deploy is Hobby-plan friendly and does not include Vercel Cron.
+
+When cron is available, add these jobs in Vercel or restore them in `vercel.json`:
+
+```json
+{
+  "crons": [
+    { "path": "/api/pricing/refresh", "schedule": "0 3 * * *" },
+    { "path": "/api/providers/sync", "schedule": "0 * * * *" },
+    { "path": "/api/alerts/evaluate", "schedule": "*/30 * * * *" }
+  ]
+}
+```
+
+## 8. Smoke Test
 
 1. Open `/settings`.
 2. Open Account.
