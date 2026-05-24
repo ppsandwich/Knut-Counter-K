@@ -47,3 +47,16 @@ export type DashboardPayload = {
   profile: AccountProfile | null;
   providers: AccountProviderSummary[];
 };
+
+export type ProviderRegistryOption = {
+  providerId: string;
+  providerName: string;
+  connectorType: string;
+  connectorStatus: string;
+  supportsAccountUsageApi: boolean;
+  supportsResponseUsageMetadata: boolean;
+  supportsManualImport: boolean;
+  supportsCsvImport: boolean;
+  supportsJsonImport: boolean;
+  priority: number;
+};

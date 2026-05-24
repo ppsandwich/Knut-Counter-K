@@ -1,6 +1,6 @@
 import type { UsageRecord } from "@knut/providers";
-import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, ProviderAccountInput } from "@knut/shared";
-import { and, eq } from "drizzle-orm";
+import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
+import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
 import { providerAccounts, providerRegistry, users } from "./schema";
@@ -154,6 +154,26 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
     hasCredentials: Boolean(row.encryptedCredentials)
   }));
+}
+
+export async function listProviderRegistryOptions(): Promise<ProviderRegistryOption[]> {
+  const rows = await getDb()
+    .select({
+      providerId: providerRegistry.providerId,
+      providerName: providerRegistry.providerName,
+      connectorType: providerRegistry.connectorType,
+      connectorStatus: providerRegistry.connectorStatus,
+      supportsAccountUsageApi: providerRegistry.supportsAccountUsageApi,
+      supportsResponseUsageMetadata: providerRegistry.supportsResponseUsageMetadata,
+      supportsManualImport: providerRegistry.supportsManualImport,
+      supportsCsvImport: providerRegistry.supportsCsvImport,
+      supportsJsonImport: providerRegistry.supportsJsonImport,
+      priority: providerRegistry.priority
+    })
+    .from(providerRegistry)
+    .orderBy(asc(providerRegistry.priority), asc(providerRegistry.providerName));
+
+  return rows;
 }
 
 export async function createUsageRecords(records: UsageRecord[]) {
