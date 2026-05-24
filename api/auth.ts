@@ -18,6 +18,7 @@ function getBearerToken(req: VercelRequest) {
 
 export async function requireUser(req: VercelRequest): Promise<AuthenticatedUser> {
   const supabaseUrl = process.env.SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const token = getBearerToken(req);
 
@@ -31,13 +32,14 @@ export async function requireUser(req: VercelRequest): Promise<AuthenticatedUser
 
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: {
-      apikey: serviceRoleKey,
+      apikey: anonKey ?? serviceRoleKey,
       Authorization: `Bearer ${token}`
     }
   });
 
   if (!response.ok) {
-    throw new Error("Invalid session.");
+    const body = await response.text();
+    throw new Error(`Invalid session. Supabase Auth returned ${response.status}: ${body}`);
   }
 
   const data = (await response.json()) as SupabaseAuthUserResponse;

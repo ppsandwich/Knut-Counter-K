@@ -31,6 +31,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 EXPO_PUBLIC_API_BASE_URL="http://localhost:3000"
 
 SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_ANON_KEY="your-anon-key"
 SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 DATABASE_URL="postgresql://..."
 CREDENTIAL_ENCRYPTION_KEY="generate-a-long-random-secret"
@@ -82,6 +83,7 @@ Set these in Vercel:
 
 ```sh
 SUPABASE_URL
+SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 DATABASE_URL
 CREDENTIAL_ENCRYPTION_KEY
