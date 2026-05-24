@@ -1,4 +1,4 @@
-import type { AccountSettingsInput, DashboardPayload, ProviderAccountInput } from "@knut/shared";
+import type { AccountSettingsInput, DashboardPayload, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -79,4 +79,18 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
     profile: data.profile,
     providers: data.providers
   };
+}
+
+export async function fetchProviderRegistry(): Promise<ProviderRegistryOption[]> {
+  const response = await fetch(getApiUrl("/api/providers/registry"), {
+    method: "GET",
+    headers: await authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const data = await response.json() as { providers: ProviderRegistryOption[] };
+  return data.providers;
 }

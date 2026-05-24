@@ -1,15 +1,21 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackButton } from "../components/BackButton";
 import { useAuthSession } from "../hooks/useAuthSession";
+import { useProviderRegistry } from "../hooks/useProviderRegistry";
 import { createAccountProvider } from "../lib/accountApi";
+
+type ConnectionMethod = "api_key" | "manual" | "csv_json_import";
+type ConnectionOption = [ConnectionMethod, string];
 
 export default function AddProviderScreen() {
   const auth = useAuthSession();
+  const registry = useProviderRegistry();
   const [providerId, setProviderId] = useState("openai_api");
   const [displayName, setDisplayName] = useState("OpenAI API");
-  const [authType, setAuthType] = useState<"api_key" | "manual" | "csv_json_import">("api_key");
+  const [displayNameEdited, setDisplayNameEdited] = useState(false);
+  const [authType, setAuthType] = useState<ConnectionMethod>("api_key");
   const [apiKey, setApiKey] = useState("");
   const [monthlyBudget, setMonthlyBudget] = useState("25");
   const [resetRule, setResetRule] = useState("monthly");
@@ -32,6 +38,32 @@ export default function AddProviderScreen() {
     }
   }
 
+  const selectedProvider = registry.providers.find((provider) => provider.providerId === providerId) ?? registry.providers[0];
+  const connectionOptions = useMemo<ConnectionOption[]>(() => selectedProvider
+    ? ([
+        selectedProvider.supportsAccountUsageApi || selectedProvider.supportsResponseUsageMetadata ? ["api_key", "API key"] : null,
+        selectedProvider.supportsManualImport ? ["manual", "Manual tracking"] : null,
+        selectedProvider.supportsCsvImport || selectedProvider.supportsJsonImport ? ["csv_json_import", "CSV/JSON import"] : null
+      ].filter(Boolean) as ConnectionOption[])
+    : [
+        ["api_key", "API key"],
+        ["manual", "Manual tracking"],
+        ["csv_json_import", "CSV/JSON import"]
+      ], [selectedProvider, authType]);
+
+  useEffect(() => {
+    if (!connectionOptions.some(([value]) => value === authType) && connectionOptions[0]) {
+      setAuthType(connectionOptions[0][0]);
+    }
+  }, [authType, connectionOptions]);
+
+  function selectProvider(nextProviderId: string, providerName: string) {
+    setProviderId(nextProviderId);
+    if (!displayNameEdited) {
+      setDisplayName(providerName);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -41,18 +73,49 @@ export default function AddProviderScreen() {
         <Text style={styles.accountNote}>{auth.user ? `Saving to ${auth.user.email}` : "Sign in from Settings before saving provider keys."}</Text>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Provider account</Text>
-          <TextInput onChangeText={setDisplayName} placeholder="OpenAI API" placeholderTextColor="#63636a" style={styles.input} value={displayName} />
-          <TextInput autoCapitalize="none" onChangeText={setProviderId} placeholder="openai_api" placeholderTextColor="#63636a" style={styles.input} value={providerId} />
+          <Text style={styles.label}>Provider</Text>
+          {registry.loading ? (
+            <Text style={styles.helperText}>Loading supported providers...</Text>
+          ) : registry.error ? (
+            <Text style={styles.errorText}>{registry.error}</Text>
+          ) : registry.providers.length ? (
+            <View style={styles.providerList}>
+              {registry.providers.slice(0, 18).map((provider) => (
+                <Pressable
+                  key={provider.providerId}
+                  onPress={() => selectProvider(provider.providerId, provider.providerName)}
+                  style={[styles.providerOption, provider.providerId === providerId && styles.providerOptionActive]}
+                >
+                  <View style={styles.providerTextBlock}>
+                    <Text style={styles.providerName}>{provider.providerName}</Text>
+                    <Text style={styles.providerMeta}>{provider.connectorStatus.replaceAll("_", " ")}</Text>
+                  </View>
+                  <Text style={styles.providerCheck}>{provider.providerId === providerId ? "Selected" : ""}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.helperText}>Sign in to load supported providers.</Text>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Account name</Text>
+          <TextInput
+            onChangeText={(value) => {
+              setDisplayName(value);
+              setDisplayNameEdited(true);
+            }}
+            placeholder={selectedProvider?.providerName ?? "OpenAI API"}
+            placeholderTextColor="#63636a"
+            style={styles.input}
+            value={displayName}
+          />
         </View>
 
         <View style={styles.card}>
           <Text style={styles.label}>Connection method</Text>
-          {[
-            ["api_key", "API key"],
-            ["manual", "Manual tracking"],
-            ["csv_json_import", "CSV/JSON import"]
-          ].map(([value, label]) => (
+          {connectionOptions.map(([value, label]) => (
             <Pressable key={value} onPress={() => setAuthType(value as typeof authType)} style={[styles.option, authType === value && styles.optionActive]}>
               <Text style={styles.optionText}>{label}</Text>
             </Pressable>
@@ -92,7 +155,16 @@ const styles = StyleSheet.create({
   accountNote: { color: "#a1a1aa", fontSize: 13, fontWeight: "800" },
   card: { backgroundColor: "#111113", borderColor: "#242428", borderWidth: 1, borderRadius: 8, padding: 14, gap: 10 },
   label: { color: "#8b8b91", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  helperText: { color: "#a1a1aa", fontSize: 14, lineHeight: 20, fontWeight: "700" },
+  errorText: { color: "#fca5a5", fontSize: 13, lineHeight: 19, fontWeight: "700" },
   input: { color: "#f4f4f5", backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, minHeight: 44, fontSize: 16 },
+  providerList: { gap: 8 },
+  providerOption: { minHeight: 58, borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  providerOptionActive: { borderColor: "#22c55e", backgroundColor: "#102016" },
+  providerTextBlock: { flex: 1, minWidth: 0 },
+  providerName: { color: "#f4f4f5", fontSize: 15, fontWeight: "900" },
+  providerMeta: { color: "#8b8b91", fontSize: 12, fontWeight: "700", marginTop: 3 },
+  providerCheck: { color: "#86efac", fontSize: 12, fontWeight: "900" },
   option: { minHeight: 44, borderColor: "#29292d", borderWidth: 1, borderRadius: 7, justifyContent: "center", paddingHorizontal: 12 },
   optionActive: { borderColor: "#22c55e", backgroundColor: "#102016" },
   optionText: { color: "#f4f4f5", fontSize: 15, fontWeight: "800" },
