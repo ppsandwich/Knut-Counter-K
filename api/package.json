@@ -1,0 +1,17 @@
+{
+  "name": "@knut/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@knut/db": "workspace:*",
+    "@knut/pricing": "workspace:*",
+    "@knut/providers": "workspace:*"
+  },
+  "devDependencies": {
+    "@vercel/node": "^5.1.0",
+    "typescript": "~5.8.3"
+  }
+}

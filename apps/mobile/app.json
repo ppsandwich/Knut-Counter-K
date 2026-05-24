@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Knut Counter",
+    "slug": "knut-counter",
+    "scheme": "knut-counter",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.knut.counter"
+    },
+    "android": {
+      "package": "app.knut.counter"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router"]
+  }
+}

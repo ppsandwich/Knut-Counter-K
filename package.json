@@ -1,0 +1,17 @@
+{
+  "name": "knut-counter",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.1.3",
+  "scripts": {
+    "dev": "pnpm --filter @knut/mobile start",
+    "web": "pnpm --filter @knut/mobile web",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "turbo": "^2.5.0",
+    "typescript": "~5.8.3",
+    "@types/react": "^19.0.0"
+  }
+}
