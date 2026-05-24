@@ -80,3 +80,23 @@ export type ManualUsageInput = {
   observedAt: string;
   sourceRef?: string;
 };
+
+export type ImportUsageRowInput = {
+  providerAccountId: string;
+  modelId?: string;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  requestCount?: number | null;
+  messageCount?: number | null;
+  costAmount?: number | null;
+  costCurrency?: string;
+  observedAt: string;
+  sourceRef?: string;
+  confidence?: "provider_reported" | "estimated" | "manual";
+};
+
+export type ImportUsageInput = {
+  providerAccountId: string;
+  rows: ImportUsageRowInput[];
+};

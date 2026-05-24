@@ -1,5 +1,5 @@
 import type { UsageRecord } from "@knut/providers";
-import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
+import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
 import { and, asc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
@@ -313,6 +313,64 @@ export async function createManualUsageRecord(userId: string, input: ManualUsage
     ...record,
     costAmount: record.costAmount == null ? null : Number(record.costAmount),
     observedAt: record.observedAt.toISOString()
+  };
+}
+
+export async function importUsageRecordsForUser(userId: string, input: ImportUsageInput) {
+  const [account] = await getDb()
+    .select({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId
+    })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.id, input.providerAccountId), eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .limit(1);
+
+  if (!account) {
+    throw new Error("Provider account was not found for this user.");
+  }
+
+  const validRows = input.rows
+    .map((row) => {
+      const inputTokens = row.inputTokens ?? null;
+      const outputTokens = row.outputTokens ?? null;
+      const totalTokens = row.totalTokens ?? (inputTokens ?? 0) + (outputTokens ?? 0);
+      const observedAt = new Date(row.observedAt);
+
+      if (Number.isNaN(observedAt.getTime())) return null;
+
+      return {
+        userId,
+        providerAccountId: account.id,
+        providerId: account.providerId,
+        modelId: row.modelId?.trim() || null,
+        sourceType: "csv_json_import",
+        sourceRef: row.sourceRef?.trim() || null,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        requestCount: row.requestCount ?? null,
+        messageCount: row.messageCount ?? null,
+        costAmount: row.costAmount == null ? null : String(row.costAmount),
+        costCurrency: row.costCurrency ?? "USD",
+        confidence: row.confidence ?? "provider_reported",
+        observedAt
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+  if (!validRows.length) {
+    return {
+      rowsProcessed: 0,
+      rowsFailed: input.rows.length
+    };
+  }
+
+  await getDb().insert(usageRecords).values(validRows);
+
+  return {
+    rowsProcessed: validRows.length,
+    rowsFailed: input.rows.length - validRows.length
   };
 }
 

@@ -1,4 +1,4 @@
-import type { AccountSettingsInput, DashboardPayload, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
+import type { AccountSettingsInput, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -108,4 +108,18 @@ export async function createManualUsage(input: ManualUsageInput) {
   }
 
   return response.json();
+}
+
+export async function importUsage(input: ImportUsageInput) {
+  const response = await fetch(getApiUrl("/api/import"), {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean; rowsProcessed: number; rowsFailed: number }>;
 }
