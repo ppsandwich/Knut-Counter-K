@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { syncAccountProfile } from "../lib/accountApi";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
 export type AuthSessionState = {
@@ -16,6 +17,16 @@ export function useAuthSession(): AuthSessionState {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
 
+  async function syncProfileIfSignedIn(nextSession: Session | null) {
+    if (!nextSession) return;
+
+    try {
+      await syncAccountProfile();
+    } catch (error) {
+      console.warn("Account profile sync failed", error);
+    }
+  }
+
   useEffect(() => {
     let mounted = true;
 
@@ -28,11 +39,13 @@ export function useAuthSession(): AuthSessionState {
       if (!mounted) return;
       setSession(data.session);
       setLoading(false);
+      void syncProfileIfSignedIn(data.session);
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setLoading(false);
+      void syncProfileIfSignedIn(nextSession);
     });
 
     return () => {
