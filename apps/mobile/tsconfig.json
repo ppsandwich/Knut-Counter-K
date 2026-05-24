@@ -4,5 +4,15 @@
     "jsx": "react-jsx",
     "types": ["react", "react-native"]
   },
-  "include": ["app", "components", "../../packages/**/*.ts", "../../packages/**/*.tsx"]
+  "include": [
+    "app",
+    "components",
+    "hooks",
+    "lib",
+    "env.d.ts",
+    "../../packages/shared/**/*.ts",
+    "../../packages/ui/**/*.ts",
+    "../../packages/ui/**/*.tsx",
+    "../../packages/providers/**/*.ts"
+  ]
 }

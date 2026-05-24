@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ProviderUsageRow } from "@knut/ui";
 import { mockDashboard } from "@knut/shared";
+import { BackButton } from "../../components/BackButton";
 
 export default function ProviderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -11,6 +12,7 @@ export default function ProviderDetailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
+        <BackButton fallbackHref="/providers" />
         <Text style={styles.title}>{provider.providerName}</Text>
         <Text style={styles.subtitle}>{provider.accountDisplayName}</Text>
         <ProviderUsageRow provider={provider} />
