@@ -28,3 +28,22 @@ export type ProviderCredentialState = {
   hasCredentials: boolean;
   credentialsLastUpdatedAt: string | null;
 };
+
+export type AccountProviderSummary = {
+  id: string;
+  providerId: string;
+  providerName: string;
+  displayName: string;
+  authType: string;
+  planName: string | null;
+  monthlyBudget: number | null;
+  resetRule: string | null;
+  syncStatus: string;
+  lastSyncAt: string | null;
+  hasCredentials: boolean;
+};
+
+export type DashboardPayload = {
+  profile: AccountProfile | null;
+  providers: AccountProviderSummary[];
+};

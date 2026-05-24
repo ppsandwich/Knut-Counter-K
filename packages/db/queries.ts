@@ -1,9 +1,9 @@
 import type { UsageRecord } from "@knut/providers";
-import type { AccountProfile, AccountSettingsInput, ProviderAccountInput } from "@knut/shared";
+import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, ProviderAccountInput } from "@knut/shared";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
-import { providerAccounts, users } from "./schema";
+import { providerAccounts, providerRegistry, users } from "./schema";
 
 export async function upsertUserProfile(input: AccountProfile) {
   const [profile] = await getDb()
@@ -120,6 +120,40 @@ export async function deleteProviderCredentials(userId: string, providerAccountI
     providerAccountId: account.providerAccountId,
     hasCredentials: false
   };
+}
+
+export async function listProviderAccountsForUser(userId: string): Promise<AccountProviderSummary[]> {
+  const rows = await getDb()
+    .select({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId,
+      providerName: providerRegistry.providerName,
+      displayName: providerAccounts.displayName,
+      authType: providerAccounts.authType,
+      planName: providerAccounts.planName,
+      monthlyBudget: providerAccounts.monthlyBudget,
+      resetRule: providerAccounts.resetRule,
+      syncStatus: providerAccounts.syncStatus,
+      lastSyncAt: providerAccounts.lastSyncAt,
+      encryptedCredentials: providerAccounts.encryptedCredentials
+    })
+    .from(providerAccounts)
+    .leftJoin(providerRegistry, eq(providerAccounts.providerId, providerRegistry.providerId))
+    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)));
+
+  return rows.map((row) => ({
+    id: row.id,
+    providerId: row.providerId,
+    providerName: row.providerName ?? row.displayName,
+    displayName: row.displayName,
+    authType: row.authType,
+    planName: row.planName,
+    monthlyBudget: row.monthlyBudget == null ? null : Number(row.monthlyBudget),
+    resetRule: row.resetRule,
+    syncStatus: row.syncStatus,
+    lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
+    hasCredentials: Boolean(row.encryptedCredentials)
+  }));
 }
 
 export async function createUsageRecords(records: UsageRecord[]) {

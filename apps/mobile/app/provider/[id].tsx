@@ -4,10 +4,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ProviderUsageRow } from "@knut/ui";
 import { mockDashboard } from "@knut/shared";
 import { BackButton } from "../../components/BackButton";
+import { useDashboardData } from "../../hooks/useDashboardData";
 
 export default function ProviderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const provider = mockDashboard.providers.find((item) => item.providerId === id) ?? mockDashboard.providers[0];
+  const dashboard = useDashboardData();
+  const provider = dashboard.providerRows.find((item) => item.providerId === id)
+    ?? mockDashboard.providers.find((item) => item.providerId === id)
+    ?? mockDashboard.providers[0];
 
   return (
     <SafeAreaView style={styles.safe}>
