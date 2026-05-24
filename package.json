@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@11.1.3",
   "scripts": {
+    "build": "pnpm --filter @knut/mobile build:web",
     "dev": "pnpm --filter @knut/mobile start",
     "db:generate": "pnpm --filter @knut/db db:generate",
     "db:migrate": "pnpm --filter @knut/db db:migrate",
