@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { ensureUserProfile, getUserProfile, listProviderAccountsForUser } from "@knut/db";
+import { ensureUserProfile, getDashboardSummaryForUser, getUserProfile, listProviderAccountsForUser } from "@knut/db";
 import { requireUser } from "./auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -12,14 +12,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await ensureUserProfile({ id: user.id, email: user.email });
 
-    const [profile, providers] = await Promise.all([
-      getUserProfile(user.id),
-      listProviderAccountsForUser(user.id)
+    const profile = await getUserProfile(user.id);
+    const [providers, summary] = await Promise.all([
+      listProviderAccountsForUser(user.id),
+      getDashboardSummaryForUser(user.id, profile)
     ]);
 
     return res.status(200).json({
       ok: true,
       profile,
+      summary,
       providers
     });
   } catch (error) {

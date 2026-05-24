@@ -1,9 +1,19 @@
 import type { UsageRecord } from "@knut/providers";
-import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
-import { and, asc, eq } from "drizzle-orm";
+import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
+import { and, asc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
-import { providerAccounts, providerRegistry, users } from "./schema";
+import { providerAccounts, providerRegistry, usageRecords, users } from "./schema";
+
+function monthStart(now = new Date()) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+function numberFromDecimal(value: unknown) {
+  if (value == null) return 0;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
 
 export async function upsertUserProfile(input: AccountProfile) {
   const [profile] = await getDb()
@@ -47,7 +57,15 @@ export async function ensureUserProfile(input: Pick<AccountProfile, "id" | "emai
 
 export async function getUserProfile(userId: string) {
   const [profile] = await getDb().select().from(users).where(eq(users.id, userId)).limit(1);
-  return profile ?? null;
+  if (!profile) return null;
+
+  return {
+    id: profile.id,
+    email: profile.email,
+    timezone: profile.timezone,
+    preferredCurrency: profile.preferredCurrency,
+    monthlyAiBudget: profile.monthlyAiBudget == null ? null : Number(profile.monthlyAiBudget)
+  };
 }
 
 export async function updateUserSettings(userId: string, input: AccountSettingsInput) {
@@ -123,7 +141,8 @@ export async function deleteProviderCredentials(userId: string, providerAccountI
 }
 
 export async function listProviderAccountsForUser(userId: string): Promise<AccountProviderSummary[]> {
-  const rows = await getDb()
+  const db = getDb();
+  const rows = await db
     .select({
       id: providerAccounts.id,
       providerId: providerAccounts.providerId,
@@ -141,7 +160,33 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     .leftJoin(providerRegistry, eq(providerAccounts.providerId, providerRegistry.providerId))
     .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)));
 
+  const currentMonthUsage = await db
+    .select({
+      providerAccountId: usageRecords.providerAccountId,
+      totalTokens: usageRecords.totalTokens,
+      costAmount: usageRecords.costAmount
+    })
+    .from(usageRecords)
+    .where(and(eq(usageRecords.userId, userId), gte(usageRecords.observedAt, monthStart())));
+
+  const usageByAccount = currentMonthUsage.reduce<Record<string, { spend: number; tokens: number; records: number }>>((acc, record) => {
+    const current = acc[record.providerAccountId] ?? { spend: 0, tokens: 0, records: 0 };
+    current.spend += numberFromDecimal(record.costAmount);
+    current.tokens += record.totalTokens ?? 0;
+    current.records += 1;
+    acc[record.providerAccountId] = current;
+    return acc;
+  }, {});
+
   return rows.map((row) => ({
+    ...(() => {
+      const usage = usageByAccount[row.id] ?? { spend: 0, tokens: 0, records: 0 };
+      return {
+        currentMonthSpend: usage.spend,
+        currentMonthTokens: usage.tokens,
+        currentMonthRecords: usage.records
+      };
+    })(),
     id: row.id,
     providerId: row.providerId,
     providerName: row.providerName ?? row.displayName,
@@ -154,6 +199,39 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
     hasCredentials: Boolean(row.encryptedCredentials)
   }));
+}
+
+export async function getDashboardSummaryForUser(userId: string, profile: AccountProfile | null): Promise<DashboardSummary> {
+  const records = await getDb()
+    .select({
+      totalTokens: usageRecords.totalTokens,
+      costAmount: usageRecords.costAmount
+    })
+    .from(usageRecords)
+    .where(and(eq(usageRecords.userId, userId), gte(usageRecords.observedAt, monthStart())));
+
+  const monthlySpend = records.reduce((total, record) => total + numberFromDecimal(record.costAmount), 0);
+  const totalTokens = records.reduce((total, record) => total + (record.totalTokens ?? 0), 0);
+  const monthlyBudget = profile?.monthlyAiBudget ?? 0;
+  const dayOfMonth = Math.max(new Date().getUTCDate(), 1);
+  const daysInMonth = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 0)).getUTCDate();
+  const projectedSpend = records.length ? monthlySpend / dayOfMonth * daysInMonth : 0;
+  const budgetRatio = monthlyBudget > 0 ? monthlySpend / monthlyBudget : 0;
+
+  return {
+    monthlySpend,
+    monthlyBudget,
+    totalTokens,
+    projectedSpend,
+    status: budgetRatio >= 1 ? "danger" : budgetRatio >= 0.75 ? "warning" : "healthy",
+    statusText: records.length
+      ? budgetRatio >= 1
+        ? "Budget is officially making noises."
+        : budgetRatio >= 0.75
+          ? "Spend is getting a little crispy."
+          : "Everything looks boring. Excellent."
+      : "No usage records yet. The meter is waiting politely."
+  };
 }
 
 export async function listProviderRegistryOptions(): Promise<ProviderRegistryOption[]> {

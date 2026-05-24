@@ -1,3 +1,5 @@
+import type { DashboardSummary } from "./types";
+
 export type AccountProfile = {
   id: string;
   email: string;
@@ -41,10 +43,14 @@ export type AccountProviderSummary = {
   syncStatus: string;
   lastSyncAt: string | null;
   hasCredentials: boolean;
+  currentMonthSpend: number;
+  currentMonthTokens: number;
+  currentMonthRecords: number;
 };
 
 export type DashboardPayload = {
   profile: AccountProfile | null;
+  summary: DashboardSummary;
   providers: AccountProviderSummary[];
 };
 

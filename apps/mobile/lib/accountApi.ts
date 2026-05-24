@@ -77,6 +77,7 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
   const data = await response.json() as DashboardPayload & { ok?: boolean };
   return {
     profile: data.profile,
+    summary: data.summary,
     providers: data.providers
   };
 }

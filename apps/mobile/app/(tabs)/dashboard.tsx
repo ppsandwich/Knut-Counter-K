@@ -4,10 +4,20 @@ import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, RecommendationCard, 
 import { mockDashboard } from "@knut/shared/mockData";
 import { useDashboardData } from "../../hooks/useDashboardData";
 
+const emptySummary = {
+  monthlySpend: 0,
+  monthlyBudget: 0,
+  totalTokens: 0,
+  projectedSpend: 0,
+  status: "healthy" as const,
+  statusText: "Sign in to load your usage data."
+};
+
 export default function DashboardScreen() {
   const dashboard = useDashboardData();
   const providerRows = dashboard.providerRows;
   const signedIn = Boolean(dashboard.auth.user);
+  const summary = dashboard.data?.summary ?? emptySummary;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -20,7 +30,7 @@ export default function DashboardScreen() {
           <Text style={styles.currency}>USD</Text>
         </View>
 
-        <MonthlyDamageCard summary={mockDashboard.summary} />
+        <MonthlyDamageCard summary={summary} />
         <RecommendationCard recommendation={mockDashboard.recommendation} />
 
         <View style={styles.sectionHeader}>

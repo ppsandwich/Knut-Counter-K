@@ -3,7 +3,7 @@ import { formatCompactNumber, formatCurrency, type DashboardSummary } from "@knu
 import { colors } from "./theme";
 
 export function MonthlyDamageCard({ summary }: { summary: DashboardSummary }) {
-  const progress = Math.min(summary.monthlySpend / summary.monthlyBudget, 1);
+  const progress = summary.monthlyBudget > 0 ? Math.min(summary.monthlySpend / summary.monthlyBudget, 1) : 0;
 
   return (
     <View style={styles.card}>

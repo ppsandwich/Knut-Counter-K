@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AccountProviderSummary, DashboardPayload, ProviderUsageSummary } from "@knut/shared";
+import { formatCompactNumber, formatCurrency, type AccountProviderSummary, type DashboardPayload, type ProviderUsageSummary } from "@knut/shared";
 import { fetchDashboard } from "../lib/accountApi";
 import { useAuthSession } from "./useAuthSession";
 
@@ -10,16 +10,17 @@ function sparklineForProvider(providerId: string) {
 
 export function providerAccountToUsageRow(provider: AccountProviderSummary): ProviderUsageSummary {
   const isManual = provider.authType === "manual" || provider.authType === "csv_json_import";
+  const hasUsage = provider.currentMonthRecords > 0;
 
   return {
     providerId: provider.id,
     providerName: provider.providerName,
     accountDisplayName: provider.displayName,
-    primaryMetric: provider.monthlyBudget == null ? "Unknown" : `$${provider.monthlyBudget}`,
-    secondaryMetric: provider.planName ?? provider.authType.replaceAll("_", " "),
+    primaryMetric: hasUsage ? formatCurrency(provider.currentMonthSpend) : "Unknown",
+    secondaryMetric: hasUsage ? `${formatCompactNumber(provider.currentMonthTokens)} tokens` : (provider.planName ?? provider.authType.replaceAll("_", " ")),
     statusBadge: provider.hasCredentials || isManual ? "Ready" : "No key",
     status: provider.hasCredentials || isManual ? "healthy" : "warning",
-    confidence: isManual ? "manual" : "unknown",
+    confidence: hasUsage ? (isManual ? "manual" : "provider_reported") : "unknown",
     resetCountdown: provider.resetRule ?? "no reset",
     lastSyncedAt: provider.lastSyncAt ?? "",
     sparklineData: sparklineForProvider(provider.providerId)
