@@ -2,7 +2,7 @@ import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import YAML from "yaml";
-import { getDb } from "../client";
+import { closeDb, getDb } from "../client";
 import { providerRegistry } from "../schema";
 
 type RegistryFile = {
@@ -76,7 +76,10 @@ async function main() {
   console.log(`Seeded ${file.providers.length} providers.`);
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error(error);
+  await closeDb();
   process.exit(1);
+}).finally(async () => {
+  await closeDb();
 });
