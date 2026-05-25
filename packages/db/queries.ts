@@ -1,9 +1,10 @@
 import type { UsageRecord } from "@knut/providers";
+import type { NormalisedPrice } from "@knut/pricing";
 import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
 import { and, asc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
-import { providerAccounts, providerRegistry, usageRecords, users } from "./schema";
+import { pricingSnapshots, providerAccounts, providerRegistry, usageRecords, users } from "./schema";
 
 function monthStart(now = new Date()) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -372,6 +373,32 @@ export async function importUsageRecordsForUser(userId: string, input: ImportUsa
     rowsProcessed: validRows.length,
     rowsFailed: input.rows.length - validRows.length
   };
+}
+
+export async function insertPricingSnapshots(snapshots: NormalisedPrice[]) {
+  if (!snapshots.length) {
+    return { inserted: 0 };
+  }
+
+  await getDb().insert(pricingSnapshots).values(
+    snapshots.map((snapshot) => ({
+      providerId: snapshot.providerId,
+      modelId: snapshot.modelId,
+      modelDisplayName: snapshot.modelDisplayName,
+      inputPricePer1mTokensUsd: snapshot.inputPricePer1mTokensUsd == null ? null : String(snapshot.inputPricePer1mTokensUsd),
+      outputPricePer1mTokensUsd: snapshot.outputPricePer1mTokensUsd == null ? null : String(snapshot.outputPricePer1mTokensUsd),
+      cachedInputPricePer1mTokensUsd: snapshot.cachedInputPricePer1mTokensUsd == null ? null : String(snapshot.cachedInputPricePer1mTokensUsd),
+      reasoningPricePer1mTokensUsd: snapshot.reasoningPricePer1mTokensUsd == null ? null : String(snapshot.reasoningPricePer1mTokensUsd),
+      contextWindow: snapshot.contextWindow ?? null,
+      sourceName: snapshot.sourceName,
+      sourceConfidence: snapshot.sourceConfidence,
+      sourcePriority: snapshot.sourcePriority,
+      fetchedAt: new Date(snapshot.fetchedAt),
+      effectiveFrom: new Date(snapshot.fetchedAt)
+    }))
+  );
+
+  return { inserted: snapshots.length };
 }
 
 export async function evaluateAlerts() {
