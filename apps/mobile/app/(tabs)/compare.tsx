@@ -146,11 +146,18 @@ function BenchmarkTag({ label }: { label: string }) {
 }
 
 function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: "cheap" | "quality" | "balanced" }) {
+  const benchmarkLabel = item.intelligenceBenchmark
+    ? `${item.intelligenceBenchmark} benchmark`
+    : `${item.intelligenceSource} intelligence`;
+
   return (
     <View style={[styles.reco, tone === "quality" && styles.recoQuality, tone === "balanced" && styles.recoBalanced]}>
       <View style={styles.recoHeader}>
         <Text style={styles.kicker}>{item.label}</Text>
-        <Text style={styles.score}>{item.intelligenceScore}/100</Text>
+        <View style={styles.scoreBlock}>
+          <Text style={styles.score}>{item.intelligenceScore}/100</Text>
+          <Text style={styles.scoreMeta}>{benchmarkLabel}</Text>
+        </View>
       </View>
       <Text style={styles.provider}>{item.recommendedProvider}</Text>
       <Text style={styles.model}>{item.recommendedModel}</Text>
@@ -194,7 +201,9 @@ const styles = StyleSheet.create({
   recoBalanced: { backgroundColor: "#191711", borderColor: "#4c3a16" },
   recoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   kicker: { color: "#22c55e", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  scoreBlock: { alignItems: "flex-end", flexShrink: 0 },
   score: { color: "#e5e7eb", fontSize: 12, fontWeight: "900" },
+  scoreMeta: { color: "#7b8b7f", fontSize: 10, fontWeight: "900", marginTop: 2, textTransform: "uppercase" },
   provider: { color: "#c8f7d2", fontSize: 14, fontWeight: "800", marginTop: 6 },
   model: { color: "#f4f4f5", fontSize: 22, fontWeight: "900", marginTop: 2 },
   cost: { color: "#86efac", fontSize: 30, fontWeight: "900", marginTop: 4 },

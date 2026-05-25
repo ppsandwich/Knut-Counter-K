@@ -18,7 +18,8 @@ function confidence(recommendation: DashboardRecommendation) {
 
 function meta(recommendation: DashboardRecommendation) {
   if (!("intelligenceScore" in recommendation)) return null;
-  return `${recommendation.label ?? "Balanced"} · intelligence ${recommendation.intelligenceScore}/100`;
+  const benchmark = recommendation.intelligenceBenchmark ? ` · ${recommendation.intelligenceBenchmark} benchmark` : "";
+  return `${recommendation.label ?? "Balanced"} · intelligence ${recommendation.intelligenceScore}/100${benchmark}`;
 }
 
 export function RecommendationCard({ recommendation, loading, error }: { recommendation: DashboardRecommendation; loading?: boolean; error?: string | null }) {

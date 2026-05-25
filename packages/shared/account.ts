@@ -151,6 +151,7 @@ export type RecommendationResult = {
   estimatedCostUsd: number;
   intelligenceScore: number;
   intelligenceSource: "benchmark" | "inferred" | "unknown";
+  intelligenceBenchmark?: string;
   capWarning: string | null;
   reason: string;
   priceSource: string;

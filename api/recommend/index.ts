@@ -41,6 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       estimated_cost_usd: recommendation.estimatedCostUsd,
       intelligence_score: recommendation.intelligenceScore,
       intelligence_source: recommendation.intelligenceSource,
+      intelligence_benchmark: recommendation.intelligenceBenchmark,
       cap_warning: recommendation.capWarning,
       reason: recommendation.reason,
       price_source: recommendation.priceSource,

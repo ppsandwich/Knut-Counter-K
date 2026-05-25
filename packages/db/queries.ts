@@ -1334,6 +1334,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       estimatedCostUsd: candidate.estimatedCostUsd,
       intelligenceScore: candidate.intelligenceScore,
       intelligenceSource: candidate.intelligenceSource,
+      intelligenceBenchmark: candidate.intelligenceSource === "benchmark" ? taskLabel : undefined,
       capWarning,
       reason: `${reasonPrefix} ${qualityNote}${capNote}${staleNote}`,
       priceSource: candidate.price.sourceName,
