@@ -606,15 +606,33 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
 }
 
 export async function getDashboardSummaryForUser(userId: string, profile: AccountProfile | null): Promise<DashboardSummary> {
-  const records = await getDb()
+  const db = getDb();
+  const records = await db
     .select({
+      providerAccountId: usageRecords.providerAccountId,
       totalTokens: usageRecords.totalTokens,
       costAmount: usageRecords.costAmount
     })
     .from(usageRecords)
     .where(and(eq(usageRecords.userId, userId), gte(usageRecords.observedAt, monthStart())));
 
-  const monthlySpend = records.reduce((total, record) => total + numberFromDecimal(record.costAmount), 0);
+  const spendByAccount = records.reduce<Record<string, number>>((acc, record) => {
+    acc[record.providerAccountId] = (acc[record.providerAccountId] ?? 0) + numberFromDecimal(record.costAmount);
+    return acc;
+  }, {});
+  const creditCaps = await db
+    .select({
+      providerAccountId: usageCaps.providerAccountId,
+      usedAmount: usageCaps.usedAmount
+    })
+    .from(usageCaps)
+    .where(and(eq(usageCaps.userId, userId), eq(usageCaps.capType, "credit_balance")));
+  const creditSpendFallback = creditCaps.reduce((total, cap) => {
+    if ((spendByAccount[cap.providerAccountId] ?? 0) > 0) return total;
+    return total + numberFromDecimal(cap.usedAmount);
+  }, 0);
+
+  const monthlySpend = records.reduce((total, record) => total + numberFromDecimal(record.costAmount), 0) + creditSpendFallback;
   const totalTokens = records.reduce((total, record) => total + (record.totalTokens ?? 0), 0);
   const monthlyBudget = profile?.monthlyAiBudget ?? 0;
   const dayOfMonth = Math.max(new Date().getUTCDate(), 1);
