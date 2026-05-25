@@ -15,11 +15,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const user = await requireUser(req);
+    const qualityPreference = req.body?.qualityPreference ?? req.body?.quality_preference;
     const input: RecommendationInput = {
       taskType: String(req.body?.taskType ?? req.body?.task_type ?? "general"),
       estimatedInputTokens: numberFromBody(req.body?.estimatedInputTokens ?? req.body?.estimated_input_tokens),
       estimatedOutputTokens: numberFromBody(req.body?.estimatedOutputTokens ?? req.body?.estimated_output_tokens),
-      excludeNearCapProviders: Boolean(req.body?.excludeNearCapProviders ?? req.body?.exclude_near_cap_providers)
+      excludeNearCapProviders: Boolean(req.body?.excludeNearCapProviders ?? req.body?.exclude_near_cap_providers),
+      qualityPreference: qualityPreference == null ? undefined : numberFromBody(qualityPreference)
     };
 
     const recommendations = await recommendProviderForUser(user.id, input);

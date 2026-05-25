@@ -139,6 +139,7 @@ export type RecommendationInput = {
   estimatedInputTokens: number;
   estimatedOutputTokens: number;
   excludeNearCapProviders?: boolean;
+  qualityPreference?: number;
 };
 
 export type RecommendationResult = {

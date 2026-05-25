@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { RecommendationBundle, RecommendationResult } from "@knut/shared";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { recommendProvider } from "../../lib/accountApi";
 
@@ -26,8 +26,7 @@ const taskPresets = [
 
 export default function CompareScreen() {
   const [selectedTask, setSelectedTask] = useState(taskPresets[1]);
-  const [inputTokens, setInputTokens] = useState(String(taskPresets[1].inputTokens));
-  const [outputTokens, setOutputTokens] = useState(String(taskPresets[1].outputTokens));
+  const [qualityPreference, setQualityPreference] = useState(0.5);
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
   const [recommendations, setRecommendations] = useState<RecommendationBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +34,6 @@ export default function CompareScreen() {
 
   function selectTask(task: typeof taskPresets[number]) {
     setSelectedTask(task);
-    setInputTokens(String(task.inputTokens));
-    setOutputTokens(String(task.outputTokens));
     setIsTaskMenuOpen(false);
   }
 
@@ -47,9 +44,10 @@ export default function CompareScreen() {
     try {
       const result = await recommendProvider({
         taskType: selectedTask.label,
-        estimatedInputTokens: Number(inputTokens) || 0,
-        estimatedOutputTokens: Number(outputTokens) || 0,
-        excludeNearCapProviders: false
+        estimatedInputTokens: selectedTask.inputTokens,
+        estimatedOutputTokens: selectedTask.outputTokens,
+        excludeNearCapProviders: false,
+        qualityPreference
       });
       setRecommendations(result);
     } catch (err) {
@@ -95,16 +93,7 @@ export default function CompareScreen() {
               })}
             </View>
           ) : null}
-          <View style={styles.grid}>
-            <View style={styles.field}>
-              <Text style={styles.label}>Input tokens</Text>
-              <TextInput value={inputTokens} onChangeText={setInputTokens} keyboardType="number-pad" style={styles.input} />
-            </View>
-            <View style={styles.field}>
-              <Text style={styles.label}>Output tokens</Text>
-              <TextInput value={outputTokens} onChangeText={setOutputTokens} keyboardType="number-pad" style={styles.input} />
-            </View>
-          </View>
+          <PreferenceSlider value={qualityPreference} onChange={setQualityPreference} />
           <Pressable disabled={isLoading} onPress={handleRecommend} style={[styles.button, isLoading && styles.buttonDisabled]}>
             <Text style={styles.buttonText}>{isLoading ? "Checking prices..." : "Compare options"}</Text>
           </Pressable>
@@ -125,7 +114,7 @@ export default function CompareScreen() {
         ) : (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Ask the price table.</Text>
-            <Text style={styles.emptyText}>Enter rough token counts and Knut Counter will return cheapest, quality, and balanced picks from connected providers.</Text>
+            <Text style={styles.emptyText}>Choose a task and preference, then Knut Counter will return cheapest, quality, and balanced picks from connected providers.</Text>
           </View>
         )}
       </ScrollView>
@@ -141,6 +130,39 @@ function BenchmarkTag({ label }: { label: string }) {
   return (
     <View style={styles.benchmarkTag}>
       <Text style={styles.benchmarkTagText}>{label}</Text>
+    </View>
+  );
+}
+
+function PreferenceSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const [trackWidth, setTrackWidth] = useState(1);
+
+  function updateValue(locationX: number) {
+    onChange(Math.min(1, Math.max(0, locationX / trackWidth)));
+  }
+
+  const panResponder = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: (event) => updateValue(event.nativeEvent.locationX),
+    onPanResponderMove: (event) => updateValue(event.nativeEvent.locationX)
+  })).current;
+
+  return (
+    <View style={styles.sliderBlock}>
+      <View style={styles.sliderLabels}>
+        <Text style={styles.sliderLabel}>Cost</Text>
+        <Text style={styles.sliderLabel}>Quality</Text>
+      </View>
+      <View
+        {...panResponder.panHandlers}
+        onLayout={(event) => setTrackWidth(Math.max(1, event.nativeEvent.layout.width))}
+        style={styles.sliderTrack}
+      >
+        <View style={styles.sliderRail} />
+        <View style={[styles.sliderFill, { width: `${value * 100}%` }]} />
+        <View style={[styles.sliderThumb, { left: `${value * 100}%` }]} />
+      </View>
     </View>
   );
 }
@@ -175,7 +197,6 @@ const styles = StyleSheet.create({
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800" },
   panel: { backgroundColor: "#111113", borderColor: "#242428", borderWidth: 1, borderRadius: 8, padding: 14, gap: 10 },
   label: { color: "#8b8b91", fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
-  input: { color: "#f4f4f5", backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, minHeight: 44, fontSize: 16 },
   select: { minHeight: 58, backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   selectTextBlock: { flex: 1, minWidth: 0 },
   taskTitleRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
@@ -190,8 +211,13 @@ const styles = StyleSheet.create({
   menuItemTitle: { color: "#f4f4f5", fontSize: 14, fontWeight: "900", flexShrink: 1 },
   menuItemMeta: { color: "#8b8b91", fontSize: 12, fontWeight: "800", marginTop: 3 },
   menuItemCheck: { color: "#86efac", fontSize: 12, fontWeight: "900" },
-  grid: { flexDirection: "row", gap: 10 },
-  field: { flex: 1, gap: 6 },
+  sliderBlock: { gap: 8, paddingVertical: 2 },
+  sliderLabels: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sliderLabel: { color: "#a1a1aa", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  sliderTrack: { height: 34, justifyContent: "center" },
+  sliderRail: { position: "absolute", left: 0, right: 0, height: 6, borderRadius: 6, backgroundColor: "#29292d" },
+  sliderFill: { position: "absolute", left: 0, height: 6, borderRadius: 6, backgroundColor: "#22c55e" },
+  sliderThumb: { position: "absolute", width: 22, height: 22, marginLeft: -11, borderRadius: 11, backgroundColor: "#f4f4f5", borderColor: "#22c55e", borderWidth: 3 },
   button: { backgroundColor: "#f4f4f5", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: "#050506", fontSize: 15, fontWeight: "900" },

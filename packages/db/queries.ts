@@ -1168,6 +1168,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
   const inputTokens = Math.max(0, Math.trunc(input.estimatedInputTokens));
   const outputTokens = Math.max(0, Math.trunc(input.estimatedOutputTokens));
   const taskKind = taskKindForRecommendation(input.taskType);
+  const qualityPreference = Math.min(1, Math.max(0, input.qualityPreference ?? 0.5));
 
   function benchmarkForPrice(price: typeof rows[number]) {
     const providerIds = aliasesForProvider(price.providerId);
@@ -1309,8 +1310,11 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
   const balancedCandidate = [...candidates].sort((a, b) => {
     const qualityA = a.intelligenceSource === "benchmark" ? a.intelligenceScore / 100 : a.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
     const qualityB = b.intelligenceSource === "benchmark" ? b.intelligenceScore / 100 : b.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
-    const scoreA = qualityA - Math.log10(Math.max(a.estimatedCostUsd, 0.000001) / cheapestCost + 1) * 0.2 - a.budgetRatio * 0.2;
-    const scoreB = qualityB - Math.log10(Math.max(b.estimatedCostUsd, 0.000001) / cheapestCost + 1) * 0.2 - b.budgetRatio * 0.2;
+    const qualityWeight = 0.7 + qualityPreference;
+    const costWeight = 0.15 + (1 - qualityPreference) * 0.85;
+    const budgetWeight = 0.15 + (1 - qualityPreference) * 0.2;
+    const scoreA = qualityA * qualityWeight - Math.log10(Math.max(a.estimatedCostUsd, 0.000001) / cheapestCost + 1) * costWeight - a.budgetRatio * budgetWeight;
+    const scoreB = qualityB * qualityWeight - Math.log10(Math.max(b.estimatedCostUsd, 0.000001) / cheapestCost + 1) * costWeight - b.budgetRatio * budgetWeight;
     return scoreB - scoreA;
   })[0];
 
