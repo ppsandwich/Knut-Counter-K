@@ -24,6 +24,8 @@ const taskPresets = [
   { label: "Build a production web app", inputTokens: 1000000, outputTokens: 400000, benchmarkType: "Coding" }
 ];
 
+const preferenceStops = [0, 0.25, 0.5, 0.75, 1];
+
 export default function CompareScreen() {
   const [selectedTask, setSelectedTask] = useState(taskPresets[1]);
   const [qualityPreference, setQualityPreference] = useState(0.5);
@@ -106,9 +108,9 @@ export default function CompareScreen() {
         ) : null}
         {recommendations ? (
           <View style={styles.results}>
-            <RecommendationCard item={recommendations.cheapest} tone="cheap" />
-            <RecommendationCard item={recommendations.quality} tone="quality" />
-            <RecommendationCard item={recommendations.balanced} tone="balanced" />
+            <RecommendationCard item={{ ...recommendations.balanced, label: "Recommended" }} tone="recommended" />
+            <RecommendationCard item={recommendations.quality} tone="neutral" />
+            <RecommendationCard item={recommendations.cheapest} tone="neutral" />
             <Text style={styles.attribution}>Benchmarks from Artificial Analysis</Text>
           </View>
         ) : (
@@ -139,7 +141,11 @@ function PreferenceSlider({ value, onChange }: { value: number; onChange: (value
   const trackWidthRef = useRef(1);
 
   function updateValue(locationX: number) {
-    onChange(Math.min(1, Math.max(0, locationX / trackWidthRef.current)));
+    const rawValue = Math.min(1, Math.max(0, locationX / trackWidthRef.current));
+    const nearestStop = preferenceStops.reduce((nearest, stop) => (
+      Math.abs(stop - rawValue) < Math.abs(nearest - rawValue) ? stop : nearest
+    ), preferenceStops[0]);
+    onChange(nearestStop);
   }
 
   const panResponder = PanResponder.create({
@@ -166,19 +172,22 @@ function PreferenceSlider({ value, onChange }: { value: number; onChange: (value
       >
         <View style={styles.sliderRail} />
         <View style={[styles.sliderFill, { width: `${value * 100}%` }]} />
+        {preferenceStops.map((stop) => (
+          <View key={stop} style={[styles.sliderStop, { left: `${stop * 100}%` }]} />
+        ))}
         <View style={[styles.sliderThumb, { left: `${value * 100}%` }]} />
       </View>
     </View>
   );
 }
 
-function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: "cheap" | "quality" | "balanced" }) {
+function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: "recommended" | "neutral" }) {
   const benchmarkLabel = item.intelligenceBenchmark
     ? `${item.intelligenceBenchmark} benchmark`
     : `${item.intelligenceSource} intelligence`;
 
   return (
-    <View style={[styles.reco, tone === "quality" && styles.recoQuality, tone === "balanced" && styles.recoBalanced]}>
+    <View style={[styles.reco, tone === "recommended" && styles.recoRecommended]}>
       <View style={styles.recoHeader}>
         <Text style={styles.kicker}>{item.label}</Text>
         <View style={styles.scoreBlock}>
@@ -222,14 +231,14 @@ const styles = StyleSheet.create({
   sliderTrack: { height: 34, justifyContent: "center" },
   sliderRail: { position: "absolute", left: 0, right: 0, height: 6, borderRadius: 6, backgroundColor: "#29292d" },
   sliderFill: { position: "absolute", left: 0, height: 6, borderRadius: 6, backgroundColor: "#22c55e" },
+  sliderStop: { position: "absolute", width: 10, height: 10, marginLeft: -5, borderRadius: 5, backgroundColor: "#050506", borderColor: "#59625c", borderWidth: 2 },
   sliderThumb: { position: "absolute", width: 22, height: 22, marginLeft: -11, borderRadius: 11, backgroundColor: "#f4f4f5", borderColor: "#22c55e", borderWidth: 3 },
   button: { backgroundColor: "#f4f4f5", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: "#050506", fontSize: 15, fontWeight: "900" },
   results: { gap: 10 },
-  reco: { backgroundColor: "#132016", borderColor: "#1f4d2a", borderWidth: 1, borderRadius: 8, padding: 14 },
-  recoQuality: { backgroundColor: "#161522", borderColor: "#3b3270" },
-  recoBalanced: { backgroundColor: "#191711", borderColor: "#4c3a16" },
+  reco: { backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 8, padding: 14 },
+  recoRecommended: { backgroundColor: "#132016", borderColor: "#1f4d2a" },
   recoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   kicker: { color: "#22c55e", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   scoreBlock: { alignItems: "flex-end", flexShrink: 0 },
