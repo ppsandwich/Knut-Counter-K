@@ -1,7 +1,7 @@
 import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
-import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
 import { alerts, importJobs, pricingSnapshots, providerAccounts, providerRegistry, usageCaps, usageRecords, users } from "./schema";
@@ -703,6 +703,12 @@ export async function listProviderRegistryOptions(): Promise<ProviderRegistryOpt
       priority: providerRegistry.priority
     })
     .from(providerRegistry)
+    .where(or(
+      eq(providerRegistry.supportsAccountUsageApi, true),
+      eq(providerRegistry.supportsResponseUsageMetadata, true),
+      eq(providerRegistry.supportsCreditBalanceApi, true),
+      eq(providerRegistry.providerId, "other_custom")
+    ))
     .orderBy(asc(providerRegistry.priority), asc(providerRegistry.providerName));
 
   return rows;

@@ -9,6 +9,8 @@ import { createAccountProvider } from "../lib/accountApi";
 type ConnectionMethod = "api_key" | "manual" | "csv_json_import";
 type ConnectionOption = [ConnectionMethod, string];
 
+const CUSTOM_PROVIDER_ID = "other_custom";
+
 export default function AddProviderScreen() {
   const auth = useAuthSession();
   const registry = useProviderRegistry();
@@ -22,10 +24,18 @@ export default function AddProviderScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   async function saveProvider() {
+    const trimmedDisplayName = displayName.trim();
+    const selectedProviderName = selectedProvider?.providerName ?? "OpenAI API";
+
+    if (!trimmedDisplayName && providerId === CUSTOM_PROVIDER_ID) {
+      setMessage("Enter a provider name.");
+      return;
+    }
+
     try {
       await createAccountProvider({
         providerId,
-        displayName,
+        displayName: trimmedDisplayName || selectedProviderName,
         authType,
         apiKey: authType === "api_key" ? apiKey : undefined,
         monthlyBudget: monthlyBudget.trim() ? Number(monthlyBudget) : null,
@@ -39,6 +49,7 @@ export default function AddProviderScreen() {
   }
 
   const selectedProvider = registry.providers.find((provider) => provider.providerId === providerId) ?? registry.providers[0];
+  const isCustomProvider = providerId === CUSTOM_PROVIDER_ID;
   const connectionOptions = useMemo<ConnectionOption[]>(() => selectedProvider
     ? ([
         selectedProvider.supportsAccountUsageApi || selectedProvider.supportsResponseUsageMetadata ? ["api_key", "API key"] : null,
@@ -49,7 +60,7 @@ export default function AddProviderScreen() {
         ["api_key", "API key"],
         ["manual", "Manual tracking"],
         ["csv_json_import", "CSV/JSON import"]
-      ], [selectedProvider, authType]);
+      ], [selectedProvider]);
 
   useEffect(() => {
     if (!connectionOptions.some(([value]) => value === authType) && connectionOptions[0]) {
@@ -59,6 +70,12 @@ export default function AddProviderScreen() {
 
   function selectProvider(nextProviderId: string, providerName: string) {
     setProviderId(nextProviderId);
+    if (nextProviderId === CUSTOM_PROVIDER_ID) {
+      setDisplayName("");
+      setDisplayNameEdited(false);
+      return;
+    }
+
     if (!displayNameEdited) {
       setDisplayName(providerName);
     }
@@ -80,7 +97,7 @@ export default function AddProviderScreen() {
             <Text style={styles.errorText}>{registry.error}</Text>
           ) : registry.providers.length ? (
             <View style={styles.providerList}>
-              {registry.providers.slice(0, 18).map((provider) => (
+              {registry.providers.map((provider) => (
                 <Pressable
                   key={provider.providerId}
                   onPress={() => selectProvider(provider.providerId, provider.providerName)}
@@ -100,13 +117,13 @@ export default function AddProviderScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Account name</Text>
+          <Text style={styles.label}>{isCustomProvider ? "Provider name" : "Account name"}</Text>
           <TextInput
             onChangeText={(value) => {
               setDisplayName(value);
               setDisplayNameEdited(true);
             }}
-            placeholder={selectedProvider?.providerName ?? "OpenAI API"}
+            placeholder={isCustomProvider ? "Provider name" : selectedProvider?.providerName ?? "OpenAI API"}
             placeholderTextColor="#63636a"
             style={styles.input}
             value={displayName}
