@@ -1,12 +1,17 @@
 import { StyleSheet, View } from "react-native";
 
 function pointsFor(values: number[], width: number, height: number) {
+  if (!values.length) {
+    return [];
+  }
+
   const min = Math.min(...values);
   const max = Math.max(...values);
   const spread = max - min || 1;
+  const flatY = height / 2;
   return values.map((value, index) => ({
     x: (index / Math.max(values.length - 1, 1)) * width,
-    y: height - ((value - min) / spread) * height
+    y: max === min ? flatY : height - ((value - min) / spread) * height
   }));
 }
 

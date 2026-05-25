@@ -60,6 +60,7 @@ export type AccountProviderSummary = {
   last24hTokens: number;
   last7dSpend: number;
   last7dTokens: number;
+  sparklineData: number[];
   creditCapAmount: number | null;
   creditUsedAmount: number | null;
   creditBalanceAmount: number | null;

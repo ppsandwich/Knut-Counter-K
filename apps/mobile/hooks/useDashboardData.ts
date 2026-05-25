@@ -3,11 +3,6 @@ import { formatCompactNumber, formatCurrency, type AccountProviderSummary, type 
 import { fetchDashboard } from "../lib/accountApi";
 import { useAuthSession } from "./useAuthSession";
 
-function sparklineForProvider(providerId: string) {
-  const seed = providerId.split("").reduce((total, char) => total + char.charCodeAt(0), 0);
-  return Array.from({ length: 12 }, (_item, index) => 4 + ((seed + index * 3) % 9));
-}
-
 export function providerAccountToUsageRow(provider: AccountProviderSummary): ProviderUsageSummary {
   const isManual = provider.authType === "manual" || provider.authType === "csv_json_import";
   const hasUsage = provider.currentMonthRecords > 0;
@@ -30,7 +25,7 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary): Pro
     confidence: hasUsage ? (isManual ? "manual" : "provider_reported") : hasCreditData ? "exact" : "unknown",
     resetCountdown: provider.resetRule ?? "no reset",
     lastSyncedAt: provider.lastSyncAt ?? "",
-    sparklineData: sparklineForProvider(provider.providerId)
+    sparklineData: provider.sparklineData
   };
 }
 
