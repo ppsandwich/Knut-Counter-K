@@ -109,14 +109,42 @@ export type RecommendationInput = {
 };
 
 export type RecommendationResult = {
+  kind?: "cheapest" | "quality" | "balanced";
+  label?: string;
   recommendedProvider: string;
   recommendedProviderId: string;
   providerAccountId: string;
   recommendedModel: string;
   estimatedCostUsd: number;
+  intelligenceScore: number;
+  intelligenceSource: "benchmark" | "inferred" | "unknown";
   capWarning: string | null;
   reason: string;
   priceSource: string;
   priceConfidence: string;
   fetchedAt: string;
+};
+
+export type RecommendationBundle = {
+  cheapest: RecommendationResult;
+  quality: RecommendationResult;
+  balanced: RecommendationResult;
+};
+
+export type AccountAlert = {
+  id: string;
+  providerAccountId: string | null;
+  alertType: string;
+  severity: "info" | "warning" | "danger";
+  title: string;
+  body: string;
+  isRead: boolean;
+  isSnoozed: boolean;
+  createdAt: string;
+};
+
+export type AlertEvaluationResult = {
+  evaluated: true;
+  created: number;
+  alerts: AccountAlert[];
 };

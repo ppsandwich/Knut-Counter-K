@@ -1,4 +1,4 @@
-import type { AccountSettingsInput, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption, RecommendationInput, RecommendationResult } from "@knut/shared";
+import type { AccountAlert, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -124,7 +124,7 @@ export async function importUsage(input: ImportUsageInput) {
   return response.json() as Promise<{ ok: boolean; rowsProcessed: number; rowsFailed: number }>;
 }
 
-export async function recommendProvider(input: RecommendationInput): Promise<RecommendationResult> {
+export async function recommendProvider(input: RecommendationInput): Promise<RecommendationBundle> {
   const response = await fetch(getApiUrl("/api/recommend"), {
     method: "POST",
     headers: await authHeaders(),
@@ -135,6 +135,33 @@ export async function recommendProvider(input: RecommendationInput): Promise<Rec
     throw new Error(await response.text());
   }
 
-  const data = await response.json() as { recommendation: RecommendationResult };
-  return data.recommendation;
+  const data = await response.json() as { recommendations: RecommendationBundle };
+  return data.recommendations;
+}
+
+export async function fetchAlerts(): Promise<AccountAlert[]> {
+  const response = await fetch(getApiUrl("/api/alerts"), {
+    method: "GET",
+    headers: await authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const data = await response.json() as { alerts: AccountAlert[] };
+  return data.alerts;
+}
+
+export async function evaluateAlerts(): Promise<AlertEvaluationResult> {
+  const response = await fetch(getApiUrl("/api/alerts/evaluate"), {
+    method: "POST",
+    headers: await authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<AlertEvaluationResult>;
 }

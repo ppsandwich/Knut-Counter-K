@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { RecommendationResult } from "@knut/shared";
+import type { RecommendationBundle, RecommendationResult } from "@knut/shared";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { recommendProvider } from "../../lib/accountApi";
@@ -8,7 +8,7 @@ export default function CompareScreen() {
   const [taskType, setTaskType] = useState("Summarise a messy PDF");
   const [inputTokens, setInputTokens] = useState("12000");
   const [outputTokens, setOutputTokens] = useState("1800");
-  const [recommendation, setRecommendation] = useState<RecommendationResult | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -23,9 +23,9 @@ export default function CompareScreen() {
         estimatedOutputTokens: Number(outputTokens) || 0,
         excludeNearCapProviders: false
       });
-      setRecommendation(result);
+      setRecommendations(result);
     } catch (err) {
-      setRecommendation(null);
+      setRecommendations(null);
       setError(err instanceof Error ? err.message : "Could not calculate a recommendation.");
     } finally {
       setIsLoading(false);
@@ -50,7 +50,7 @@ export default function CompareScreen() {
             </View>
           </View>
           <Pressable disabled={isLoading} onPress={handleRecommend} style={[styles.button, isLoading && styles.buttonDisabled]}>
-            <Text style={styles.buttonText}>{isLoading ? "Checking prices..." : "Find cheapest option"}</Text>
+            <Text style={styles.buttonText}>{isLoading ? "Checking prices..." : "Compare options"}</Text>
           </Pressable>
         </View>
         {error ? (
@@ -59,24 +59,41 @@ export default function CompareScreen() {
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
-        {recommendation ? (
-          <View style={styles.reco}>
-            <Text style={styles.kicker}>Recommended</Text>
-            <Text style={styles.provider}>{recommendation.recommendedProvider}</Text>
-            <Text style={styles.model}>{recommendation.recommendedModel}</Text>
-            <Text style={styles.cost}>~${recommendation.estimatedCostUsd.toFixed(recommendation.estimatedCostUsd < 0.01 ? 5 : 3)}</Text>
-            {recommendation.capWarning ? <Text style={styles.warning}>{recommendation.capWarning}</Text> : null}
-            <Text style={styles.reason}>{recommendation.reason}</Text>
-            <Text style={styles.meta}>{recommendation.priceSource} · {recommendation.priceConfidence}</Text>
+        {recommendations ? (
+          <View style={styles.results}>
+            <RecommendationCard item={recommendations.cheapest} tone="cheap" />
+            <RecommendationCard item={recommendations.quality} tone="quality" />
+            <RecommendationCard item={recommendations.balanced} tone="balanced" />
           </View>
         ) : (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Ask the price table.</Text>
-            <Text style={styles.emptyText}>Enter rough token counts and Knut Counter will pick from connected providers with known pricing.</Text>
+            <Text style={styles.emptyText}>Enter rough token counts and Knut Counter will return cheapest, quality, and balanced picks from connected providers.</Text>
           </View>
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function formatCost(value: number) {
+  return `~$${value.toFixed(value < 0.01 ? 5 : 3)}`;
+}
+
+function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: "cheap" | "quality" | "balanced" }) {
+  return (
+    <View style={[styles.reco, tone === "quality" && styles.recoQuality, tone === "balanced" && styles.recoBalanced]}>
+      <View style={styles.recoHeader}>
+        <Text style={styles.kicker}>{item.label}</Text>
+        <Text style={styles.score}>{item.intelligenceScore}/100</Text>
+      </View>
+      <Text style={styles.provider}>{item.recommendedProvider}</Text>
+      <Text style={styles.model}>{item.recommendedModel}</Text>
+      <Text style={styles.cost}>{formatCost(item.estimatedCostUsd)}</Text>
+      {item.capWarning ? <Text style={styles.warning}>{item.capWarning}</Text> : null}
+      <Text style={styles.reason}>{item.reason}</Text>
+      <Text style={styles.meta}>{item.priceSource} · {item.priceConfidence} · intelligence {item.intelligenceSource}</Text>
+    </View>
   );
 }
 
@@ -92,8 +109,13 @@ const styles = StyleSheet.create({
   button: { backgroundColor: "#f4f4f5", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: "#050506", fontSize: 15, fontWeight: "900" },
+  results: { gap: 10 },
   reco: { backgroundColor: "#132016", borderColor: "#1f4d2a", borderWidth: 1, borderRadius: 8, padding: 14 },
+  recoQuality: { backgroundColor: "#161522", borderColor: "#3b3270" },
+  recoBalanced: { backgroundColor: "#191711", borderColor: "#4c3a16" },
+  recoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   kicker: { color: "#22c55e", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  score: { color: "#e5e7eb", fontSize: 12, fontWeight: "900" },
   provider: { color: "#c8f7d2", fontSize: 14, fontWeight: "800", marginTop: 6 },
   model: { color: "#f4f4f5", fontSize: 22, fontWeight: "900", marginTop: 2 },
   cost: { color: "#86efac", fontSize: 30, fontWeight: "900", marginTop: 4 },

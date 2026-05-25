@@ -1,13 +1,17 @@
 import type { UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
-import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption, RecommendationInput, RecommendationResult } from "@knut/shared";
+import type { AccountAlert, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
-import { pricingSnapshots, providerAccounts, providerRegistry, usageRecords, users } from "./schema";
+import { alerts, pricingSnapshots, providerAccounts, providerRegistry, usageRecords, users } from "./schema";
 
 function monthStart(now = new Date()) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+function dayStart(now = new Date()) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
 function numberFromDecimal(value: unknown) {
@@ -41,6 +45,39 @@ const pricingProviderAliases: Record<string, string[]> = {
 
 function aliasesForProvider(providerId: string) {
   return new Set([providerId, ...(pricingProviderAliases[providerId] ?? [])]);
+}
+
+function alertKey(input: { alertType: string; providerAccountId: string | null; title: string }) {
+  return `${input.alertType}:${input.providerAccountId ?? "account"}:${input.title}`;
+}
+
+function toAccountAlert(row: typeof alerts.$inferSelect): AccountAlert {
+  return {
+    id: row.id,
+    providerAccountId: row.providerAccountId,
+    alertType: row.alertType,
+    severity: row.severity as AccountAlert["severity"],
+    title: row.title,
+    body: row.body,
+    isRead: row.isRead,
+    isSnoozed: row.isSnoozed,
+    createdAt: row.createdAt.toISOString()
+  };
+}
+
+function estimateModelIntelligenceScore(modelId: string, modelDisplayName: string, providerId: string) {
+  const text = `${providerId} ${modelId} ${modelDisplayName}`.toLowerCase();
+  let score = 50;
+
+  if (text.includes("opus") || text.includes("gpt-5") || text.includes("o3") || text.includes("o4") || text.includes("pro")) score += 34;
+  if (text.includes("sonnet") || text.includes("gpt-4") || text.includes("gemini-2.5") || text.includes("gemini 2.5") || text.includes("qwen3") || text.includes("llama-4")) score += 26;
+  if (text.includes("deepseek-r1") || text.includes("reason") || text.includes("thinking")) score += 22;
+  if (text.includes("70b") || text.includes("72b") || text.includes("120b") || text.includes("405b") || text.includes("671b")) score += 18;
+  if (text.includes("mistral-large") || text.includes("command-r-plus")) score += 18;
+  if (text.includes("haiku") || text.includes("mini") || text.includes("flash") || text.includes("small") || text.includes("lite") || text.includes("8b")) score -= 12;
+  if (text.includes("embedding") || text.includes("moderation") || text.includes("rerank") || text.includes("tts") || text.includes("whisper") || text.includes("image")) score -= 35;
+
+  return Math.min(100, Math.max(10, score));
 }
 
 export async function upsertUserProfile(input: AccountProfile) {
@@ -431,7 +468,7 @@ export async function insertPricingSnapshots(snapshots: NormalisedPrice[]) {
   return { inserted: snapshots.length };
 }
 
-export async function recommendProviderForUser(userId: string, input: RecommendationInput): Promise<RecommendationResult | null> {
+export async function recommendProviderForUser(userId: string, input: RecommendationInput): Promise<RecommendationBundle | null> {
   const connectedProviders = await listProviderAccountsForUser(userId);
   if (!connectedProviders.length) {
     return null;
@@ -469,7 +506,15 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
 
   const inputTokens = Math.max(0, Math.trunc(input.estimatedInputTokens));
   const outputTokens = Math.max(0, Math.trunc(input.estimatedOutputTokens));
-  const candidates = [];
+  type RecommendationCandidate = {
+    account: AccountProviderSummary;
+    price: typeof rows[number];
+    estimatedCostUsd: number;
+    score: number;
+    intelligenceScore: number;
+    budgetRatio: number;
+  };
+  const candidates: RecommendationCandidate[] = [];
 
   for (const account of connectedProviders) {
     const aliases = aliasesForProvider(account.providerId);
@@ -499,43 +544,234 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
         price,
         estimatedCostUsd,
         score: estimatedCostUsd + capPenalty + confidencePenalty,
+        intelligenceScore: estimateModelIntelligenceScore(price.modelId, price.modelDisplayName, price.providerId),
         budgetRatio
       });
     }
   }
 
-  const best = candidates.sort((a, b) => a.score - b.score)[0];
-  if (!best) {
+  if (!candidates.length) {
     return null;
   }
 
-  const capWarning = best.budgetRatio >= 0.95
-    ? `${best.account.providerName} is above 95% of its monthly budget.`
-    : best.budgetRatio >= 0.8
-      ? `${best.account.providerName} is above 80% of its monthly budget.`
-      : null;
+  const cheapestCandidate = [...candidates].sort((a, b) => a.score - b.score)[0];
+  const qualityCandidate = [...candidates].sort((a, b) => {
+    if (b.intelligenceScore !== a.intelligenceScore) {
+      return b.intelligenceScore - a.intelligenceScore;
+    }
+    return a.score - b.score;
+  })[0];
+  const cheapestCost = Math.max(cheapestCandidate.estimatedCostUsd, 0.000001);
+  const balancedCandidate = [...candidates].sort((a, b) => {
+    const scoreA = a.intelligenceScore / 100 - Math.log10(Math.max(a.estimatedCostUsd, 0.000001) / cheapestCost + 1) * 0.2 - a.budgetRatio * 0.2;
+    const scoreB = b.intelligenceScore / 100 - Math.log10(Math.max(b.estimatedCostUsd, 0.000001) / cheapestCost + 1) * 0.2 - b.budgetRatio * 0.2;
+    return scoreB - scoreA;
+  })[0];
 
-  const freshnessDays = Math.floor((Date.now() - best.price.fetchedAt.getTime()) / 86_400_000);
-  const staleNote = freshnessDays > 14 ? " Pricing is a bit stale, so keep one eyebrow raised." : "";
-  const capNote = capWarning ? " It can do the job, but the budget meter is warm." : "";
+  function toRecommendation(
+    candidate: RecommendationCandidate,
+    kind: "cheapest" | "quality" | "balanced",
+    label: string
+  ): RecommendationResult {
+    const capWarning = candidate.budgetRatio >= 0.95
+      ? `${candidate.account.providerName} is above 95% of its monthly budget.`
+      : candidate.budgetRatio >= 0.8
+        ? `${candidate.account.providerName} is above 80% of its monthly budget.`
+        : null;
+
+    const freshnessDays = Math.floor((Date.now() - candidate.price.fetchedAt.getTime()) / 86_400_000);
+    const staleNote = freshnessDays > 14 ? " Pricing is a bit stale, so keep one eyebrow raised." : "";
+    const capNote = capWarning ? " Budget pressure included in the score." : "";
+    const qualityNote = candidate.intelligenceScore >= 80 ? " Strong inferred quality." : candidate.intelligenceScore >= 65 ? " Solid inferred quality." : " Quality is probably modest.";
+    const reasonPrefix = kind === "cheapest"
+      ? "Lowest estimated cost among connected priced models."
+      : kind === "quality"
+        ? "Highest inferred intelligence score among connected priced models."
+        : "Best blend of inferred quality, estimated cost, and budget pressure.";
+
+    return {
+      kind,
+      label,
+      recommendedProvider: candidate.account.providerName,
+      recommendedProviderId: candidate.account.providerId,
+      providerAccountId: candidate.account.id,
+      recommendedModel: candidate.price.modelDisplayName,
+      estimatedCostUsd: candidate.estimatedCostUsd,
+      intelligenceScore: candidate.intelligenceScore,
+      intelligenceSource: "inferred",
+      capWarning,
+      reason: `${reasonPrefix} ${qualityNote}${capNote}${staleNote}`,
+      priceSource: candidate.price.sourceName,
+      priceConfidence: candidate.price.sourceConfidence,
+      fetchedAt: candidate.price.fetchedAt.toISOString()
+    };
+  }
 
   return {
-    recommendedProvider: best.account.providerName,
-    recommendedProviderId: best.account.providerId,
-    providerAccountId: best.account.id,
-    recommendedModel: best.price.modelDisplayName,
-    estimatedCostUsd: best.estimatedCostUsd,
-    capWarning,
-    reason: `Cheapest connected option found from ${best.price.sourceName}.${capNote}${staleNote}`,
-    priceSource: best.price.sourceName,
-    priceConfidence: best.price.sourceConfidence,
-    fetchedAt: best.price.fetchedAt.toISOString()
+    cheapest: toRecommendation(cheapestCandidate, "cheapest", "Cheapest"),
+    quality: toRecommendation(qualityCandidate, "quality", "Best quality"),
+    balanced: toRecommendation(balancedCandidate, "balanced", "Best balance")
   };
 }
 
-export async function evaluateAlerts() {
+export async function listAlertsForUser(userId: string): Promise<AccountAlert[]> {
+  const rows = await getDb()
+    .select()
+    .from(alerts)
+    .where(eq(alerts.userId, userId))
+    .orderBy(desc(alerts.createdAt))
+    .limit(100);
+
+  return rows.map(toAccountAlert);
+}
+
+type AlertCandidate = {
+  userId: string;
+  providerAccountId: string | null;
+  alertType: string;
+  severity: AccountAlert["severity"];
+  title: string;
+  body: string;
+};
+
+export async function evaluateAlertsForUser(userId: string): Promise<AlertEvaluationResult> {
+  const db = getDb();
+  const profile = await getUserProfile(userId);
+  const summary = await getDashboardSummaryForUser(userId, profile);
+  const providers = await listProviderAccountsForUser(userId);
+  const candidates: AlertCandidate[] = [];
+
+  if (summary.monthlyBudget > 0) {
+    const ratio = summary.monthlySpend / summary.monthlyBudget;
+    const threshold = ratio >= 1 ? 100 : ratio >= 0.9 ? 90 : ratio >= 0.75 ? 75 : ratio >= 0.5 ? 50 : 0;
+    if (threshold) {
+      candidates.push({
+        userId,
+        providerAccountId: null,
+        alertType: "budget_threshold",
+        severity: threshold >= 100 ? "danger" : threshold >= 75 ? "warning" : "info",
+        title: `Monthly AI budget is ${threshold}% used.`,
+        body: `You have spent $${summary.monthlySpend.toFixed(2)} of $${summary.monthlyBudget.toFixed(2)} this month. The wallet is still standing, but it noticed.`
+      });
+    }
+  }
+
+  for (const provider of providers) {
+    if (provider.monthlyBudget && provider.monthlyBudget > 0) {
+      const ratio = provider.currentMonthSpend / provider.monthlyBudget;
+      const threshold = ratio >= 1 ? 100 : ratio >= 0.9 ? 90 : ratio >= 0.75 ? 75 : ratio >= 0.5 ? 50 : 0;
+      if (threshold) {
+        candidates.push({
+          userId,
+          providerAccountId: provider.id,
+          alertType: "provider_budget_threshold",
+          severity: threshold >= 100 ? "danger" : threshold >= 75 ? "warning" : "info",
+          title: `${provider.providerName} budget is ${threshold}% used.`,
+          body: `${provider.displayName} has spent $${provider.currentMonthSpend.toFixed(2)} of $${provider.monthlyBudget.toFixed(2)} this month.`
+        });
+      }
+    }
+
+    if (provider.lastSyncAt) {
+      const hoursSinceSync = (Date.now() - new Date(provider.lastSyncAt).getTime()) / 3_600_000;
+      if (hoursSinceSync > 24) {
+        candidates.push({
+          userId,
+          providerAccountId: provider.id,
+          alertType: "stale_provider_sync",
+          severity: hoursSinceSync > 72 ? "danger" : "warning",
+          title: `${provider.providerName} has stale data.`,
+          body: `Last sync was ${Math.floor(hoursSinceSync)} hours ago. These numbers may be wearing yesterday's hat.`
+        });
+      }
+    }
+  }
+
+  const today = dayStart();
+  const sevenDaysAgo = new Date(today.getTime() - 7 * 86_400_000);
+  const recentUsage = await db
+    .select({
+      providerAccountId: usageRecords.providerAccountId,
+      providerId: usageRecords.providerId,
+      modelId: usageRecords.modelId,
+      costAmount: usageRecords.costAmount,
+      observedAt: usageRecords.observedAt
+    })
+    .from(usageRecords)
+    .where(and(eq(usageRecords.userId, userId), gte(usageRecords.observedAt, sevenDaysAgo)));
+
+  const todaySpend = recentUsage
+    .filter((record) => record.observedAt >= today)
+    .reduce((total, record) => total + numberFromDecimal(record.costAmount), 0);
+  const previousSevenDaySpend = recentUsage
+    .filter((record) => record.observedAt < today)
+    .reduce((total, record) => total + numberFromDecimal(record.costAmount), 0);
+  const trailingDailyAverage = previousSevenDaySpend / 7;
+
+  if (todaySpend > 0.1 && trailingDailyAverage > 0 && todaySpend > trailingDailyAverage * 2) {
+    candidates.push({
+      userId,
+      providerAccountId: null,
+      alertType: "unusual_spend",
+      severity: "warning",
+      title: "Today's spend is unusually high.",
+      body: `Today is at $${todaySpend.toFixed(2)}, more than 2x your trailing daily average of $${trailingDailyAverage.toFixed(2)}.`
+    });
+  }
+
+  const pricedRows = await db
+    .select({
+      providerId: pricingSnapshots.providerId,
+      modelId: pricingSnapshots.modelId
+    })
+    .from(pricingSnapshots)
+    .orderBy(desc(pricingSnapshots.fetchedAt))
+    .limit(10_000);
+  const pricedModels = new Set(pricedRows.map((row) => `${row.providerId}:${row.modelId}`));
+  const missingPriceRecords = recentUsage.filter((record) => {
+    if (!record.modelId) return false;
+    const aliases = aliasesForProvider(record.providerId);
+    return ![...aliases].some((providerId) => pricedModels.has(`${providerId}:${record.modelId}`));
+  });
+
+  const missingPriceByProvider = new Map<string, { providerAccountId: string; models: Set<string> }>();
+  for (const record of missingPriceRecords) {
+    if (!record.modelId) continue;
+    const current = missingPriceByProvider.get(record.providerId) ?? {
+      providerAccountId: record.providerAccountId,
+      models: new Set<string>()
+    };
+    current.models.add(record.modelId);
+    missingPriceByProvider.set(record.providerId, current);
+  }
+
+  for (const [providerId, missing] of missingPriceByProvider) {
+    const provider = providers.find((item) => item.providerId === providerId || item.id === missing.providerAccountId);
+    const modelList = [...missing.models].slice(0, 3).join(", ");
+    candidates.push({
+      userId,
+      providerAccountId: missing.providerAccountId,
+      alertType: "missing_pricing",
+      severity: "info",
+      title: `${provider?.providerName ?? providerId} has usage without pricing.`,
+      body: `Usage exists for ${modelList}, but no matching price snapshot was found. Cost will stay unknown until pricing catches up.`
+    });
+  }
+
+  const activeRows = await db
+    .select()
+    .from(alerts)
+    .where(and(eq(alerts.userId, userId), eq(alerts.isRead, false), eq(alerts.isSnoozed, false)));
+  const activeKeys = new Set(activeRows.map((row) => alertKey(row)));
+  const newAlerts = candidates.filter((candidate) => !activeKeys.has(alertKey(candidate)));
+
+  if (newAlerts.length) {
+    await db.insert(alerts).values(newAlerts);
+  }
+
   return {
     evaluated: true,
-    created: 0
+    created: newAlerts.length,
+    alerts: await listAlertsForUser(userId)
   };
 }
