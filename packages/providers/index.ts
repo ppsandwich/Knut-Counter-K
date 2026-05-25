@@ -1,4 +1,5 @@
 export * from "./connectors/anthropic";
+export * from "./connectors/deepseek";
 export * from "./connectors/gemini";
 export * from "./connectors/manual";
 export * from "./connectors/openai";

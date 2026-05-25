@@ -7,7 +7,7 @@ import { ProviderUsageRow } from "@knut/ui";
 import { mockDashboard } from "@knut/shared";
 import { BackButton } from "../../components/BackButton";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { createManualUsage, deleteAccountProvider, importOpenRouterGenerations, importUsage, importXaiResponses, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
+import { createManualUsage, deleteAccountProvider, importDeepSeekResponses, importOpenRouterGenerations, importUsage, importXaiResponses, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
 
 function todayForInput() {
   return new Date().toISOString().slice(0, 10);
@@ -95,6 +95,9 @@ export default function ProviderDetailScreen() {
   const [xaiResponseText, setXaiResponseText] = useState("");
   const [xaiImportMessage, setXaiImportMessage] = useState<string | null>(null);
   const [xaiImporting, setXaiImporting] = useState(false);
+  const [deepSeekResponseText, setDeepSeekResponseText] = useState("");
+  const [deepSeekImportMessage, setDeepSeekImportMessage] = useState<string | null>(null);
+  const [deepSeekImporting, setDeepSeekImporting] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [planName, setPlanName] = useState("");
   const [monthlyBudget, setMonthlyBudget] = useState("");
@@ -268,6 +271,48 @@ export default function ProviderDetailScreen() {
       setXaiImportMessage(error instanceof Error ? error.message : "xAI response import failed.");
     } finally {
       setXaiImporting(false);
+    }
+  }
+
+  let deepSeekResponsePreview = 0;
+  try {
+    deepSeekResponsePreview = parseXaiResponses(deepSeekResponseText).length;
+  } catch {
+    deepSeekResponsePreview = 0;
+  }
+
+  async function importDeepSeekResponsePayloads() {
+    if (!providerAccount) {
+      setDeepSeekImportMessage("Provider account is still loading. Give it a second.");
+      return;
+    }
+
+    let responsePayloads: unknown[] = [];
+    try {
+      responsePayloads = parseXaiResponses(deepSeekResponseText);
+    } catch {
+      setDeepSeekImportMessage("That does not look like valid JSON yet.");
+      return;
+    }
+
+    if (!responsePayloads.length) {
+      setDeepSeekImportMessage("Paste at least one DeepSeek response JSON object.");
+      return;
+    }
+
+    setDeepSeekImporting(true);
+    try {
+      const result = await importDeepSeekResponses({
+        providerAccountId: providerAccount.id,
+        responsePayloads
+      });
+      setDeepSeekResponseText("");
+      setDeepSeekImportMessage(`Imported ${result.rowsProcessed} DeepSeek responses. ${result.rowsFailed} failed.`);
+      await dashboard.refresh();
+    } catch (error) {
+      setDeepSeekImportMessage(error instanceof Error ? error.message : "DeepSeek response import failed.");
+    } finally {
+      setDeepSeekImporting(false);
     }
   }
 
@@ -457,6 +502,27 @@ export default function ProviderDetailScreen() {
               <Text style={styles.saveButtonText}>{xaiImporting ? "Importing..." : "Import xAI responses"}</Text>
             </Pressable>
             {xaiImportMessage ? <Text style={styles.message}>{xaiImportMessage}</Text> : null}
+          </View>
+        ) : null}
+
+        {providerAccount?.providerId === "deepseek" ? (
+          <View style={styles.card}>
+            <Text style={styles.label}>DeepSeek response JSON</Text>
+            <Text style={styles.body}>Paste raw DeepSeek chat completion responses to import prompt, completion, cache, and reasoning token usage.</Text>
+            <TextInput
+              multiline
+              onChangeText={setDeepSeekResponseText}
+              placeholder={'{"id":"...","model":"deepseek-v4-pro","created":1705651092,"usage":{"prompt_tokens":16,"completion_tokens":10,"total_tokens":26}}'}
+              placeholderTextColor="#63636a"
+              style={[styles.input, styles.importBox]}
+              textAlignVertical="top"
+              value={deepSeekResponseText}
+            />
+            <Text style={styles.message}>{deepSeekResponsePreview ? `${deepSeekResponsePreview} response payloads ready.` : "Paste one JSON object, a JSON array, or newline-delimited JSON."}</Text>
+            <Pressable disabled={deepSeekImporting || !providerAccount || !deepSeekResponsePreview} onPress={importDeepSeekResponsePayloads} style={({ pressed }) => [styles.saveButton, (deepSeekImporting || !providerAccount || !deepSeekResponsePreview) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.saveButtonText}>{deepSeekImporting ? "Importing..." : "Import DeepSeek responses"}</Text>
+            </Pressable>
+            {deepSeekImportMessage ? <Text style={styles.message}>{deepSeekImportMessage}</Text> : null}
           </View>
         ) : null}
 

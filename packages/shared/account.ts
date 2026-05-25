@@ -129,6 +129,11 @@ export type XaiResponseImportInput = {
   responsePayloads: unknown[];
 };
 
+export type DeepSeekResponseImportInput = {
+  providerAccountId: string;
+  responsePayloads: unknown[];
+};
+
 export type RecommendationInput = {
   taskType?: string;
   estimatedInputTokens: number;

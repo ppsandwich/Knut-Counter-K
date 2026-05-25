@@ -1,4 +1,4 @@
-import { anthropicConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
@@ -498,6 +498,19 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       const apiKey = decryptCredential(account.encryptedCredentials);
       const validation = await xaiConnector.validateCredentials?.({ apiKey });
       messages.push(`${account.displayName}: ${validation?.message ?? "xAI key validated. Paste response JSON to import exact usage and cost."}`);
+    } else if (account.providerId === "deepseek") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs an API key before DeepSeek can refresh.`);
+        continue;
+      }
+
+      const apiKey = decryptCredential(account.encryptedCredentials);
+      const caps = await deepSeekConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+      messages.push(`${account.displayName} refreshed DeepSeek balance. Paste response JSON to import exact token usage.`);
     } else {
       messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
     }
@@ -878,6 +891,37 @@ export async function importXaiResponsesForUser(userId: string, providerAccountI
   }
 
   const usage = await xaiConnector.fetchUsage?.({
+    providerAccountId: account.id,
+    since: monthStart().toISOString(),
+    until: new Date().toISOString(),
+    responsePayloads
+  });
+  const result = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
+
+  return {
+    rowsProcessed: result.rowsProcessed,
+    rowsFailed: responsePayloads.length - result.rowsProcessed - result.rowsSkipped
+  };
+}
+
+export async function importDeepSeekResponsesForUser(userId: string, providerAccountId: string, responsePayloads: unknown[]) {
+  const [account] = await getDb()
+    .select({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId
+    })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.id, providerAccountId), eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .limit(1);
+
+  if (!account) {
+    throw new Error("Provider account was not found for this user.");
+  }
+  if (account.providerId !== "deepseek") {
+    throw new Error("DeepSeek response import only works with DeepSeek provider accounts.");
+  }
+
+  const usage = await deepSeekConnector.fetchUsage?.({
     providerAccountId: account.id,
     since: monthStart().toISOString(),
     until: new Date().toISOString(),
