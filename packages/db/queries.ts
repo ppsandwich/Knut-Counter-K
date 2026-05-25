@@ -80,6 +80,65 @@ function estimateModelIntelligenceScore(modelId: string, modelDisplayName: strin
   return Math.min(100, Math.max(10, score));
 }
 
+type RecommendationTaskKind = "coding" | "summarising" | "writing" | "analysis" | "image" | "general";
+
+function taskKindForRecommendation(taskType: string | undefined): RecommendationTaskKind {
+  const text = (taskType ?? "").toLowerCase();
+
+  if (/\b(code|coding|debug|logs?|stack traces?|pull request|pr\b|diff|tests?|refactor|codebase|website|full-stack|app feature)\b/.test(text)) {
+    return "coding";
+  }
+
+  if (/\b(summarise|summarize|summary|pasted text|pdf)\b/.test(text)) {
+    return "summarising";
+  }
+
+  if (/\b(write|writing|draft|report|email|message|polish|rewrite|copy)\b/.test(text)) {
+    return "writing";
+  }
+
+  if (/\b(research|compare|synthesis|analy[sz]e|data|spreadsheet|math)\b/.test(text)) {
+    return "analysis";
+  }
+
+  if (/\b(image|photo|illustration|video|visual)\b/.test(text)) {
+    return "image";
+  }
+
+  return "general";
+}
+
+function normaliseModelMatchKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^(openai|anthropic|google|xai|deepseek|mistral|cohere|groq|perplexity|openrouter)[/:_-]+/, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function scaledBenchmarkScore(value: unknown) {
+  const parsed = numberFromDecimal(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed <= 1 ? parsed * 100 : parsed;
+}
+
+function weightedBenchmarkScore(
+  benchmarks: Array<{ value: unknown; weight: number }>
+) {
+  let weightedTotal = 0;
+  let totalWeight = 0;
+
+  for (const benchmark of benchmarks) {
+    const score = scaledBenchmarkScore(benchmark.value);
+    if (score == null) continue;
+
+    weightedTotal += score * benchmark.weight;
+    totalWeight += benchmark.weight;
+  }
+
+  if (!totalWeight) return null;
+  return Math.round(Math.min(100, Math.max(0, weightedTotal / totalWeight)));
+}
+
 export async function upsertUserProfile(input: AccountProfile) {
   const [profile] = await getDb()
     .insert(users)
@@ -1035,6 +1094,28 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     .orderBy(asc(pricingSnapshots.sourcePriority), desc(pricingSnapshots.fetchedAt))
     .limit(10_000);
 
+  const benchmarkRows = await getDb()
+    .select({
+      providerId: modelBenchmarkSnapshots.providerId,
+      modelId: modelBenchmarkSnapshots.modelId,
+      modelDisplayName: modelBenchmarkSnapshots.modelDisplayName,
+      artificialAnalysisIntelligenceIndex: modelBenchmarkSnapshots.artificialAnalysisIntelligenceIndex,
+      artificialAnalysisCodingIndex: modelBenchmarkSnapshots.artificialAnalysisCodingIndex,
+      artificialAnalysisMathIndex: modelBenchmarkSnapshots.artificialAnalysisMathIndex,
+      mmluPro: modelBenchmarkSnapshots.mmluPro,
+      gpqa: modelBenchmarkSnapshots.gpqa,
+      hle: modelBenchmarkSnapshots.hle,
+      livecodebench: modelBenchmarkSnapshots.livecodebench,
+      scicode: modelBenchmarkSnapshots.scicode,
+      math500: modelBenchmarkSnapshots.math500,
+      aime: modelBenchmarkSnapshots.aime,
+      sourceName: modelBenchmarkSnapshots.sourceName,
+      fetchedAt: modelBenchmarkSnapshots.fetchedAt
+    })
+    .from(modelBenchmarkSnapshots)
+    .orderBy(desc(modelBenchmarkSnapshots.fetchedAt))
+    .limit(10_000);
+
   const latestPrices = new Map<string, typeof rows[number]>();
   for (const row of rows) {
     const key = `${row.providerId}:${row.modelId}`;
@@ -1049,14 +1130,102 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     }
   }
 
+  const latestBenchmarks = new Map<string, typeof benchmarkRows[number]>();
+  for (const row of benchmarkRows) {
+    const keys = [
+      `${row.providerId}:${normaliseModelMatchKey(row.modelId)}`,
+      `${row.providerId}:${normaliseModelMatchKey(row.modelDisplayName)}`
+    ];
+
+    for (const key of keys) {
+      if (!latestBenchmarks.has(key)) {
+        latestBenchmarks.set(key, row);
+      }
+    }
+  }
+
   const inputTokens = Math.max(0, Math.trunc(input.estimatedInputTokens));
   const outputTokens = Math.max(0, Math.trunc(input.estimatedOutputTokens));
+  const taskKind = taskKindForRecommendation(input.taskType);
+
+  function benchmarkForPrice(price: typeof rows[number]) {
+    const providerIds = aliasesForProvider(price.providerId);
+    const modelKeys = [
+      normaliseModelMatchKey(price.modelId),
+      normaliseModelMatchKey(price.modelDisplayName)
+    ];
+
+    for (const providerId of providerIds) {
+      for (const modelKey of modelKeys) {
+        const benchmark = latestBenchmarks.get(`${providerId}:${modelKey}`);
+        if (benchmark) return benchmark;
+      }
+    }
+
+    return null;
+  }
+
+  function qualityScoreForPrice(price: typeof rows[number]) {
+    const benchmark = benchmarkForPrice(price);
+
+    if (!benchmark) {
+      return {
+        score: estimateModelIntelligenceScore(price.modelId, price.modelDisplayName, price.providerId),
+        source: "inferred" as const
+      };
+    }
+
+    const generalBenchmarks = [
+      { value: benchmark.artificialAnalysisIntelligenceIndex, weight: 0.55 },
+      { value: benchmark.gpqa, weight: 0.15 },
+      { value: benchmark.mmluPro, weight: 0.15 },
+      { value: benchmark.hle, weight: 0.15 }
+    ];
+
+    const score = taskKind === "coding"
+      ? weightedBenchmarkScore([
+          { value: benchmark.artificialAnalysisCodingIndex, weight: 0.45 },
+          { value: benchmark.livecodebench, weight: 0.25 },
+          { value: benchmark.scicode, weight: 0.15 },
+          { value: benchmark.artificialAnalysisIntelligenceIndex, weight: 0.15 }
+        ])
+      : taskKind === "analysis"
+        ? weightedBenchmarkScore([
+            { value: benchmark.artificialAnalysisMathIndex, weight: 0.25 },
+            { value: benchmark.gpqa, weight: 0.25 },
+            { value: benchmark.artificialAnalysisIntelligenceIndex, weight: 0.2 },
+            { value: benchmark.math500, weight: 0.15 },
+            { value: benchmark.aime, weight: 0.15 }
+          ])
+        : taskKind === "summarising"
+          ? weightedBenchmarkScore([
+              { value: benchmark.artificialAnalysisIntelligenceIndex, weight: 0.45 },
+              { value: benchmark.mmluPro, weight: 0.25 },
+              { value: benchmark.gpqa, weight: 0.2 },
+              { value: benchmark.hle, weight: 0.1 }
+            ])
+          : taskKind === "writing"
+            ? weightedBenchmarkScore([
+                { value: benchmark.artificialAnalysisIntelligenceIndex, weight: 0.55 },
+                { value: benchmark.mmluPro, weight: 0.25 },
+                { value: benchmark.gpqa, weight: 0.1 },
+                { value: benchmark.hle, weight: 0.1 }
+              ])
+            : weightedBenchmarkScore(generalBenchmarks);
+
+    return {
+      score: score ?? estimateModelIntelligenceScore(price.modelId, price.modelDisplayName, price.providerId),
+      source: score == null ? "inferred" as const : "benchmark" as const
+    };
+  }
+
   type RecommendationCandidate = {
     account: AccountProviderSummary;
     price: typeof rows[number];
     estimatedCostUsd: number;
     score: number;
     intelligenceScore: number;
+    intelligenceSource: "benchmark" | "inferred";
     budgetRatio: number;
   };
   const candidates: RecommendationCandidate[] = [];
@@ -1083,13 +1252,15 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       const estimatedCostUsd = inputTokens / 1_000_000 * inputPrice + outputTokens / 1_000_000 * outputPrice;
       const capPenalty = budgetRatio >= 0.95 ? estimatedCostUsd * 4 : budgetRatio >= 0.8 ? estimatedCostUsd * 1.5 : 0;
       const confidencePenalty = price.sourceConfidence === "official" ? 0 : estimatedCostUsd * 0.05;
+      const quality = qualityScoreForPrice(price);
 
       candidates.push({
         account,
         price,
         estimatedCostUsd,
         score: estimatedCostUsd + capPenalty + confidencePenalty,
-        intelligenceScore: estimateModelIntelligenceScore(price.modelId, price.modelDisplayName, price.providerId),
+        intelligenceScore: quality.score,
+        intelligenceSource: quality.source,
         budgetRatio
       });
     }
@@ -1127,12 +1298,28 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     const freshnessDays = Math.floor((Date.now() - candidate.price.fetchedAt.getTime()) / 86_400_000);
     const staleNote = freshnessDays > 14 ? " Pricing is a bit stale, so keep one eyebrow raised." : "";
     const capNote = capWarning ? " Budget pressure included in the score." : "";
-    const qualityNote = candidate.intelligenceScore >= 80 ? " Strong inferred quality." : candidate.intelligenceScore >= 65 ? " Solid inferred quality." : " Quality is probably modest.";
+    const taskLabel = taskKind === "coding"
+      ? "coding"
+      : taskKind === "summarising"
+        ? "summarising"
+        : taskKind === "writing"
+          ? "writing"
+          : taskKind === "analysis"
+            ? "analysis"
+            : taskKind === "image"
+              ? "image"
+              : "general";
+    const qualityDescriptor = candidate.intelligenceSource === "benchmark" ? `${taskLabel} benchmark` : "inferred";
+    const qualityNote = candidate.intelligenceScore >= 80
+      ? ` Strong ${qualityDescriptor} quality.`
+      : candidate.intelligenceScore >= 65
+        ? ` Solid ${qualityDescriptor} quality.`
+        : ` ${qualityDescriptor[0].toUpperCase()}${qualityDescriptor.slice(1)} quality is probably modest.`;
     const reasonPrefix = kind === "cheapest"
       ? "Lowest estimated cost among connected priced models."
       : kind === "quality"
-        ? "Highest inferred intelligence score among connected priced models."
-        : "Best blend of inferred quality, estimated cost, and budget pressure.";
+        ? `Highest ${qualityDescriptor} score among connected priced models.`
+        : `Best blend of ${qualityDescriptor} quality, estimated cost, and budget pressure.`;
 
     return {
       kind,
@@ -1143,7 +1330,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       recommendedModel: candidate.price.modelDisplayName,
       estimatedCostUsd: candidate.estimatedCostUsd,
       intelligenceScore: candidate.intelligenceScore,
-      intelligenceSource: "inferred",
+      intelligenceSource: candidate.intelligenceSource,
       capWarning,
       reason: `${reasonPrefix} ${qualityNote}${capNote}${staleNote}`,
       priceSource: candidate.price.sourceName,
