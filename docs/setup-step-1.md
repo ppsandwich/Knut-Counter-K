@@ -36,6 +36,7 @@ SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 DATABASE_URL="postgresql://..."
 CREDENTIAL_ENCRYPTION_KEY="generate-a-long-random-secret"
 PRICING_REFRESH_SECRET="optional-random-secret-for-pricing-refresh"
+ARTIFICIAL_ANALYSIS_API_KEY="optional-key-for-model-benchmarks-and-pricing"
 ```
 
 Generate a local encryption key with:
@@ -89,6 +90,7 @@ SUPABASE_SERVICE_ROLE_KEY
 DATABASE_URL
 CREDENTIAL_ENCRYPTION_KEY
 PRICING_REFRESH_SECRET
+ARTIFICIAL_ANALYSIS_API_KEY
 ```
 
 Set these for the Expo web build:

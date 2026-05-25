@@ -1,10 +1,10 @@
 import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
-import type { NormalisedPrice } from "@knut/pricing";
+import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
-import { alerts, importJobs, pricingSnapshots, providerAccounts, providerRegistry, usageCaps, usageRecords, users } from "./schema";
+import { alerts, importJobs, modelBenchmarkSnapshots, pricingSnapshots, providerAccounts, providerRegistry, usageCaps, usageRecords, users } from "./schema";
 
 function monthStart(now = new Date()) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -965,6 +965,49 @@ export async function insertPricingSnapshots(snapshots: NormalisedPrice[]) {
   const chunkSize = 500;
   for (let index = 0; index < values.length; index += chunkSize) {
     await getDb().insert(pricingSnapshots).values(values.slice(index, index + chunkSize));
+  }
+
+  return { inserted: snapshots.length };
+}
+
+export async function insertModelBenchmarkSnapshots(snapshots: ArtificialAnalysisBenchmark[]) {
+  if (!snapshots.length) {
+    return { inserted: 0 };
+  }
+
+  const decimalValue = (value: number | undefined) => value == null ? null : String(value);
+  const values = snapshots.map((snapshot) => ({
+    providerId: snapshot.providerId,
+    modelId: snapshot.modelId,
+    modelDisplayName: snapshot.modelDisplayName,
+    sourceModelId: snapshot.sourceModelId,
+    sourceModelSlug: snapshot.sourceModelSlug,
+    modelCreatorId: snapshot.modelCreatorId,
+    modelCreatorName: snapshot.modelCreatorName,
+    modelCreatorSlug: snapshot.modelCreatorSlug,
+    evaluations: snapshot.evaluations,
+    pricing: snapshot.pricing,
+    artificialAnalysisIntelligenceIndex: decimalValue(snapshot.artificialAnalysisIntelligenceIndex),
+    artificialAnalysisCodingIndex: decimalValue(snapshot.artificialAnalysisCodingIndex),
+    artificialAnalysisMathIndex: decimalValue(snapshot.artificialAnalysisMathIndex),
+    mmluPro: decimalValue(snapshot.mmluPro),
+    gpqa: decimalValue(snapshot.gpqa),
+    hle: decimalValue(snapshot.hle),
+    livecodebench: decimalValue(snapshot.livecodebench),
+    scicode: decimalValue(snapshot.scicode),
+    math500: decimalValue(snapshot.math500),
+    aime: decimalValue(snapshot.aime),
+    medianOutputTokensPerSecond: decimalValue(snapshot.medianOutputTokensPerSecond),
+    medianTimeToFirstTokenSeconds: decimalValue(snapshot.medianTimeToFirstTokenSeconds),
+    medianTimeToFirstAnswerTokenSeconds: decimalValue(snapshot.medianTimeToFirstAnswerTokenSeconds),
+    sourceName: snapshot.sourceName,
+    sourceConfidence: snapshot.sourceConfidence,
+    fetchedAt: new Date(snapshot.fetchedAt)
+  }));
+
+  const chunkSize = 500;
+  for (let index = 0; index < values.length; index += chunkSize) {
+    await getDb().insert(modelBenchmarkSnapshots).values(values.slice(index, index + chunkSize));
   }
 
   return { inserted: snapshots.length };

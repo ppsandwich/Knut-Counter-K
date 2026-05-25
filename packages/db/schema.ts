@@ -113,6 +113,37 @@ export const pricingSnapshots = pgTable("pricing_snapshots", {
   effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull()
 });
 
+export const modelBenchmarkSnapshots = pgTable("model_benchmark_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  providerId: text("provider_id").notNull(),
+  modelId: text("model_id").notNull(),
+  modelDisplayName: text("model_display_name").notNull(),
+  sourceModelId: text("source_model_id"),
+  sourceModelSlug: text("source_model_slug"),
+  modelCreatorId: text("model_creator_id"),
+  modelCreatorName: text("model_creator_name"),
+  modelCreatorSlug: text("model_creator_slug"),
+  evaluations: jsonb("evaluations").default({}).notNull(),
+  pricing: jsonb("pricing").default({}).notNull(),
+  artificialAnalysisIntelligenceIndex: decimal("artificial_analysis_intelligence_index"),
+  artificialAnalysisCodingIndex: decimal("artificial_analysis_coding_index"),
+  artificialAnalysisMathIndex: decimal("artificial_analysis_math_index"),
+  mmluPro: decimal("mmlu_pro"),
+  gpqa: decimal("gpqa"),
+  hle: decimal("hle"),
+  livecodebench: decimal("livecodebench"),
+  scicode: decimal("scicode"),
+  math500: decimal("math_500"),
+  aime: decimal("aime"),
+  medianOutputTokensPerSecond: decimal("median_output_tokens_per_second"),
+  medianTimeToFirstTokenSeconds: decimal("median_time_to_first_token_seconds"),
+  medianTimeToFirstAnswerTokenSeconds: decimal("median_time_to_first_answer_token_seconds"),
+  sourceName: text("source_name").notNull(),
+  sourceConfidence: text("source_confidence").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull()
+});
+
 export const alerts = pgTable("alerts", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id).notNull(),
