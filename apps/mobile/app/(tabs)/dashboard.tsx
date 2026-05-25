@@ -1,10 +1,11 @@
 import { RefreshControl, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, RecommendationCard, SyncStatusStrip } from "@knut/ui";
 import { mockDashboard } from "@knut/shared/mockData";
+import type { RecommendationResult } from "@knut/shared";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { syncProviders } from "../../lib/accountApi";
+import { recommendProvider, syncProviders } from "../../lib/accountApi";
 
 const emptySummary = {
   monthlySpend: 0,
@@ -22,6 +23,38 @@ export default function DashboardScreen() {
   const summary = dashboard.data?.summary ?? emptySummary;
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [recommendation, setRecommendation] = useState<RecommendationResult | null>(null);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [recommendationError, setRecommendationError] = useState<string | null>(null);
+
+  async function refreshRecommendation() {
+    if (!signedIn) {
+      setRecommendation(null);
+      setRecommendationError(null);
+      return;
+    }
+
+    setRecommendationLoading(true);
+    setRecommendationError(null);
+    try {
+      const result = await recommendProvider({
+        taskType: "General next task",
+        estimatedInputTokens: 10000,
+        estimatedOutputTokens: 1500,
+        excludeNearCapProviders: true
+      });
+      setRecommendation(result.balanced);
+    } catch (error) {
+      setRecommendation(null);
+      setRecommendationError(error instanceof Error ? error.message : "Could not calculate a recommendation yet.");
+    } finally {
+      setRecommendationLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshRecommendation();
+  }, [signedIn, providerRows.length, summary.monthlySpend, summary.totalTokens]);
 
   async function refreshUsage() {
     if (!signedIn || refreshing) return;
@@ -31,6 +64,7 @@ export default function DashboardScreen() {
     try {
       const result = await syncProviders();
       await dashboard.refresh();
+      await refreshRecommendation();
       setRefreshMessage(result.synced ? `Refreshed ${result.synced} provider${result.synced === 1 ? "" : "s"}.` : "No active providers to refresh.");
     } catch (error) {
       setRefreshMessage(error instanceof Error ? error.message : "Refresh failed.");
@@ -61,7 +95,11 @@ export default function DashboardScreen() {
         {refreshMessage ? <Text style={styles.refreshMessage}>{refreshMessage}</Text> : null}
 
         <MonthlyDamageCard summary={summary} />
-        <RecommendationCard recommendation={mockDashboard.recommendation} />
+        <RecommendationCard
+          recommendation={recommendation ?? mockDashboard.recommendation}
+          loading={recommendationLoading}
+          error={signedIn ? recommendationError : "Sign in and connect providers to get a real recommendation."}
+        />
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Providers</Text>
