@@ -185,13 +185,14 @@ function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: 
   const benchmarkLabel = item.intelligenceBenchmark
     ? `${item.intelligenceBenchmark} benchmark`
     : `${item.intelligenceSource} intelligence`;
+  const isBelowTop20Average = item.benchmarkTop20AverageScore != null && item.intelligenceScore < item.benchmarkTop20AverageScore;
 
   return (
     <View style={[styles.reco, tone === "recommended" && styles.recoRecommended]}>
       <View style={styles.recoHeader}>
         <Text style={styles.kicker}>{item.label}</Text>
         <View style={styles.scoreBlock}>
-          <Text style={styles.score}>{item.intelligenceScore}/100</Text>
+          <Text style={[styles.score, isBelowTop20Average && styles.scoreBelowAverage]}>{item.intelligenceScore}/100</Text>
           <Text style={styles.scoreMeta}>{benchmarkLabel}</Text>
         </View>
       </View>
@@ -243,6 +244,7 @@ const styles = StyleSheet.create({
   kicker: { color: "#22c55e", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   scoreBlock: { alignItems: "flex-end", flexShrink: 0 },
   score: { color: "#e5e7eb", fontSize: 12, fontWeight: "900" },
+  scoreBelowAverage: { color: "#f87171" },
   scoreMeta: { color: "#7b8b7f", fontSize: 10, fontWeight: "900", marginTop: 2, textTransform: "uppercase" },
   provider: { color: "#c8f7d2", fontSize: 14, fontWeight: "800", marginTop: 6 },
   model: { color: "#f4f4f5", fontSize: 22, fontWeight: "900", marginTop: 2 },

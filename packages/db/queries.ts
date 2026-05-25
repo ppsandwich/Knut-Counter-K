@@ -1217,16 +1217,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     return null;
   }
 
-  function qualityScoreForPrice(price: typeof rows[number]) {
-    const benchmark = benchmarkForPrice(price);
-
-    if (!benchmark) {
-      return {
-        score: estimateModelIntelligenceScore(price.modelId, price.modelDisplayName, price.providerId),
-        source: "inferred" as const
-      };
-    }
-
+  function benchmarkScoreForTask(benchmark: typeof benchmarkRows[number]) {
     const generalBenchmarks = [
       { value: benchmark.artificialAnalysisIntelligenceIndex, weight: 0.55 },
       { value: benchmark.gpqa, weight: 0.15 },
@@ -1263,7 +1254,39 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
                 { value: benchmark.gpqa, weight: 0.1 },
                 { value: benchmark.hle, weight: 0.1 }
               ])
-            : weightedBenchmarkScore(generalBenchmarks);
+          : weightedBenchmarkScore(generalBenchmarks);
+
+    return score;
+  }
+
+  const latestUniqueBenchmarkRows = new Map<string, typeof benchmarkRows[number]>();
+  for (const benchmark of benchmarkRows) {
+    const key = `${benchmark.providerId}:${benchmark.modelId}`;
+    if (!latestUniqueBenchmarkRows.has(key)) {
+      latestUniqueBenchmarkRows.set(key, benchmark);
+    }
+  }
+
+  const topBenchmarkScores = [...latestUniqueBenchmarkRows.values()]
+    .map(benchmarkScoreForTask)
+    .filter((score): score is number => score != null)
+    .sort((a, b) => b - a)
+    .slice(0, 20);
+  const benchmarkTop20AverageScore = topBenchmarkScores.length
+    ? Math.round(topBenchmarkScores.reduce((total, score) => total + score, 0) / topBenchmarkScores.length)
+    : null;
+
+  function qualityScoreForPrice(price: typeof rows[number]) {
+    const benchmark = benchmarkForPrice(price);
+
+    if (!benchmark) {
+      return {
+        score: estimateModelIntelligenceScore(price.modelId, price.modelDisplayName, price.providerId),
+        source: "inferred" as const
+      };
+    }
+
+    const score = benchmarkScoreForTask(benchmark);
 
     return {
       score: score ?? estimateModelIntelligenceScore(price.modelId, price.modelDisplayName, price.providerId),
@@ -1442,6 +1465,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       intelligenceScore: candidate.intelligenceScore,
       intelligenceSource: candidate.intelligenceSource,
       intelligenceBenchmark: candidate.intelligenceSource === "benchmark" ? taskLabel : undefined,
+      benchmarkTop20AverageScore: benchmarkTop20AverageScore ?? undefined,
       capWarning,
       reason: `${reasonPrefix} ${qualityNote}${tokenEfficiencyNote}${capNote}${staleNote}`,
       priceSource: candidate.price.sourceName,

@@ -154,6 +154,7 @@ export type RecommendationResult = {
   intelligenceScore: number;
   intelligenceSource: "benchmark" | "inferred" | "unknown";
   intelligenceBenchmark?: string;
+  benchmarkTop20AverageScore?: number;
   capWarning: string | null;
   reason: string;
   priceSource: string;
