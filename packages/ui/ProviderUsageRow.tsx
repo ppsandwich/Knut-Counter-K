@@ -23,6 +23,7 @@ export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummar
         </View>
         <View style={styles.spark}>
           <Sparkline values={provider.sparklineData} color={lineColors[provider.status]} />
+          <Text style={styles.windowMetrics} numberOfLines={1}>{provider.last24hMetric ?? "24h --"} · {provider.last7dMetric ?? "7d --"}</Text>
         </View>
         <View style={styles.right}>
           <Text style={styles.metric} numberOfLines={1}>{provider.primaryMetric}</Text>
@@ -37,7 +38,7 @@ export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummar
 const styles = StyleSheet.create({
   row: {
     minHeight: 86,
-    maxHeight: 104,
+    maxHeight: 112,
     backgroundColor: colors.panel,
     borderColor: colors.border,
     borderWidth: 1,
@@ -50,11 +51,12 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.78 },
   left: { flex: 1.1, minWidth: 0 },
-  spark: { width: 86, alignItems: "center" },
+  spark: { width: 108, alignItems: "center", gap: 4 },
   right: { width: 82, alignItems: "flex-end", gap: 4 },
   name: { color: colors.text, fontSize: 17, fontWeight: "900" },
   account: { color: colors.muted, fontSize: 12, fontWeight: "600", marginTop: 4 },
   confidence: { color: colors.dim, fontSize: 11, fontWeight: "800", marginTop: 6 },
+  windowMetrics: { color: colors.dim, fontSize: 10, fontWeight: "800", textAlign: "center" },
   metric: { color: colors.text, fontSize: 18, fontWeight: "900", textAlign: "right" },
   reset: { color: colors.muted, fontSize: 11, fontWeight: "700", textAlign: "right" }
 });

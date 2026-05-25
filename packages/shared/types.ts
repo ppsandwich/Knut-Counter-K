@@ -22,6 +22,8 @@ export interface ProviderUsageSummary {
   accountDisplayName: string;
   primaryMetric: string;
   secondaryMetric: string;
+  last24hMetric?: string;
+  last7dMetric?: string;
   statusBadge: string;
   status: ProviderStatus;
   confidence: DataConfidence;

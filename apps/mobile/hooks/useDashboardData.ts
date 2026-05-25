@@ -23,6 +23,8 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary): Pro
       : hasCreditData
         ? `${formatCurrency(provider.creditBalanceAmount ?? 0)} credits left`
         : (provider.planName ?? provider.authType.replaceAll("_", " ")),
+    last24hMetric: hasUsage ? `24h ${formatCurrency(provider.last24hSpend)}` : "24h no records",
+    last7dMetric: hasUsage ? `7d ${formatCurrency(provider.last7dSpend)}` : "7d no records",
     statusBadge: provider.hasCredentials || isManual ? "Ready" : "No key",
     status: provider.hasCredentials || isManual ? "healthy" : "warning",
     confidence: hasUsage ? (isManual ? "manual" : "provider_reported") : hasCreditData ? "exact" : "unknown",

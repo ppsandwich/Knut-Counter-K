@@ -56,6 +56,10 @@ export type AccountProviderSummary = {
   currentMonthSpend: number;
   currentMonthTokens: number;
   currentMonthRecords: number;
+  last24hSpend: number;
+  last24hTokens: number;
+  last7dSpend: number;
+  last7dTokens: number;
   creditCapAmount: number | null;
   creditUsedAmount: number | null;
   creditBalanceAmount: number | null;
