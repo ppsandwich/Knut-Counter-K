@@ -1,8 +1,12 @@
-import type { VercelRequest } from "@vercel/node";
-
 export type AuthenticatedUser = {
   id: string;
   email: string;
+};
+
+type AuthRequest = {
+  headers: {
+    authorization?: string;
+  };
 };
 
 type SupabaseAuthUserResponse = {
@@ -10,13 +14,13 @@ type SupabaseAuthUserResponse = {
   email?: string;
 };
 
-function getBearerToken(req: VercelRequest) {
+function getBearerToken(req: AuthRequest) {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) return null;
   return header.slice("Bearer ".length);
 }
 
-export async function requireUser(req: VercelRequest): Promise<AuthenticatedUser> {
+export async function requireUser(req: AuthRequest): Promise<AuthenticatedUser> {
   const supabaseUrl = process.env.SUPABASE_URL;
   const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

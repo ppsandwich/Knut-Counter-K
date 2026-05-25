@@ -1,1 +1,8 @@
-{}
+{
+  "rewrites": [
+    {
+      "source": "/api/alerts/evaluate",
+      "destination": "/api/alerts?action=evaluate"
+    }
+  ]
+}

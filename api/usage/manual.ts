@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createManualUsageRecord } from "@knut/db";
-import { requireUser } from "../auth";
+import { requireUser } from "../../apiUtils/auth";
 
 function optionalNumber(value: unknown) {
   if (value == null || value === "") return null;

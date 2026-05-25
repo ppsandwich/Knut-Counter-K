@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { recommendProviderForUser } from "@knut/db";
 import type { RecommendationInput } from "@knut/shared";
-import { requireUser } from "../auth";
+import { requireUser } from "../../apiUtils/auth";
 
 function numberFromBody(value: unknown) {
   const numberValue = Number(value);

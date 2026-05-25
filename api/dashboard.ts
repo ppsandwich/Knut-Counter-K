@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ensureUserProfile, getDashboardSummaryForUser, getUserProfile, listProviderAccountsForUser } from "@knut/db";
-import { requireUser } from "./auth";
+import { requireUser } from "../apiUtils/auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
