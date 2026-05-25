@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { importUsageRecordsForUser } from "@knut/db";
+import { importOpenRouterGenerationsForUser, importUsageRecordsForUser } from "@knut/db";
 import { requireUser } from "../../apiUtils/auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -11,10 +11,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const providerAccountId = String(req.body?.providerAccountId ?? "");
+    const importType = String(req.body?.importType ?? "usage_rows");
     const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
 
     if (!providerAccountId) {
       return res.status(400).json({ error: "providerAccountId is required" });
+    }
+
+    if (importType === "openrouter_generation_ids") {
+      const generationIds = Array.isArray(req.body?.generationIds) ? req.body.generationIds.map(String) : [];
+      const result = await importOpenRouterGenerationsForUser(user.id, providerAccountId, generationIds);
+      return res.status(200).json({ ok: true, ...result });
     }
 
     const result = await importUsageRecordsForUser(user.id, {

@@ -7,7 +7,7 @@ import { ProviderUsageRow } from "@knut/ui";
 import { mockDashboard } from "@knut/shared";
 import { BackButton } from "../../components/BackButton";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { createManualUsage, deleteAccountProvider, importUsage, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
+import { createManualUsage, deleteAccountProvider, importOpenRouterGenerations, importUsage, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
 
 function todayForInput() {
   return new Date().toISOString().slice(0, 10);
@@ -89,6 +89,9 @@ export default function ProviderDetailScreen() {
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [generationIdsText, setGenerationIdsText] = useState("");
+  const [generationImportMessage, setGenerationImportMessage] = useState<string | null>(null);
+  const [generationImporting, setGenerationImporting] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [planName, setPlanName] = useState("");
   const [monthlyBudget, setMonthlyBudget] = useState("");
@@ -170,6 +173,41 @@ export default function ProviderDetailScreen() {
       setImportMessage(error instanceof Error ? error.message : "Import failed.");
     } finally {
       setImporting(false);
+    }
+  }
+
+  function parseGenerationIds(text: string) {
+    return text
+      .split(/[\s,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  async function importGenerations() {
+    if (!providerAccount) {
+      setGenerationImportMessage("Provider account is still loading. Give it a second.");
+      return;
+    }
+
+    const generationIds = parseGenerationIds(generationIdsText);
+    if (!generationIds.length) {
+      setGenerationImportMessage("Paste at least one OpenRouter generation ID.");
+      return;
+    }
+
+    setGenerationImporting(true);
+    try {
+      const result = await importOpenRouterGenerations({
+        providerAccountId: providerAccount.id,
+        generationIds
+      });
+      setGenerationIdsText("");
+      setGenerationImportMessage(`Imported ${result.rowsProcessed} generations. ${result.rowsFailed} failed.`);
+      await dashboard.refresh();
+    } catch (error) {
+      setGenerationImportMessage(error instanceof Error ? error.message : "Generation import failed.");
+    } finally {
+      setGenerationImporting(false);
     }
   }
 
@@ -319,6 +357,27 @@ export default function ProviderDetailScreen() {
           </Pressable>
           {importMessage ? <Text style={styles.message}>{importMessage}</Text> : null}
         </View>
+
+        {providerAccount?.providerId === "openrouter" ? (
+          <View style={styles.card}>
+            <Text style={styles.label}>OpenRouter generation IDs</Text>
+            <Text style={styles.body}>Paste generation IDs from OpenRouter to fetch exact model, token, and cost stats.</Text>
+            <TextInput
+              multiline
+              onChangeText={setGenerationIdsText}
+              placeholder={"gen-...\ngen-..."}
+              placeholderTextColor="#63636a"
+              style={[styles.input, styles.importBox]}
+              textAlignVertical="top"
+              value={generationIdsText}
+            />
+            <Text style={styles.message}>{parseGenerationIds(generationIdsText).length ? `${parseGenerationIds(generationIdsText).length} generation IDs ready.` : "Paste one ID per line, or comma separated."}</Text>
+            <Pressable disabled={generationImporting || !providerAccount || !parseGenerationIds(generationIdsText).length} onPress={importGenerations} style={({ pressed }) => [styles.saveButton, (generationImporting || !providerAccount || !parseGenerationIds(generationIdsText).length) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.saveButtonText}>{generationImporting ? "Importing..." : "Import generations"}</Text>
+            </Pressable>
+            {generationImportMessage ? <Text style={styles.message}>{generationImportMessage}</Text> : null}
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.label}>Cap progress</Text>

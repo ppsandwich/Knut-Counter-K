@@ -1,4 +1,4 @@
-import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, ImportUsageInput, ManualUsageInput, OpenRouterGenerationImportInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -185,6 +185,23 @@ export async function importUsage(input: ImportUsageInput) {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean; rowsProcessed: number; rowsFailed: number }>;
+}
+
+export async function importOpenRouterGenerations(input: OpenRouterGenerationImportInput) {
+  const response = await fetch(getApiUrl("/api/import"), {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({
+      importType: "openrouter_generation_ids",
+      ...input
+    })
   });
 
   if (!response.ok) {

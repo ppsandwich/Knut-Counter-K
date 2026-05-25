@@ -392,6 +392,7 @@ async function insertSyncedUsageRecords(userId: string, providerAccountId: strin
         outputTokens,
         cachedTokens,
         reasoningTokens,
+        imageUnits: record.imageUnits == null ? null : String(record.imageUnits),
         totalTokens: totalTokens || null,
         requestCount: record.requestCount ?? null,
         costAmount: record.costAmount == null ? null : String(record.costAmount),
@@ -802,6 +803,51 @@ export async function importUsageRecordsForUser(userId: string, input: ImportUsa
   return {
     rowsProcessed: validRows.length,
     rowsFailed: input.rows.length - validRows.length
+  };
+}
+
+export async function importOpenRouterGenerationsForUser(userId: string, providerAccountId: string, generationIds: string[]) {
+  const [account] = await getDb()
+    .select({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId,
+      encryptedCredentials: providerAccounts.encryptedCredentials
+    })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.id, providerAccountId), eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .limit(1);
+
+  if (!account) {
+    throw new Error("Provider account was not found for this user.");
+  }
+  if (account.providerId !== "openrouter") {
+    throw new Error("OpenRouter generation import only works with OpenRouter provider accounts.");
+  }
+  if (!account.encryptedCredentials) {
+    throw new Error("OpenRouter API key is required before importing generation IDs.");
+  }
+
+  const uniqueGenerationIds = [...new Set(generationIds.map((id) => id.trim()).filter(Boolean))];
+  if (!uniqueGenerationIds.length) {
+    return {
+      rowsProcessed: 0,
+      rowsFailed: generationIds.length
+    };
+  }
+
+  const apiKey = decryptCredential(account.encryptedCredentials);
+  const usage = await openRouterConnector.fetchUsage?.({
+    providerAccountId: account.id,
+    credentials: { apiKey },
+    since: monthStart().toISOString(),
+    until: new Date().toISOString(),
+    generationIds: uniqueGenerationIds
+  });
+  const result = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
+
+  return {
+    rowsProcessed: result.rowsProcessed,
+    rowsFailed: uniqueGenerationIds.length - result.rowsProcessed - result.rowsSkipped
   };
 }
 

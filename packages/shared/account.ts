@@ -119,6 +119,11 @@ export type ImportUsageInput = {
   rows: ImportUsageRowInput[];
 };
 
+export type OpenRouterGenerationImportInput = {
+  providerAccountId: string;
+  generationIds: string[];
+};
+
 export type RecommendationInput = {
   taskType?: string;
   estimatedInputTokens: number;

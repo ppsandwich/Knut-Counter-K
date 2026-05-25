@@ -16,6 +16,7 @@ export type FetchUsageInput = {
   credentials?: ProviderCredentials;
   since: string;
   until: string;
+  generationIds?: string[];
 };
 
 export type FetchCapsInput = {
@@ -34,6 +35,7 @@ export type UsageRecord = {
   outputTokens?: number;
   cachedTokens?: number;
   reasoningTokens?: number;
+  imageUnits?: number;
   costAmount?: number;
   costCurrency?: string;
   requestCount?: number;
