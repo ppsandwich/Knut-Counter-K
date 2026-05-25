@@ -1,10 +1,10 @@
 import type { UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
-import type { AccountAlert, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
-import { alerts, pricingSnapshots, providerAccounts, providerRegistry, usageRecords, users } from "./schema";
+import { alerts, importJobs, pricingSnapshots, providerAccounts, providerRegistry, usageCaps, usageRecords, users } from "./schema";
 
 function monthStart(now = new Date()) {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -146,6 +146,49 @@ export async function updateUserSettings(userId: string, input: AccountSettingsI
     .returning();
 
   return settings;
+}
+
+export async function exportAccountData(userId: string): Promise<AccountExportPayload> {
+  const db = getDb();
+  const profile = await getUserProfile(userId);
+  const providerAccountRows = await db
+    .select({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId,
+      displayName: providerAccounts.displayName,
+      authType: providerAccounts.authType,
+      planName: providerAccounts.planName,
+      billingCurrency: providerAccounts.billingCurrency,
+      billingCycleStart: providerAccounts.billingCycleStart,
+      billingCycleEnd: providerAccounts.billingCycleEnd,
+      resetRule: providerAccounts.resetRule,
+      monthlyBudget: providerAccounts.monthlyBudget,
+      isActive: providerAccounts.isActive,
+      lastSyncAt: providerAccounts.lastSyncAt,
+      syncStatus: providerAccounts.syncStatus,
+      createdAt: providerAccounts.createdAt,
+      updatedAt: providerAccounts.updatedAt,
+      encryptedCredentials: providerAccounts.encryptedCredentials
+    })
+    .from(providerAccounts)
+    .where(eq(providerAccounts.userId, userId));
+  const usageRecordRows = await db.select().from(usageRecords).where(eq(usageRecords.userId, userId)).orderBy(desc(usageRecords.observedAt));
+  const usageCapRows = await db.select().from(usageCaps).where(eq(usageCaps.userId, userId)).orderBy(desc(usageCaps.createdAt));
+  const alertRows = await db.select().from(alerts).where(eq(alerts.userId, userId)).orderBy(desc(alerts.createdAt));
+  const importJobRows = await db.select().from(importJobs).where(eq(importJobs.userId, userId)).orderBy(desc(importJobs.createdAt));
+
+  return {
+    exportedAt: new Date().toISOString(),
+    profile,
+    providerAccounts: providerAccountRows.map(({ encryptedCredentials, ...account }) => ({
+      ...account,
+      hasCredentials: Boolean(encryptedCredentials)
+    })),
+    usageRecords: usageRecordRows,
+    usageCaps: usageCapRows,
+    alerts: alertRows,
+    importJobs: importJobRows
+  };
 }
 
 export async function createProviderAccount(userId: string, input: ProviderAccountInput) {
@@ -685,11 +728,27 @@ export async function listAlertsForUser(userId: string): Promise<AccountAlert[]>
   const rows = await getDb()
     .select()
     .from(alerts)
-    .where(eq(alerts.userId, userId))
+    .where(and(eq(alerts.userId, userId), eq(alerts.isRead, false), eq(alerts.isSnoozed, false)))
     .orderBy(desc(alerts.createdAt))
     .limit(100);
 
   return rows.map(toAccountAlert);
+}
+
+export async function clearAlertsForUser(userId: string) {
+  const rows = await getDb()
+    .update(alerts)
+    .set({
+      isRead: true
+    })
+    .where(and(eq(alerts.userId, userId), eq(alerts.isRead, false)))
+    .returning({
+      id: alerts.id
+    });
+
+  return {
+    cleared: rows.length
+  };
 }
 
 type AlertCandidate = {

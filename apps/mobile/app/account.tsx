@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackButton } from "../components/BackButton";
 import { useAuthSession } from "../hooks/useAuthSession";
-import { saveAccountSettings } from "../lib/accountApi";
+import { clearAlerts, exportAccountData, saveAccountSettings } from "../lib/accountApi";
 
 export default function AccountScreen() {
   const auth = useAuthSession();
@@ -13,6 +13,8 @@ export default function AccountScreen() {
   const [preferredCurrency, setPreferredCurrency] = useState("USD");
   const [monthlyAiBudget, setMonthlyAiBudget] = useState("120");
   const [message, setMessage] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [clearingAlerts, setClearingAlerts] = useState(false);
 
   async function signIn() {
     const result = await auth.signInWithEmail(email.trim(), password);
@@ -39,6 +41,43 @@ export default function AccountScreen() {
       setMessage("Account settings saved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Settings could not be saved.");
+    }
+  }
+
+  async function exportData() {
+    setExporting(true);
+    try {
+      const payload = await exportAccountData();
+      const json = JSON.stringify(payload, null, 2);
+
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `knut-counter-export-${payload.exportedAt.slice(0, 10)}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        setMessage("Account export downloaded.");
+      } else {
+        setMessage(`Export ready with ${payload.providerAccounts.length} providers and ${payload.usageRecords.length} usage records.`);
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Account export failed.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function clearAccountAlerts() {
+    setClearingAlerts(true);
+    try {
+      const result = await clearAlerts();
+      setMessage(result.cleared ? `Cleared ${result.cleared} alert${result.cleared === 1 ? "" : "s"}.` : "No active alerts to clear.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Alerts could not be cleared.");
+    } finally {
+      setClearingAlerts(false);
     }
   }
 
@@ -108,6 +147,19 @@ export default function AccountScreen() {
           <Pressable disabled={!auth.user} onPress={saveSettings} style={({ pressed }) => [styles.primaryButton, !auth.user && styles.disabled, pressed && styles.pressed]}>
             <Text style={styles.primaryButtonText}>Save settings</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Data controls</Text>
+          <Text style={styles.body}>Export includes profile, provider accounts without API keys, usage records, usage caps, alerts, and import jobs.</Text>
+          <View style={styles.actions}>
+            <Pressable disabled={!auth.user || exporting} onPress={exportData} style={({ pressed }) => [styles.secondaryButton, (!auth.user || exporting) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.secondaryButtonText}>{exporting ? "Exporting..." : "Export JSON"}</Text>
+            </Pressable>
+            <Pressable disabled={!auth.user || clearingAlerts} onPress={clearAccountAlerts} style={({ pressed }) => [styles.secondaryButton, (!auth.user || clearingAlerts) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.secondaryButtonText}>{clearingAlerts ? "Clearing..." : "Clear alerts"}</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.card}>

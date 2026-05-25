@@ -1,4 +1,4 @@
-import type { AccountAlert, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -106,6 +106,20 @@ export async function syncAccountProfile() {
   return response.json();
 }
 
+export async function exportAccountData(): Promise<AccountExportPayload> {
+  const response = await fetch(getApiUrl("/api/account/me?action=export"), {
+    method: "GET",
+    headers: await authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const data = await response.json() as { export: AccountExportPayload };
+  return data.export;
+}
+
 export async function fetchDashboard(): Promise<DashboardPayload> {
   const response = await fetch(getApiUrl("/api/dashboard"), {
     method: "GET",
@@ -206,4 +220,17 @@ export async function evaluateAlerts(): Promise<AlertEvaluationResult> {
   }
 
   return response.json() as Promise<AlertEvaluationResult>;
+}
+
+export async function clearAlerts(): Promise<{ ok: boolean; cleared: number; alerts: AccountAlert[] }> {
+  const response = await fetch(getApiUrl("/api/alerts?action=clear"), {
+    method: "DELETE",
+    headers: await authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean; cleared: number; alerts: AccountAlert[] }>;
 }

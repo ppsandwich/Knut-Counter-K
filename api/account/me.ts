@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { ensureUserProfile, getUserProfile, upsertUserProfile } from "@knut/db";
+import { ensureUserProfile, exportAccountData, getUserProfile, upsertUserProfile } from "@knut/db";
 import { requireUser } from "../../apiUtils/auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -12,6 +12,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === "GET") {
       await ensureUserProfile({ id: user.id, email: user.email });
+      if (req.query.action === "export") {
+        return res.status(200).json({
+          ok: true,
+          export: await exportAccountData(user.id)
+        });
+      }
+
       const profile = await getUserProfile(user.id);
       return res.status(200).json({ ok: true, profile });
     }

@@ -158,3 +158,13 @@ export type AlertEvaluationResult = {
   created: number;
   alerts: AccountAlert[];
 };
+
+export type AccountExportPayload = {
+  exportedAt: string;
+  profile: AccountProfile | null;
+  providerAccounts: Array<Record<string, unknown>>;
+  usageRecords: Array<Record<string, unknown>>;
+  usageCaps: Array<Record<string, unknown>>;
+  alerts: Array<Record<string, unknown>>;
+  importJobs: Array<Record<string, unknown>>;
+};
