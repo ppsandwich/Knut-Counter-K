@@ -25,6 +25,16 @@ export type ProviderAccountInput = {
   resetRule?: string;
 };
 
+export type ProviderAccountUpdateInput = {
+  providerAccountId: string;
+  displayName?: string;
+  planName?: string | null;
+  billingCurrency?: string | null;
+  monthlyBudget?: number | null;
+  resetRule?: string | null;
+  syncStatus?: "idle" | "paused";
+};
+
 export type ProviderCredentialState = {
   providerAccountId: string;
   hasCredentials: boolean;

@@ -1,6 +1,6 @@
 import type { UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
-import type { AccountAlert, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
+import type { AccountAlert, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
@@ -202,6 +202,73 @@ export async function deleteProviderCredentials(userId: string, providerAccountI
   return {
     providerAccountId: account.providerAccountId,
     hasCredentials: false
+  };
+}
+
+export async function updateProviderAccount(userId: string, input: ProviderAccountUpdateInput) {
+  const updates: Partial<typeof providerAccounts.$inferInsert> = {
+    updatedAt: new Date()
+  };
+
+  if (input.displayName !== undefined) updates.displayName = input.displayName;
+  if (input.planName !== undefined) updates.planName = input.planName;
+  if (input.billingCurrency !== undefined) updates.billingCurrency = input.billingCurrency;
+  if (input.monthlyBudget !== undefined) updates.monthlyBudget = input.monthlyBudget == null ? null : String(input.monthlyBudget);
+  if (input.resetRule !== undefined) updates.resetRule = input.resetRule;
+  if (input.syncStatus !== undefined) updates.syncStatus = input.syncStatus;
+
+  const [account] = await getDb()
+    .update(providerAccounts)
+    .set(updates)
+    .where(and(eq(providerAccounts.id, input.providerAccountId), eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .returning({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId,
+      displayName: providerAccounts.displayName,
+      authType: providerAccounts.authType,
+      planName: providerAccounts.planName,
+      billingCurrency: providerAccounts.billingCurrency,
+      monthlyBudget: providerAccounts.monthlyBudget,
+      resetRule: providerAccounts.resetRule,
+      syncStatus: providerAccounts.syncStatus,
+      encryptedCredentials: providerAccounts.encryptedCredentials
+    });
+
+  if (!account) {
+    throw new Error("Provider account was not found for this user.");
+  }
+
+  return {
+    ...account,
+    monthlyBudget: account.monthlyBudget == null ? null : Number(account.monthlyBudget),
+    hasCredentials: Boolean(account.encryptedCredentials),
+    encryptedCredentials: undefined
+  };
+}
+
+export async function softDeleteProviderAccount(userId: string, providerAccountId: string) {
+  const [account] = await getDb()
+    .update(providerAccounts)
+    .set({
+      isActive: false,
+      encryptedCredentials: null,
+      syncStatus: "paused",
+      updatedAt: new Date()
+    })
+    .where(and(eq(providerAccounts.id, providerAccountId), eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .returning({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId,
+      userId: providerAccounts.userId
+    });
+
+  if (!account) {
+    throw new Error("Provider account was not found for this user.");
+  }
+
+  return {
+    providerAccountId: account.id,
+    deleted: true
   };
 }
 

@@ -1,4 +1,4 @@
-import type { AccountAlert, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput } from "@knut/shared";
+import type { AccountAlert, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -49,6 +49,48 @@ export async function createAccountProvider(input: ProviderAccountInput) {
   }
 
   return response.json();
+}
+
+export async function updateAccountProvider(input: ProviderAccountUpdateInput) {
+  const response = await fetch(getApiUrl("/api/provider-accounts"), {
+    method: "PATCH",
+    headers: await authHeaders(),
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+
+export async function deleteAccountProvider(providerAccountId: string) {
+  const response = await fetch(getApiUrl("/api/provider-accounts"), {
+    method: "DELETE",
+    headers: await authHeaders(),
+    body: JSON.stringify({ providerAccountId })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean; providerAccountId: string; deleted: boolean }>;
+}
+
+export async function removeProviderCredentials(providerAccountId: string) {
+  const response = await fetch(getApiUrl("/api/provider-accounts/credentials"), {
+    method: "DELETE",
+    headers: await authHeaders(),
+    body: JSON.stringify({ providerAccountId })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean; providerAccountId: string; hasCredentials: boolean }>;
 }
 
 export async function syncAccountProfile() {

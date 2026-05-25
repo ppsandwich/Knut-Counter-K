@@ -1,13 +1,13 @@
 import type { ImportUsageRowInput } from "@knut/shared";
-import { useState } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ProviderUsageRow } from "@knut/ui";
 import { mockDashboard } from "@knut/shared";
 import { BackButton } from "../../components/BackButton";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { createManualUsage, importUsage } from "../../lib/accountApi";
+import { createManualUsage, deleteAccountProvider, importUsage, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
 
 function todayForInput() {
   return new Date().toISOString().slice(0, 10);
@@ -72,6 +72,7 @@ function parseImportText(text: string, providerAccountId: string) {
 
 export default function ProviderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const dashboard = useDashboardData();
   const provider = dashboard.providerRows.find((item) => item.providerId === id)
     ?? mockDashboard.providers.find((item) => item.providerId === id)
@@ -88,6 +89,22 @@ export default function ProviderDetailScreen() {
   const [importText, setImportText] = useState("");
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [planName, setPlanName] = useState("");
+  const [monthlyBudget, setMonthlyBudget] = useState("");
+  const [resetRule, setResetRule] = useState("");
+  const [accountMessage, setAccountMessage] = useState<string | null>(null);
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [credentialsRemoving, setCredentialsRemoving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!providerAccount) return;
+    setDisplayName(providerAccount.displayName);
+    setPlanName(providerAccount.planName ?? "");
+    setMonthlyBudget(providerAccount.monthlyBudget == null ? "" : String(providerAccount.monthlyBudget));
+    setResetRule(providerAccount.resetRule ?? "");
+  }, [providerAccount?.id]);
 
   function optionalNumber(value: string) {
     const trimmed = value.trim();
@@ -156,6 +173,82 @@ export default function ProviderDetailScreen() {
     }
   }
 
+  async function saveProviderSettings() {
+    if (!providerAccount) {
+      setAccountMessage("Provider account is still loading. Give it a second.");
+      return;
+    }
+
+    setAccountSaving(true);
+    setAccountMessage(null);
+    try {
+      await updateAccountProvider({
+        providerAccountId: providerAccount.id,
+        displayName: displayName.trim() || providerAccount.displayName,
+        planName: planName.trim() || null,
+        monthlyBudget: optionalNumber(monthlyBudget),
+        resetRule: resetRule.trim() || null
+      });
+      setAccountMessage("Provider settings saved.");
+      await dashboard.refresh();
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : "Provider settings could not be saved.");
+    } finally {
+      setAccountSaving(false);
+    }
+  }
+
+  async function toggleSyncPause() {
+    if (!providerAccount) return;
+
+    setAccountSaving(true);
+    setAccountMessage(null);
+    try {
+      const nextStatus = providerAccount.syncStatus === "paused" ? "idle" : "paused";
+      await updateAccountProvider({
+        providerAccountId: providerAccount.id,
+        syncStatus: nextStatus
+      });
+      setAccountMessage(nextStatus === "paused" ? "Sync paused for this provider." : "Sync resumed for this provider.");
+      await dashboard.refresh();
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : "Sync status could not be changed.");
+    } finally {
+      setAccountSaving(false);
+    }
+  }
+
+  async function removeCredentials() {
+    if (!providerAccount) return;
+
+    setCredentialsRemoving(true);
+    setAccountMessage(null);
+    try {
+      await removeProviderCredentials(providerAccount.id);
+      setAccountMessage("Saved API key removed. Usage history stayed put.");
+      await dashboard.refresh();
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : "Saved API key could not be removed.");
+    } finally {
+      setCredentialsRemoving(false);
+    }
+  }
+
+  async function deleteProvider() {
+    if (!providerAccount) return;
+
+    setDeleting(true);
+    setAccountMessage(null);
+    try {
+      await deleteAccountProvider(providerAccount.id);
+      await dashboard.refresh();
+      router.replace("/providers");
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : "Provider account could not be deleted.");
+      setDeleting(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -163,6 +256,32 @@ export default function ProviderDetailScreen() {
         <Text style={styles.title}>{provider.providerName}</Text>
         <Text style={styles.subtitle}>{provider.accountDisplayName}</Text>
         <ProviderUsageRow provider={provider} />
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Provider account</Text>
+          <TextInput onChangeText={setDisplayName} placeholder="Display name" placeholderTextColor="#63636a" style={styles.input} value={displayName} />
+          <TextInput onChangeText={setPlanName} placeholder="Plan name, optional" placeholderTextColor="#63636a" style={styles.input} value={planName} />
+          <View style={styles.grid}>
+            <TextInput keyboardType="decimal-pad" onChangeText={setMonthlyBudget} placeholder="Monthly budget" placeholderTextColor="#63636a" style={[styles.input, styles.gridInput]} value={monthlyBudget} />
+            <TextInput onChangeText={setResetRule} placeholder="Reset rule" placeholderTextColor="#63636a" style={[styles.input, styles.gridInput]} value={resetRule} />
+          </View>
+          <Text style={styles.body}>Credentials: {providerAccount?.hasCredentials ? "API key saved" : "No saved API key"}. Sync: {providerAccount?.syncStatus ?? "loading"}.</Text>
+          <Pressable disabled={accountSaving || !providerAccount} onPress={saveProviderSettings} style={({ pressed }) => [styles.saveButton, (accountSaving || !providerAccount) && styles.disabled, pressed && styles.pressed]}>
+            <Text style={styles.saveButtonText}>{accountSaving ? "Saving..." : "Save provider settings"}</Text>
+          </Pressable>
+          <View style={styles.actionGrid}>
+            <Pressable disabled={accountSaving || !providerAccount} onPress={toggleSyncPause} style={({ pressed }) => [styles.secondaryButton, (accountSaving || !providerAccount) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.secondaryButtonText}>{providerAccount?.syncStatus === "paused" ? "Resume sync" : "Pause sync"}</Text>
+            </Pressable>
+            <Pressable disabled={credentialsRemoving || !providerAccount?.hasCredentials} onPress={removeCredentials} style={({ pressed }) => [styles.secondaryButton, (credentialsRemoving || !providerAccount?.hasCredentials) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.secondaryButtonText}>{credentialsRemoving ? "Removing..." : "Remove API key"}</Text>
+            </Pressable>
+          </View>
+          <Pressable disabled={deleting || !providerAccount} onPress={deleteProvider} style={({ pressed }) => [styles.dangerButton, (deleting || !providerAccount) && styles.disabled, pressed && styles.pressed]}>
+            <Text style={styles.dangerButtonText}>{deleting ? "Deleting..." : "Delete provider account"}</Text>
+          </Pressable>
+          {accountMessage ? <Text style={styles.message}>{accountMessage}</Text> : null}
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.label}>Manual usage entry</Text>
@@ -235,6 +354,11 @@ const styles = StyleSheet.create({
   gridInput: { flex: 1, minWidth: 0 },
   saveButton: { minHeight: 44, borderRadius: 7, backgroundColor: "#22c55e", alignItems: "center", justifyContent: "center", marginTop: 10 },
   saveButtonText: { color: "#041006", fontSize: 15, fontWeight: "900" },
+  actionGrid: { flexDirection: "row", gap: 10, marginTop: 10 },
+  secondaryButton: { flex: 1, minHeight: 42, borderRadius: 7, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+  secondaryButtonText: { color: "#e4e4e7", fontSize: 13, fontWeight: "900" },
+  dangerButton: { minHeight: 42, borderRadius: 7, backgroundColor: "#2a1113", borderColor: "#7f1d1d", borderWidth: 1, alignItems: "center", justifyContent: "center", marginTop: 10 },
+  dangerButtonText: { color: "#fecaca", fontSize: 13, fontWeight: "900" },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700", marginTop: 8 },
