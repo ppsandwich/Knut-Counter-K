@@ -17,6 +17,7 @@ export type FetchUsageInput = {
   since: string;
   until: string;
   generationIds?: string[];
+  responsePayloads?: unknown[];
 };
 
 export type FetchCapsInput = {

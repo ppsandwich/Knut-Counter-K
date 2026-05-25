@@ -1,4 +1,4 @@
-import { anthropicConnector, geminiConnector, openAiConnector, openRouterConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
@@ -489,6 +489,15 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       const apiKey = decryptCredential(account.encryptedCredentials);
       const validation = await geminiConnector.validateCredentials?.({ apiKey });
       messages.push(`${account.displayName}: ${validation?.message ?? "Gemini key validated. Usage still requires response metadata, import, or future Cloud Billing integration."}`);
+    } else if (account.providerId === "xai") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs an API key before xAI can validate the connector.`);
+        continue;
+      }
+
+      const apiKey = decryptCredential(account.encryptedCredentials);
+      const validation = await xaiConnector.validateCredentials?.({ apiKey });
+      messages.push(`${account.displayName}: ${validation?.message ?? "xAI key validated. Paste response JSON to import exact usage and cost."}`);
     } else {
       messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
     }
@@ -848,6 +857,37 @@ export async function importOpenRouterGenerationsForUser(userId: string, provide
   return {
     rowsProcessed: result.rowsProcessed,
     rowsFailed: uniqueGenerationIds.length - result.rowsProcessed - result.rowsSkipped
+  };
+}
+
+export async function importXaiResponsesForUser(userId: string, providerAccountId: string, responsePayloads: unknown[]) {
+  const [account] = await getDb()
+    .select({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId
+    })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.id, providerAccountId), eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .limit(1);
+
+  if (!account) {
+    throw new Error("Provider account was not found for this user.");
+  }
+  if (account.providerId !== "xai") {
+    throw new Error("xAI response import only works with xAI provider accounts.");
+  }
+
+  const usage = await xaiConnector.fetchUsage?.({
+    providerAccountId: account.id,
+    since: monthStart().toISOString(),
+    until: new Date().toISOString(),
+    responsePayloads
+  });
+  const result = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
+
+  return {
+    rowsProcessed: result.rowsProcessed,
+    rowsFailed: responsePayloads.length - result.rowsProcessed - result.rowsSkipped
   };
 }
 

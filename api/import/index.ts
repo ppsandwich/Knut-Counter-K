@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { importOpenRouterGenerationsForUser, importUsageRecordsForUser } from "@knut/db";
+import { importOpenRouterGenerationsForUser, importUsageRecordsForUser, importXaiResponsesForUser } from "@knut/db";
 import { requireUser } from "../../apiUtils/auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -21,6 +21,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (importType === "openrouter_generation_ids") {
       const generationIds = Array.isArray(req.body?.generationIds) ? req.body.generationIds.map(String) : [];
       const result = await importOpenRouterGenerationsForUser(user.id, providerAccountId, generationIds);
+      return res.status(200).json({ ok: true, ...result });
+    }
+
+    if (importType === "xai_response_payloads") {
+      const responsePayloads = Array.isArray(req.body?.responsePayloads) ? req.body.responsePayloads : [];
+      const result = await importXaiResponsesForUser(user.id, providerAccountId, responsePayloads);
       return res.status(200).json({ ok: true, ...result });
     }
 

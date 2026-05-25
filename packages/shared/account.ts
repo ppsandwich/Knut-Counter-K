@@ -124,6 +124,11 @@ export type OpenRouterGenerationImportInput = {
   generationIds: string[];
 };
 
+export type XaiResponseImportInput = {
+  providerAccountId: string;
+  responsePayloads: unknown[];
+};
+
 export type RecommendationInput = {
   taskType?: string;
   estimatedInputTokens: number;

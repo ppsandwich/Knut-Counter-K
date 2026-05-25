@@ -7,7 +7,7 @@ import { ProviderUsageRow } from "@knut/ui";
 import { mockDashboard } from "@knut/shared";
 import { BackButton } from "../../components/BackButton";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { createManualUsage, deleteAccountProvider, importOpenRouterGenerations, importUsage, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
+import { createManualUsage, deleteAccountProvider, importOpenRouterGenerations, importUsage, importXaiResponses, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
 
 function todayForInput() {
   return new Date().toISOString().slice(0, 10);
@@ -92,6 +92,9 @@ export default function ProviderDetailScreen() {
   const [generationIdsText, setGenerationIdsText] = useState("");
   const [generationImportMessage, setGenerationImportMessage] = useState<string | null>(null);
   const [generationImporting, setGenerationImporting] = useState(false);
+  const [xaiResponseText, setXaiResponseText] = useState("");
+  const [xaiImportMessage, setXaiImportMessage] = useState<string | null>(null);
+  const [xaiImporting, setXaiImporting] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [planName, setPlanName] = useState("");
   const [monthlyBudget, setMonthlyBudget] = useState("");
@@ -208,6 +211,63 @@ export default function ProviderDetailScreen() {
       setGenerationImportMessage(error instanceof Error ? error.message : "Generation import failed.");
     } finally {
       setGenerationImporting(false);
+    }
+  }
+
+  function parseXaiResponses(text: string) {
+    if (!text.trim()) return [];
+
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as unknown);
+    }
+  }
+
+  let xaiResponsePreview = 0;
+  try {
+    xaiResponsePreview = parseXaiResponses(xaiResponseText).length;
+  } catch {
+    xaiResponsePreview = 0;
+  }
+
+  async function importXaiResponsePayloads() {
+    if (!providerAccount) {
+      setXaiImportMessage("Provider account is still loading. Give it a second.");
+      return;
+    }
+
+    let responsePayloads: unknown[] = [];
+    try {
+      responsePayloads = parseXaiResponses(xaiResponseText);
+    } catch {
+      setXaiImportMessage("That does not look like valid JSON yet.");
+      return;
+    }
+
+    if (!responsePayloads.length) {
+      setXaiImportMessage("Paste at least one xAI response JSON object.");
+      return;
+    }
+
+    setXaiImporting(true);
+    try {
+      const result = await importXaiResponses({
+        providerAccountId: providerAccount.id,
+        responsePayloads
+      });
+      setXaiResponseText("");
+      setXaiImportMessage(`Imported ${result.rowsProcessed} xAI responses. ${result.rowsFailed} failed.`);
+      await dashboard.refresh();
+    } catch (error) {
+      setXaiImportMessage(error instanceof Error ? error.message : "xAI response import failed.");
+    } finally {
+      setXaiImporting(false);
     }
   }
 
@@ -376,6 +436,27 @@ export default function ProviderDetailScreen() {
               <Text style={styles.saveButtonText}>{generationImporting ? "Importing..." : "Import generations"}</Text>
             </Pressable>
             {generationImportMessage ? <Text style={styles.message}>{generationImportMessage}</Text> : null}
+          </View>
+        ) : null}
+
+        {providerAccount?.providerId === "xai" ? (
+          <View style={styles.card}>
+            <Text style={styles.label}>xAI response JSON</Text>
+            <Text style={styles.body}>Paste raw xAI REST responses to import exact token usage and charged cost from response metadata.</Text>
+            <TextInput
+              multiline
+              onChangeText={setXaiResponseText}
+              placeholder={'{"id":"...","model":"grok-4.3","usage":{"input_tokens":199,"output_tokens":1,"cost_in_usd_ticks":158500}}'}
+              placeholderTextColor="#63636a"
+              style={[styles.input, styles.importBox]}
+              textAlignVertical="top"
+              value={xaiResponseText}
+            />
+            <Text style={styles.message}>{xaiResponsePreview ? `${xaiResponsePreview} response payloads ready.` : "Paste one JSON object, a JSON array, or newline-delimited JSON."}</Text>
+            <Pressable disabled={xaiImporting || !providerAccount || !xaiResponsePreview} onPress={importXaiResponsePayloads} style={({ pressed }) => [styles.saveButton, (xaiImporting || !providerAccount || !xaiResponsePreview) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.saveButtonText}>{xaiImporting ? "Importing..." : "Import xAI responses"}</Text>
+            </Pressable>
+            {xaiImportMessage ? <Text style={styles.message}>{xaiImportMessage}</Text> : null}
           </View>
         ) : null}
 
