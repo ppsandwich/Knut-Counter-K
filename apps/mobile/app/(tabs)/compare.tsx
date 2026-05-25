@@ -15,13 +15,13 @@ const taskPresets = [
   { label: "Generate tests for existing code", inputTokens: 6000, outputTokens: 2500, benchmarkType: "Coding" },
   { label: "Refactor a large file", inputTokens: 12000, outputTokens: 3000, benchmarkType: "Coding" },
   { label: "Explain a codebase area", inputTokens: 20000, outputTokens: 2500, benchmarkType: "Coding" },
-  { label: "Build a simple website", inputTokens: 75000, outputTokens: 25000, benchmarkType: "Coding" },
-  { label: "Build a full-stack app feature", inputTokens: 500000, outputTokens: 150000, benchmarkType: "Coding" },
-  { label: "Build a small app from scratch", inputTokens: 650000, outputTokens: 220000, benchmarkType: "Coding" },
-  { label: "Implement a large product feature", inputTokens: 800000, outputTokens: 250000, benchmarkType: "Coding" },
-  { label: "Migrate or modernize a codebase", inputTokens: 900000, outputTokens: 300000, benchmarkType: "Coding" },
-  { label: "Audit and refactor a large codebase", inputTokens: 1000000, outputTokens: 250000, benchmarkType: "Coding" },
-  { label: "Build a production web app", inputTokens: 1000000, outputTokens: 400000, benchmarkType: "Coding" }
+  { label: "Build a simple website", inputTokens: 300000, outputTokens: 80000, benchmarkType: "Coding" },
+  { label: "Build a full-stack app feature", inputTokens: 2000000, outputTokens: 500000, benchmarkType: "Coding" },
+  { label: "Build a small app from scratch", inputTokens: 5000000, outputTokens: 1200000, benchmarkType: "Coding" },
+  { label: "Implement a large product feature", inputTokens: 8000000, outputTokens: 2000000, benchmarkType: "Coding" },
+  { label: "Migrate or modernize a codebase", inputTokens: 12000000, outputTokens: 3000000, benchmarkType: "Coding" },
+  { label: "Audit and refactor a large codebase", inputTokens: 20000000, outputTokens: 4000000, benchmarkType: "Coding" },
+  { label: "Build a production web app", inputTokens: 55000000, outputTokens: 15000000, benchmarkType: "Coding" }
 ];
 
 const preferenceStops = [0, 0.25, 0.5, 0.75, 1];
