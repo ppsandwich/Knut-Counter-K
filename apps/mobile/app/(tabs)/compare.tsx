@@ -136,17 +136,18 @@ function BenchmarkTag({ label }: { label: string }) {
 
 function PreferenceSlider({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   const [trackWidth, setTrackWidth] = useState(1);
+  const trackWidthRef = useRef(1);
 
   function updateValue(locationX: number) {
-    onChange(Math.min(1, Math.max(0, locationX / trackWidth)));
+    onChange(Math.min(1, Math.max(0, locationX / trackWidthRef.current)));
   }
 
-  const panResponder = useRef(PanResponder.create({
+  const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: () => true,
     onStartShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => updateValue(event.nativeEvent.locationX),
     onPanResponderMove: (event) => updateValue(event.nativeEvent.locationX)
-  })).current;
+  });
 
   return (
     <View style={styles.sliderBlock}>
@@ -156,7 +157,11 @@ function PreferenceSlider({ value, onChange }: { value: number; onChange: (value
       </View>
       <View
         {...panResponder.panHandlers}
-        onLayout={(event) => setTrackWidth(Math.max(1, event.nativeEvent.layout.width))}
+        onLayout={(event) => {
+          const nextTrackWidth = Math.max(1, event.nativeEvent.layout.width);
+          trackWidthRef.current = nextTrackWidth;
+          setTrackWidth(nextTrackWidth);
+        }}
         style={styles.sliderTrack}
       >
         <View style={styles.sliderRail} />
