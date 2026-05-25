@@ -109,6 +109,7 @@ export default function CompareScreen() {
             <RecommendationCard item={recommendations.cheapest} tone="cheap" />
             <RecommendationCard item={recommendations.quality} tone="quality" />
             <RecommendationCard item={recommendations.balanced} tone="balanced" />
+            <Text style={styles.attribution}>Benchmarks from Artificial Analysis</Text>
           </View>
         ) : (
           <View style={styles.empty}>
@@ -178,6 +179,7 @@ const styles = StyleSheet.create({
   warning: { color: "#fbbf24", fontSize: 13, lineHeight: 18, marginTop: 4, fontWeight: "800" },
   reason: { color: "#b7c4ba", fontSize: 14, lineHeight: 20, marginTop: 6 },
   meta: { color: "#7b8b7f", fontSize: 12, fontWeight: "800", marginTop: 10, textTransform: "uppercase" },
+  attribution: { color: "#5f7064", fontSize: 10, fontWeight: "800", marginTop: -2 },
   empty: { backgroundColor: "#111113", borderColor: "#242428", borderWidth: 1, borderRadius: 8, padding: 14 },
   emptyTitle: { color: "#f4f4f5", fontSize: 18, fontWeight: "900" },
   emptyText: { color: "#a1a1aa", fontSize: 14, lineHeight: 20, marginTop: 4 },

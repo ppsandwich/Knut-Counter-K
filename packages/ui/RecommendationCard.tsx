@@ -34,6 +34,7 @@ export function RecommendationCard({ recommendation, loading, error }: { recomme
       <Text style={styles.reason}>{loading ? "Looking at your providers, prices, and cap pressure..." : error ?? recommendation.reason}</Text>
       <Text style={styles.cost}>{formatCurrency(recommendation.estimatedCostUsd)} estimated</Text>
       {metaText ? <Text style={styles.meta}>{metaText}</Text> : null}
+      <Text style={styles.attribution}>Benchmarks from Artificial Analysis</Text>
     </View>
   );
 }
@@ -46,5 +47,6 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 18, fontWeight: "900", marginTop: 7 },
   reason: { color: "#b7c4ba", fontSize: 14, lineHeight: 20, marginTop: 5 },
   cost: { color: "#86efac", fontSize: 13, fontWeight: "800", marginTop: 8 },
-  meta: { color: "#7b8b7f", fontSize: 11, fontWeight: "900", marginTop: 8, textTransform: "uppercase" }
+  meta: { color: "#7b8b7f", fontSize: 11, fontWeight: "900", marginTop: 8, textTransform: "uppercase" },
+  attribution: { color: "#5f7064", fontSize: 10, fontWeight: "800", marginTop: 6 }
 });
