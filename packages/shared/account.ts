@@ -56,6 +56,10 @@ export type AccountProviderSummary = {
   currentMonthSpend: number;
   currentMonthTokens: number;
   currentMonthRecords: number;
+  creditCapAmount: number | null;
+  creditUsedAmount: number | null;
+  creditBalanceAmount: number | null;
+  creditConfidence: string | null;
 };
 
 export type DashboardPayload = {

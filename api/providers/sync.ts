@@ -15,9 +15,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       ok: true,
       ...result,
-      message: result.synced
-        ? "Refresh recorded. Live connector usage pulls attach here."
-        : "No active provider accounts matched this refresh."
+      message: result.message || (result.synced
+        ? "Refresh recorded."
+        : "No active provider accounts matched this refresh.")
     });
   } catch (error) {
     return res.status(500).json({

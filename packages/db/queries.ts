@@ -1,9 +1,9 @@
-import type { UsageRecord } from "@knut/providers";
+import { openRouterConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
-import { encryptCredential } from "./security/credentials";
+import { decryptCredential, encryptCredential } from "./security/credentials";
 import { alerts, importJobs, pricingSnapshots, providerAccounts, providerRegistry, usageCaps, usageRecords, users } from "./schema";
 
 function monthStart(now = new Date()) {
@@ -315,29 +315,105 @@ export async function softDeleteProviderAccount(userId: string, providerAccountI
   };
 }
 
+async function upsertUsageCapsForAccount(userId: string, providerAccountId: string, caps: UsageCap[]) {
+  let processed = 0;
+
+  for (const cap of caps) {
+    const [existing] = await getDb()
+      .select({
+        id: usageCaps.id
+      })
+      .from(usageCaps)
+      .where(and(eq(usageCaps.userId, userId), eq(usageCaps.providerAccountId, providerAccountId), eq(usageCaps.capType, cap.capType)))
+      .limit(1);
+
+    const values = {
+      capLabel: cap.capLabel,
+      capAmount: String(cap.capAmount),
+      capUnit: cap.capUnit,
+      usedAmount: String(cap.usedAmount),
+      resetAt: cap.resetAt ? new Date(cap.resetAt) : null,
+      resetCadence: null,
+      confidence: cap.confidence,
+      updatedAt: new Date()
+    };
+
+    if (existing) {
+      await getDb().update(usageCaps).set(values).where(eq(usageCaps.id, existing.id));
+    } else {
+      await getDb().insert(usageCaps).values({
+        userId,
+        providerAccountId,
+        capType: cap.capType,
+        ...values
+      });
+    }
+
+    processed += 1;
+  }
+
+  return processed;
+}
+
 export async function markProviderAccountsSynced(userId: string, providerAccountId?: string) {
   const db = getDb();
-  const whereClause = providerAccountId
-    ? and(eq(providerAccounts.userId, userId), eq(providerAccounts.id, providerAccountId), eq(providerAccounts.isActive, true))
-    : and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true));
-
-  const rows = await db
-    .update(providerAccounts)
-    .set({
-      lastSyncAt: new Date(),
-      syncStatus: "idle",
-      updatedAt: new Date()
-    })
-    .where(whereClause)
-    .returning({
+  const targetRows = await db
+    .select({
       id: providerAccounts.id,
       providerId: providerAccounts.providerId,
-      displayName: providerAccounts.displayName
-    });
+      displayName: providerAccounts.displayName,
+      encryptedCredentials: providerAccounts.encryptedCredentials,
+      syncStatus: providerAccounts.syncStatus
+    })
+    .from(providerAccounts)
+    .where(providerAccountId
+      ? and(eq(providerAccounts.userId, userId), eq(providerAccounts.id, providerAccountId), eq(providerAccounts.isActive, true))
+      : and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)));
+
+  let synced = 0;
+  let capsProcessed = 0;
+  const messages: string[] = [];
+
+  for (const account of targetRows) {
+    if (account.syncStatus === "paused") {
+      messages.push(`${account.displayName} is paused.`);
+      continue;
+    }
+
+    if (account.providerId === "openrouter") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs an API key before OpenRouter can refresh.`);
+        continue;
+      }
+
+      const apiKey = decryptCredential(account.encryptedCredentials);
+      const caps = await openRouterConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+      messages.push(`${account.displayName} refreshed OpenRouter credits.`);
+    } else {
+      messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
+    }
+
+    await db
+      .update(providerAccounts)
+      .set({
+        lastSyncAt: new Date(),
+        syncStatus: "idle",
+        updatedAt: new Date()
+      })
+      .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.id, account.id)));
+
+    synced += 1;
+  }
 
   return {
-    synced: rows.length,
-    providerAccountIds: rows.map((row) => row.id)
+    synced,
+    capsProcessed,
+    providerAccountIds: targetRows.map((row) => row.id),
+    message: messages.join(" ")
   };
 }
 
@@ -379,13 +455,37 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     return acc;
   }, {});
 
+  const creditCaps = await db
+    .select({
+      providerAccountId: usageCaps.providerAccountId,
+      capAmount: usageCaps.capAmount,
+      usedAmount: usageCaps.usedAmount,
+      confidence: usageCaps.confidence
+    })
+    .from(usageCaps)
+    .where(eq(usageCaps.capType, "credit_balance"));
+
+  const creditByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; confidence: string }>>((acc, cap) => {
+    acc[cap.providerAccountId] = {
+      capAmount: numberFromDecimal(cap.capAmount),
+      usedAmount: numberFromDecimal(cap.usedAmount),
+      confidence: cap.confidence
+    };
+    return acc;
+  }, {});
+
   return rows.map((row) => ({
     ...(() => {
       const usage = usageByAccount[row.id] ?? { spend: 0, tokens: 0, records: 0 };
+      const credit = creditByAccount[row.id] ?? null;
       return {
         currentMonthSpend: usage.spend,
         currentMonthTokens: usage.tokens,
-        currentMonthRecords: usage.records
+        currentMonthRecords: usage.records,
+        creditCapAmount: credit?.capAmount ?? null,
+        creditUsedAmount: credit?.usedAmount ?? null,
+        creditBalanceAmount: credit ? Math.max(0, credit.capAmount - credit.usedAmount) : null,
+        creditConfidence: credit?.confidence ?? null
       };
     })(),
     id: row.id,

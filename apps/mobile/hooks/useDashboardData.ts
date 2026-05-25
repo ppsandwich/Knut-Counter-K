@@ -11,16 +11,21 @@ function sparklineForProvider(providerId: string) {
 export function providerAccountToUsageRow(provider: AccountProviderSummary): ProviderUsageSummary {
   const isManual = provider.authType === "manual" || provider.authType === "csv_json_import";
   const hasUsage = provider.currentMonthRecords > 0;
+  const hasCreditData = provider.creditUsedAmount != null && provider.creditBalanceAmount != null;
 
   return {
     providerId: provider.id,
     providerName: provider.providerName,
     accountDisplayName: provider.displayName,
-    primaryMetric: hasUsage ? formatCurrency(provider.currentMonthSpend) : "Unknown",
-    secondaryMetric: hasUsage ? `${formatCompactNumber(provider.currentMonthTokens)} tokens` : (provider.planName ?? provider.authType.replaceAll("_", " ")),
+    primaryMetric: hasUsage ? formatCurrency(provider.currentMonthSpend) : hasCreditData ? formatCurrency(provider.creditUsedAmount ?? 0) : "Unknown",
+    secondaryMetric: hasUsage
+      ? `${formatCompactNumber(provider.currentMonthTokens)} tokens`
+      : hasCreditData
+        ? `${formatCurrency(provider.creditBalanceAmount ?? 0)} credits left`
+        : (provider.planName ?? provider.authType.replaceAll("_", " ")),
     statusBadge: provider.hasCredentials || isManual ? "Ready" : "No key",
     status: provider.hasCredentials || isManual ? "healthy" : "warning",
-    confidence: hasUsage ? (isManual ? "manual" : "provider_reported") : "unknown",
+    confidence: hasUsage ? (isManual ? "manual" : "provider_reported") : hasCreditData ? "exact" : "unknown",
     resetCountdown: provider.resetRule ?? "no reset",
     lastSyncedAt: provider.lastSyncAt ?? "",
     sparklineData: sparklineForProvider(provider.providerId)
