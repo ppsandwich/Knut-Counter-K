@@ -1,7 +1,7 @@
 import type { UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
-import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
-import { and, asc, eq, gte } from "drizzle-orm";
+import type { AccountProfile, AccountProviderSummary, AccountSettingsInput, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption, RecommendationInput, RecommendationResult } from "@knut/shared";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { getDb } from "./client";
 import { encryptCredential } from "./security/credentials";
 import { pricingSnapshots, providerAccounts, providerRegistry, usageRecords, users } from "./schema";
@@ -14,6 +14,33 @@ function numberFromDecimal(value: unknown) {
   if (value == null) return 0;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+const pricingProviderAliases: Record<string, string[]> = {
+  openai_api: ["openai_api", "openai"],
+  anthropic_api: ["anthropic_api", "anthropic"],
+  google_gemini_api: ["google_gemini_api", "google", "gemini"],
+  google_vertex_ai: ["google_vertex_ai", "vertex_ai", "vertex"],
+  azure_openai: ["azure_openai", "azure"],
+  aws_bedrock: ["aws_bedrock", "bedrock"],
+  openrouter: ["openrouter"],
+  mistral: ["mistral"],
+  cohere: ["cohere"],
+  xai: ["xai"],
+  deepseek: ["deepseek"],
+  groq: ["groq"],
+  together_ai: ["together_ai", "together"],
+  fireworks_ai: ["fireworks_ai", "fireworks"],
+  perplexity_api: ["perplexity_api", "perplexity"],
+  cerebras: ["cerebras"],
+  sambanova: ["sambanova"],
+  nebius: ["nebius"],
+  nvidia_nim: ["nvidia", "nvidia_nim"],
+  cloudflare_workers_ai: ["cloudflare", "cloudflare_workers_ai"]
+};
+
+function aliasesForProvider(providerId: string) {
+  return new Set([providerId, ...(pricingProviderAliases[providerId] ?? [])]);
 }
 
 export async function upsertUserProfile(input: AccountProfile) {
@@ -402,6 +429,108 @@ export async function insertPricingSnapshots(snapshots: NormalisedPrice[]) {
   }
 
   return { inserted: snapshots.length };
+}
+
+export async function recommendProviderForUser(userId: string, input: RecommendationInput): Promise<RecommendationResult | null> {
+  const connectedProviders = await listProviderAccountsForUser(userId);
+  if (!connectedProviders.length) {
+    return null;
+  }
+
+  const rows = await getDb()
+    .select({
+      providerId: pricingSnapshots.providerId,
+      modelId: pricingSnapshots.modelId,
+      modelDisplayName: pricingSnapshots.modelDisplayName,
+      inputPricePer1mTokensUsd: pricingSnapshots.inputPricePer1mTokensUsd,
+      outputPricePer1mTokensUsd: pricingSnapshots.outputPricePer1mTokensUsd,
+      sourceName: pricingSnapshots.sourceName,
+      sourceConfidence: pricingSnapshots.sourceConfidence,
+      sourcePriority: pricingSnapshots.sourcePriority,
+      fetchedAt: pricingSnapshots.fetchedAt
+    })
+    .from(pricingSnapshots)
+    .orderBy(asc(pricingSnapshots.sourcePriority), desc(pricingSnapshots.fetchedAt))
+    .limit(10_000);
+
+  const latestPrices = new Map<string, typeof rows[number]>();
+  for (const row of rows) {
+    const key = `${row.providerId}:${row.modelId}`;
+    const existing = latestPrices.get(key);
+    if (!existing) {
+      latestPrices.set(key, row);
+      continue;
+    }
+
+    if (row.sourcePriority < existing.sourcePriority || row.fetchedAt > existing.fetchedAt) {
+      latestPrices.set(key, row);
+    }
+  }
+
+  const inputTokens = Math.max(0, Math.trunc(input.estimatedInputTokens));
+  const outputTokens = Math.max(0, Math.trunc(input.estimatedOutputTokens));
+  const candidates = [];
+
+  for (const account of connectedProviders) {
+    const aliases = aliasesForProvider(account.providerId);
+    const budgetRatio = account.monthlyBudget && account.monthlyBudget > 0 ? account.currentMonthSpend / account.monthlyBudget : 0;
+
+    if (input.excludeNearCapProviders && budgetRatio >= 0.95) {
+      continue;
+    }
+
+    for (const price of latestPrices.values()) {
+      if (!aliases.has(price.providerId)) {
+        continue;
+      }
+
+      const inputPrice = numberFromDecimal(price.inputPricePer1mTokensUsd);
+      const outputPrice = numberFromDecimal(price.outputPricePer1mTokensUsd);
+      if (inputPrice <= 0 && outputPrice <= 0) {
+        continue;
+      }
+
+      const estimatedCostUsd = inputTokens / 1_000_000 * inputPrice + outputTokens / 1_000_000 * outputPrice;
+      const capPenalty = budgetRatio >= 0.95 ? estimatedCostUsd * 4 : budgetRatio >= 0.8 ? estimatedCostUsd * 1.5 : 0;
+      const confidencePenalty = price.sourceConfidence === "official" ? 0 : estimatedCostUsd * 0.05;
+
+      candidates.push({
+        account,
+        price,
+        estimatedCostUsd,
+        score: estimatedCostUsd + capPenalty + confidencePenalty,
+        budgetRatio
+      });
+    }
+  }
+
+  const best = candidates.sort((a, b) => a.score - b.score)[0];
+  if (!best) {
+    return null;
+  }
+
+  const capWarning = best.budgetRatio >= 0.95
+    ? `${best.account.providerName} is above 95% of its monthly budget.`
+    : best.budgetRatio >= 0.8
+      ? `${best.account.providerName} is above 80% of its monthly budget.`
+      : null;
+
+  const freshnessDays = Math.floor((Date.now() - best.price.fetchedAt.getTime()) / 86_400_000);
+  const staleNote = freshnessDays > 14 ? " Pricing is a bit stale, so keep one eyebrow raised." : "";
+  const capNote = capWarning ? " It can do the job, but the budget meter is warm." : "";
+
+  return {
+    recommendedProvider: best.account.providerName,
+    recommendedProviderId: best.account.providerId,
+    providerAccountId: best.account.id,
+    recommendedModel: best.price.modelDisplayName,
+    estimatedCostUsd: best.estimatedCostUsd,
+    capWarning,
+    reason: `Cheapest connected option found from ${best.price.sourceName}.${capNote}${staleNote}`,
+    priceSource: best.price.sourceName,
+    priceConfidence: best.price.sourceConfidence,
+    fetchedAt: best.price.fetchedAt.toISOString()
+  };
 }
 
 export async function evaluateAlerts() {

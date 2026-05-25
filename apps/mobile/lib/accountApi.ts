@@ -1,4 +1,4 @@
-import type { AccountSettingsInput, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption } from "@knut/shared";
+import type { AccountSettingsInput, DashboardPayload, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderRegistryOption, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -122,4 +122,19 @@ export async function importUsage(input: ImportUsageInput) {
   }
 
   return response.json() as Promise<{ ok: boolean; rowsProcessed: number; rowsFailed: number }>;
+}
+
+export async function recommendProvider(input: RecommendationInput): Promise<RecommendationResult> {
+  const response = await fetch(getApiUrl("/api/recommend"), {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const data = await response.json() as { recommendation: RecommendationResult };
+  return data.recommendation;
 }

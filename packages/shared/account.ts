@@ -100,3 +100,23 @@ export type ImportUsageInput = {
   providerAccountId: string;
   rows: ImportUsageRowInput[];
 };
+
+export type RecommendationInput = {
+  taskType?: string;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  excludeNearCapProviders?: boolean;
+};
+
+export type RecommendationResult = {
+  recommendedProvider: string;
+  recommendedProviderId: string;
+  providerAccountId: string;
+  recommendedModel: string;
+  estimatedCostUsd: number;
+  capWarning: string | null;
+  reason: string;
+  priceSource: string;
+  priceConfidence: string;
+  fetchedAt: string;
+};
