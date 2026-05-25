@@ -5,18 +5,23 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { recommendProvider } from "../../lib/accountApi";
 
 const taskPresets = [
-  { label: "Quick question / explanation", inputTokens: 300, outputTokens: 500 },
-  { label: "Summarize pasted text", inputTokens: 2500, outputTokens: 450 },
-  { label: "Research synthesis / compare options", inputTokens: 3000, outputTokens: 1200 },
-  { label: "Long-form writing / report draft", inputTokens: 1500, outputTokens: 2500 },
-  { label: "Code help / debugging", inputTokens: 1800, outputTokens: 1200 },
-  { label: "Review a pull request / diff", inputTokens: 8000, outputTokens: 1500 },
-  { label: "Debug with logs and stack traces", inputTokens: 10000, outputTokens: 1800 },
-  { label: "Generate tests for existing code", inputTokens: 6000, outputTokens: 2500 },
-  { label: "Refactor a large file", inputTokens: 12000, outputTokens: 3000 },
-  { label: "Explain a codebase area", inputTokens: 20000, outputTokens: 2500 },
-  { label: "Build a simple website", inputTokens: 75000, outputTokens: 25000 },
-  { label: "Build a full-stack app feature", inputTokens: 500000, outputTokens: 150000 }
+  { label: "Quick question / explanation", inputTokens: 300, outputTokens: 500, benchmarkType: "General" },
+  { label: "Summarize pasted text", inputTokens: 2500, outputTokens: 450, benchmarkType: "Summarising" },
+  { label: "Research synthesis / compare options", inputTokens: 3000, outputTokens: 1200, benchmarkType: "Analysis" },
+  { label: "Long-form writing / report draft", inputTokens: 1500, outputTokens: 2500, benchmarkType: "Writing" },
+  { label: "Code help / debugging", inputTokens: 1800, outputTokens: 1200, benchmarkType: "Coding" },
+  { label: "Review a pull request / diff", inputTokens: 8000, outputTokens: 1500, benchmarkType: "Coding" },
+  { label: "Debug with logs and stack traces", inputTokens: 10000, outputTokens: 1800, benchmarkType: "Coding" },
+  { label: "Generate tests for existing code", inputTokens: 6000, outputTokens: 2500, benchmarkType: "Coding" },
+  { label: "Refactor a large file", inputTokens: 12000, outputTokens: 3000, benchmarkType: "Coding" },
+  { label: "Explain a codebase area", inputTokens: 20000, outputTokens: 2500, benchmarkType: "Coding" },
+  { label: "Build a simple website", inputTokens: 75000, outputTokens: 25000, benchmarkType: "Coding" },
+  { label: "Build a full-stack app feature", inputTokens: 500000, outputTokens: 150000, benchmarkType: "Coding" },
+  { label: "Build a small app from scratch", inputTokens: 650000, outputTokens: 220000, benchmarkType: "Coding" },
+  { label: "Implement a large product feature", inputTokens: 800000, outputTokens: 250000, benchmarkType: "Coding" },
+  { label: "Migrate or modernize a codebase", inputTokens: 900000, outputTokens: 300000, benchmarkType: "Coding" },
+  { label: "Audit and refactor a large codebase", inputTokens: 1000000, outputTokens: 250000, benchmarkType: "Coding" },
+  { label: "Build a production web app", inputTokens: 1000000, outputTokens: 400000, benchmarkType: "Coding" }
 ];
 
 export default function CompareScreen() {
@@ -63,7 +68,10 @@ export default function CompareScreen() {
           <Text style={styles.label}>Task</Text>
           <Pressable onPress={() => setIsTaskMenuOpen((value) => !value)} style={styles.select}>
             <View style={styles.selectTextBlock}>
-              <Text style={styles.selectLabel}>{selectedTask.label}</Text>
+              <View style={styles.taskTitleRow}>
+                <Text style={styles.selectLabel}>{selectedTask.label}</Text>
+                <BenchmarkTag label={selectedTask.benchmarkType} />
+              </View>
               <Text style={styles.selectMeta}>{selectedTask.inputTokens.toLocaleString()} in · {selectedTask.outputTokens.toLocaleString()} out</Text>
             </View>
             <Text style={styles.selectChevron}>{isTaskMenuOpen ? "Close" : "Choose"}</Text>
@@ -75,7 +83,10 @@ export default function CompareScreen() {
                 return (
                   <Pressable key={task.label} onPress={() => selectTask(task)} style={[styles.menuItem, isSelected && styles.menuItemActive]}>
                     <View style={styles.selectTextBlock}>
-                      <Text style={styles.menuItemTitle}>{task.label}</Text>
+                      <View style={styles.taskTitleRow}>
+                        <Text style={styles.menuItemTitle}>{task.label}</Text>
+                        <BenchmarkTag label={task.benchmarkType} />
+                      </View>
                       <Text style={styles.menuItemMeta}>{task.inputTokens.toLocaleString()} input · {task.outputTokens.toLocaleString()} output</Text>
                     </View>
                     <Text style={styles.menuItemCheck}>{isSelected ? "Selected" : ""}</Text>
@@ -126,6 +137,14 @@ function formatCost(value: number) {
   return `~$${value.toFixed(value < 0.01 ? 5 : 3)}`;
 }
 
+function BenchmarkTag({ label }: { label: string }) {
+  return (
+    <View style={styles.benchmarkTag}>
+      <Text style={styles.benchmarkTagText}>{label}</Text>
+    </View>
+  );
+}
+
 function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: "cheap" | "quality" | "balanced" }) {
   return (
     <View style={[styles.reco, tone === "quality" && styles.recoQuality, tone === "balanced" && styles.recoBalanced]}>
@@ -152,13 +171,16 @@ const styles = StyleSheet.create({
   input: { color: "#f4f4f5", backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, minHeight: 44, fontSize: 16 },
   select: { minHeight: 58, backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   selectTextBlock: { flex: 1, minWidth: 0 },
-  selectLabel: { color: "#f4f4f5", fontSize: 16, fontWeight: "900" },
+  taskTitleRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  selectLabel: { color: "#f4f4f5", fontSize: 16, fontWeight: "900", flexShrink: 1 },
   selectMeta: { color: "#8b8b91", fontSize: 12, fontWeight: "800", marginTop: 3 },
   selectChevron: { color: "#86efac", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  benchmarkTag: { borderColor: "#2f3d34", borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: "#111a14" },
+  benchmarkTagText: { color: "#93a99a", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   menu: { gap: 8 },
   menuItem: { minHeight: 58, borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   menuItemActive: { borderColor: "#22c55e", backgroundColor: "#102016" },
-  menuItemTitle: { color: "#f4f4f5", fontSize: 14, fontWeight: "900" },
+  menuItemTitle: { color: "#f4f4f5", fontSize: 14, fontWeight: "900", flexShrink: 1 },
   menuItemMeta: { color: "#8b8b91", fontSize: 12, fontWeight: "800", marginTop: 3 },
   menuItemCheck: { color: "#86efac", fontSize: 12, fontWeight: "900" },
   grid: { flexDirection: "row", gap: 10 },
