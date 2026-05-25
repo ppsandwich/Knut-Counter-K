@@ -1,4 +1,4 @@
-import { anthropicConnector, openAiConnector, openRouterConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, geminiConnector, openAiConnector, openRouterConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
@@ -479,6 +479,15 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       });
       const inserted = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
       messages.push(`${account.displayName} pulled ${inserted.rowsProcessed} Anthropic usage/cost rows${inserted.rowsSkipped ? ` and skipped ${inserted.rowsSkipped} duplicates` : ""}.`);
+    } else if (account.providerId === "google_gemini_api") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs an API key before Gemini can validate the connector.`);
+        continue;
+      }
+
+      const apiKey = decryptCredential(account.encryptedCredentials);
+      const validation = await geminiConnector.validateCredentials?.({ apiKey });
+      messages.push(`${account.displayName}: ${validation?.message ?? "Gemini key validated. Usage still requires response metadata, import, or future Cloud Billing integration."}`);
     } else {
       messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
     }
