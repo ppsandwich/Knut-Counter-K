@@ -138,6 +138,8 @@ export const modelBenchmarkSnapshots = pgTable("model_benchmark_snapshots", {
   medianOutputTokensPerSecond: decimal("median_output_tokens_per_second"),
   medianTimeToFirstTokenSeconds: decimal("median_time_to_first_token_seconds"),
   medianTimeToFirstAnswerTokenSeconds: decimal("median_time_to_first_answer_token_seconds"),
+  artificialAnalysisOutputTokensUsed: decimal("artificial_analysis_output_tokens_used"),
+  artificialAnalysisTokenEfficiency: decimal("artificial_analysis_token_efficiency"),
   sourceName: text("source_name").notNull(),
   sourceConfidence: text("source_confidence").notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull(),

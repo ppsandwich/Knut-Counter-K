@@ -18,6 +18,9 @@ type ArtificialAnalysisModel = {
   median_output_tokens_per_second?: number;
   median_time_to_first_token_seconds?: number;
   median_time_to_first_answer_token?: number;
+  artificial_analysis_output_tokens_used?: number;
+  output_tokens_used?: number;
+  token_efficiency?: number;
 };
 
 export type ArtificialAnalysisBenchmark = {
@@ -44,6 +47,8 @@ export type ArtificialAnalysisBenchmark = {
   medianOutputTokensPerSecond?: number;
   medianTimeToFirstTokenSeconds?: number;
   medianTimeToFirstAnswerTokenSeconds?: number;
+  artificialAnalysisOutputTokensUsed?: number;
+  artificialAnalysisTokenEfficiency?: number;
   sourceName: "Artificial Analysis";
   sourceConfidence: "public_catalogue";
   fetchedAt: string;
@@ -88,6 +93,22 @@ function evaluationNumber(evaluations: Record<string, unknown>, ...keys: string[
       );
       if (nestedValue != null) return nestedValue;
     }
+  }
+
+  return undefined;
+}
+
+function nestedNumber(source: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const directValue = finiteNumber(source[key]);
+    if (directValue != null) return directValue;
+
+    const pathValue = key.split(".").reduce<unknown>((value, segment) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+      return (value as Record<string, unknown>)[segment];
+    }, source);
+    const parsedPathValue = finiteNumber(pathValue);
+    if (parsedPathValue != null) return parsedPathValue;
   }
 
   return undefined;
@@ -142,6 +163,7 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
     }
 
     const evaluations = model.evaluations ?? {};
+    const modelRecord = model as Record<string, unknown>;
     benchmarks.push({
       providerId,
       modelId,
@@ -166,6 +188,29 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
       medianOutputTokensPerSecond: finiteNumber(model.median_output_tokens_per_second),
       medianTimeToFirstTokenSeconds: finiteNumber(model.median_time_to_first_token_seconds),
       medianTimeToFirstAnswerTokenSeconds: finiteNumber(model.median_time_to_first_answer_token),
+      artificialAnalysisOutputTokensUsed: nestedNumber(
+        modelRecord,
+        "artificial_analysis_output_tokens_used",
+        "output_tokens_used",
+        "output_tokens_used_to_run_artificial_analysis_intelligence_index",
+        "intelligence_index_output_tokens",
+        "intelligence_index.output_tokens_used",
+        "evaluations.artificial_analysis_output_tokens_used",
+        "evaluations.output_tokens_used",
+        "evaluations.output_tokens_used_to_run_artificial_analysis_intelligence_index",
+        "evaluations.intelligence_index_output_tokens"
+      ),
+      artificialAnalysisTokenEfficiency: nestedNumber(
+        modelRecord,
+        "artificial_analysis_token_efficiency",
+        "token_efficiency",
+        "token_efficiency_index",
+        "tokenizer_efficiency",
+        "evaluations.artificial_analysis_token_efficiency",
+        "evaluations.token_efficiency",
+        "evaluations.token_efficiency_index",
+        "evaluations.tokenizer_efficiency"
+      ),
       sourceName: "Artificial Analysis",
       sourceConfidence: "public_catalogue",
       fetchedAt

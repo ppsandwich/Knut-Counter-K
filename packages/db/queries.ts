@@ -154,6 +154,23 @@ function weightedBenchmarkScore(
   return Math.round(Math.min(100, Math.max(0, weightedTotal / totalWeight)));
 }
 
+function median(values: number[]) {
+  const sorted = values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function positiveNumberFromDecimal(value: unknown) {
+  const parsed = numberFromDecimal(value);
+  return parsed > 0 ? parsed : null;
+}
+
 export async function upsertUserProfile(input: AccountProfile) {
   const [profile] = await getDb()
     .insert(users)
@@ -1084,6 +1101,8 @@ export async function insertModelBenchmarkSnapshots(snapshots: ArtificialAnalysi
     medianOutputTokensPerSecond: decimalValue(snapshot.medianOutputTokensPerSecond),
     medianTimeToFirstTokenSeconds: decimalValue(snapshot.medianTimeToFirstTokenSeconds),
     medianTimeToFirstAnswerTokenSeconds: decimalValue(snapshot.medianTimeToFirstAnswerTokenSeconds),
+    artificialAnalysisOutputTokensUsed: decimalValue(snapshot.artificialAnalysisOutputTokensUsed),
+    artificialAnalysisTokenEfficiency: decimalValue(snapshot.artificialAnalysisTokenEfficiency),
     sourceName: snapshot.sourceName,
     sourceConfidence: snapshot.sourceConfidence,
     fetchedAt: new Date(snapshot.fetchedAt)
@@ -1134,6 +1153,8 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       scicode: modelBenchmarkSnapshots.scicode,
       math500: modelBenchmarkSnapshots.math500,
       aime: modelBenchmarkSnapshots.aime,
+      artificialAnalysisOutputTokensUsed: modelBenchmarkSnapshots.artificialAnalysisOutputTokensUsed,
+      artificialAnalysisTokenEfficiency: modelBenchmarkSnapshots.artificialAnalysisTokenEfficiency,
       sourceName: modelBenchmarkSnapshots.sourceName,
       fetchedAt: modelBenchmarkSnapshots.fetchedAt
     })
@@ -1250,13 +1271,33 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     };
   }
 
+  function tokenEfficiencyForPrice(price: typeof rows[number]) {
+    const benchmark = benchmarkForPrice(price);
+    if (!benchmark) {
+      return {
+        outputTokensUsed: null,
+        tokenEfficiency: null
+      };
+    }
+
+    return {
+      outputTokensUsed: positiveNumberFromDecimal(benchmark.artificialAnalysisOutputTokensUsed),
+      tokenEfficiency: positiveNumberFromDecimal(benchmark.artificialAnalysisTokenEfficiency)
+    };
+  }
+
   type RecommendationCandidate = {
     account: AccountProviderSummary;
     price: typeof rows[number];
+    baseInputCostUsd: number;
+    baseOutputCostUsd: number;
     estimatedCostUsd: number;
     score: number;
     intelligenceScore: number;
     intelligenceSource: "benchmark" | "inferred";
+    artificialAnalysisOutputTokensUsed: number | null;
+    artificialAnalysisTokenEfficiency: number | null;
+    tokenEfficiencyMultiplier: number;
     budgetRatio: number;
   };
   const candidates: RecommendationCandidate[] = [];
@@ -1281,17 +1322,21 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       }
 
       const estimatedCostUsd = inputTokens / 1_000_000 * inputPrice + outputTokens / 1_000_000 * outputPrice;
-      const capPenalty = budgetRatio >= 0.95 ? estimatedCostUsd * 4 : budgetRatio >= 0.8 ? estimatedCostUsd * 1.5 : 0;
-      const confidencePenalty = price.sourceConfidence === "official" ? 0 : estimatedCostUsd * 0.05;
       const quality = qualityScoreForPrice(price);
+      const tokenEfficiency = tokenEfficiencyForPrice(price);
 
       candidates.push({
         account,
         price,
+        baseInputCostUsd: inputTokens / 1_000_000 * inputPrice,
+        baseOutputCostUsd: outputTokens / 1_000_000 * outputPrice,
         estimatedCostUsd,
-        score: estimatedCostUsd + capPenalty + confidencePenalty,
+        score: estimatedCostUsd,
         intelligenceScore: quality.score,
         intelligenceSource: quality.source,
+        artificialAnalysisOutputTokensUsed: tokenEfficiency.outputTokensUsed,
+        artificialAnalysisTokenEfficiency: tokenEfficiency.tokenEfficiency,
+        tokenEfficiencyMultiplier: 1,
         budgetRatio
       });
     }
@@ -1299,6 +1344,25 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
 
   if (!candidates.length) {
     return null;
+  }
+
+  const medianOutputTokensUsed = median(candidates.map((candidate) => candidate.artificialAnalysisOutputTokensUsed ?? 0));
+  const medianTokenEfficiency = median(candidates.map((candidate) => candidate.artificialAnalysisTokenEfficiency ?? 0));
+
+  for (const candidate of candidates) {
+    const outputTokensMultiplier = candidate.artificialAnalysisOutputTokensUsed && medianOutputTokensUsed
+      ? candidate.artificialAnalysisOutputTokensUsed / medianOutputTokensUsed
+      : null;
+    const explicitEfficiencyMultiplier = candidate.artificialAnalysisTokenEfficiency && medianTokenEfficiency
+      ? medianTokenEfficiency / candidate.artificialAnalysisTokenEfficiency
+      : null;
+    const multiplier = clamp(outputTokensMultiplier ?? explicitEfficiencyMultiplier ?? 1, 0.35, 3);
+
+    candidate.tokenEfficiencyMultiplier = multiplier;
+    candidate.estimatedCostUsd = candidate.baseInputCostUsd + candidate.baseOutputCostUsd * multiplier;
+    candidate.score = candidate.estimatedCostUsd
+      + (candidate.budgetRatio >= 0.95 ? candidate.estimatedCostUsd * 4 : candidate.budgetRatio >= 0.8 ? candidate.estimatedCostUsd * 1.5 : 0)
+      + (candidate.price.sourceConfidence === "official" ? 0 : candidate.estimatedCostUsd * 0.05);
   }
 
   const cheapestCandidate = [...candidates].sort((a, b) => a.score - b.score)[0];
@@ -1339,6 +1403,11 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     const freshnessDays = Math.floor((Date.now() - candidate.price.fetchedAt.getTime()) / 86_400_000);
     const staleNote = freshnessDays > 14 ? " Pricing is a bit stale, so keep one eyebrow raised." : "";
     const capNote = capWarning ? " Budget pressure included in the score." : "";
+    const tokenEfficiencyNote = candidate.tokenEfficiencyMultiplier < 0.95
+      ? " Token efficiency lowers the effective output cost."
+      : candidate.tokenEfficiencyMultiplier > 1.05
+        ? " Higher token use raises the effective output cost."
+        : "";
     const taskLabel = taskKind === "coding"
       ? "coding"
       : taskKind === "summarising"
@@ -1374,7 +1443,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       intelligenceSource: candidate.intelligenceSource,
       intelligenceBenchmark: candidate.intelligenceSource === "benchmark" ? taskLabel : undefined,
       capWarning,
-      reason: `${reasonPrefix} ${qualityNote}${capNote}${staleNote}`,
+      reason: `${reasonPrefix} ${qualityNote}${tokenEfficiencyNote}${capNote}${staleNote}`,
       priceSource: candidate.price.sourceName,
       priceConfidence: candidate.price.sourceConfidence,
       fetchedAt: candidate.price.fetchedAt.toISOString()

@@ -125,7 +125,7 @@ export default function CompareScreen() {
 }
 
 function formatCost(value: number) {
-  return `~$${value.toFixed(value < 0.01 ? 5 : 3)}`;
+  return `~$${value.toFixed(value > 0.01 ? 2 : 5)}`;
 }
 
 function BenchmarkTag({ label }: { label: string }) {
