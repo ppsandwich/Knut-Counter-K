@@ -380,8 +380,7 @@ export async function insertPricingSnapshots(snapshots: NormalisedPrice[]) {
     return { inserted: 0 };
   }
 
-  await getDb().insert(pricingSnapshots).values(
-    snapshots.map((snapshot) => ({
+  const values = snapshots.map((snapshot) => ({
       providerId: snapshot.providerId,
       modelId: snapshot.modelId,
       modelDisplayName: snapshot.modelDisplayName,
@@ -395,8 +394,12 @@ export async function insertPricingSnapshots(snapshots: NormalisedPrice[]) {
       sourcePriority: snapshot.sourcePriority,
       fetchedAt: new Date(snapshot.fetchedAt),
       effectiveFrom: new Date(snapshot.fetchedAt)
-    }))
-  );
+    }));
+
+  const chunkSize = 500;
+  for (let index = 0; index < values.length; index += chunkSize) {
+    await getDb().insert(pricingSnapshots).values(values.slice(index, index + chunkSize));
+  }
 
   return { inserted: snapshots.length };
 }
