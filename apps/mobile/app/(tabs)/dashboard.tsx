@@ -1,8 +1,10 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, RecommendationCard, SyncStatusStrip } from "@knut/ui";
 import { mockDashboard } from "@knut/shared/mockData";
 import { useDashboardData } from "../../hooks/useDashboardData";
+import { syncProviders } from "../../lib/accountApi";
 
 const emptySummary = {
   monthlySpend: 0,
@@ -18,17 +20,45 @@ export default function DashboardScreen() {
   const providerRows = dashboard.providerRows;
   const signedIn = Boolean(dashboard.auth.user);
   const summary = dashboard.data?.summary ?? emptySummary;
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+
+  async function refreshUsage() {
+    if (!signedIn || refreshing) return;
+
+    setRefreshing(true);
+    setRefreshMessage(null);
+    try {
+      const result = await syncProviders();
+      await dashboard.refresh();
+      setRefreshMessage(result.synced ? `Refreshed ${result.synced} provider${result.synced === 1 ? "" : "s"}.` : "No active providers to refresh.");
+    } catch (error) {
+      setRefreshMessage(error instanceof Error ? error.message : "Refresh failed.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshUsage} tintColor="#22c55e" />}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>Knut Counter</Text>
             <Text style={styles.subtitle}>Today</Text>
           </View>
-          <Text style={styles.currency}>USD</Text>
+          <View style={styles.headerActions}>
+            <Pressable disabled={!signedIn || refreshing} onPress={refreshUsage} style={({ pressed }) => [styles.refreshButton, (!signedIn || refreshing) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.refreshButtonText}>{refreshing ? "Refreshing" : "Refresh"}</Text>
+            </Pressable>
+            <Text style={styles.currency}>USD</Text>
+          </View>
         </View>
+        {refreshMessage ? <Text style={styles.refreshMessage}>{refreshMessage}</Text> : null}
 
         <MonthlyDamageCard summary={summary} />
         <RecommendationCard recommendation={mockDashboard.recommendation} />
@@ -73,9 +103,15 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
   content: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28, gap: 10 },
   header: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 },
+  headerActions: { alignItems: "flex-end", gap: 6 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800", letterSpacing: 0 },
   subtitle: { color: "#8b8b91", fontSize: 15, marginTop: 2 },
   currency: { color: "#a1a1aa", fontSize: 12, fontWeight: "700", paddingBottom: 6 },
+  refreshButton: { minHeight: 34, borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  refreshButtonText: { color: "#050506", fontSize: 13, fontWeight: "900" },
+  refreshMessage: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" },
+  disabled: { opacity: 0.45 },
+  pressed: { opacity: 0.72 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
   sectionTitle: { color: "#f4f4f5", fontSize: 20, fontWeight: "800" },
   sectionMeta: { color: "#71717a", fontSize: 12, fontWeight: "700", textTransform: "uppercase" },

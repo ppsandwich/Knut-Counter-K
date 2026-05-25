@@ -138,6 +138,20 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
   };
 }
 
+export async function syncProviders(providerAccountId?: string): Promise<{ ok: boolean; synced: number; message: string }> {
+  const response = await fetch(getApiUrl("/api/providers/sync"), {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ providerAccountId })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean; synced: number; message: string }>;
+}
+
 export async function fetchProviderRegistry(): Promise<ProviderRegistryOption[]> {
   const response = await fetch(getApiUrl("/api/providers/registry"), {
     method: "GET",
@@ -210,7 +224,7 @@ export async function fetchAlerts(): Promise<AccountAlert[]> {
 }
 
 export async function evaluateAlerts(): Promise<AlertEvaluationResult> {
-  const response = await fetch(getApiUrl("/api/alerts/evaluate"), {
+  const response = await fetch(getApiUrl("/api/alerts?action=evaluate"), {
     method: "POST",
     headers: await authHeaders()
   });

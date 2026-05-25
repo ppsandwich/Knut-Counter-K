@@ -315,6 +315,32 @@ export async function softDeleteProviderAccount(userId: string, providerAccountI
   };
 }
 
+export async function markProviderAccountsSynced(userId: string, providerAccountId?: string) {
+  const db = getDb();
+  const whereClause = providerAccountId
+    ? and(eq(providerAccounts.userId, userId), eq(providerAccounts.id, providerAccountId), eq(providerAccounts.isActive, true))
+    : and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true));
+
+  const rows = await db
+    .update(providerAccounts)
+    .set({
+      lastSyncAt: new Date(),
+      syncStatus: "idle",
+      updatedAt: new Date()
+    })
+    .where(whereClause)
+    .returning({
+      id: providerAccounts.id,
+      providerId: providerAccounts.providerId,
+      displayName: providerAccounts.displayName
+    });
+
+  return {
+    synced: rows.length,
+    providerAccountIds: rows.map((row) => row.id)
+  };
+}
+
 export async function listProviderAccountsForUser(userId: string): Promise<AccountProviderSummary[]> {
   const db = getDb();
   const rows = await db
