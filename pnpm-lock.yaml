@@ -106,6 +106,9 @@ importers:
       '@knut/pricing':
         specifier: workspace:*
         version: link:../pricing
+      '@knut/providers':
+        specifier: workspace:*
+        version: link:../providers
       drizzle-orm:
         specifier: ^0.43.1
         version: 0.43.1(postgres@3.4.9)
