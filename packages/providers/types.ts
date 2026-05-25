@@ -28,10 +28,15 @@ export type FetchBalanceInput = FetchCapsInput;
 export type UsageRecord = {
   providerId: string;
   modelId?: string;
+  sourceType?: string;
+  sourceRef?: string;
   inputTokens?: number;
   outputTokens?: number;
+  cachedTokens?: number;
+  reasoningTokens?: number;
   costAmount?: number;
   costCurrency?: string;
+  requestCount?: number;
   confidence: DataConfidence;
   observedAt: string;
 };

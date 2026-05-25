@@ -1,7 +1,7 @@
-import { openRouterConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, openAiConnector, openRouterConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
-import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
 import { alerts, importJobs, pricingSnapshots, providerAccounts, providerRegistry, usageCaps, usageRecords, users } from "./schema";
@@ -355,6 +355,62 @@ async function upsertUsageCapsForAccount(userId: string, providerAccountId: stri
   return processed;
 }
 
+async function insertSyncedUsageRecords(userId: string, providerAccountId: string, providerId: string, records: UsageRecord[]) {
+  const validRecords = records.filter((record) => record.sourceRef);
+  if (!validRecords.length) {
+    return {
+      rowsProcessed: 0,
+      rowsSkipped: records.length
+    };
+  }
+
+  const sourceRefs = validRecords.map((record) => record.sourceRef!);
+  const existingRows = await getDb()
+    .select({
+      sourceRef: usageRecords.sourceRef
+    })
+    .from(usageRecords)
+    .where(and(eq(usageRecords.userId, userId), eq(usageRecords.providerAccountId, providerAccountId), inArray(usageRecords.sourceRef, sourceRefs)));
+  const existingRefs = new Set(existingRows.map((row) => row.sourceRef).filter(Boolean));
+  const rowsToInsert = validRecords
+    .filter((record) => !existingRefs.has(record.sourceRef ?? null))
+    .map((record) => {
+      const inputTokens = record.inputTokens ?? null;
+      const outputTokens = record.outputTokens ?? null;
+      const cachedTokens = record.cachedTokens ?? null;
+      const reasoningTokens = record.reasoningTokens ?? null;
+      const totalTokens = (inputTokens ?? 0) + (outputTokens ?? 0) + (reasoningTokens ?? 0);
+
+      return {
+        userId,
+        providerAccountId,
+        providerId,
+        modelId: record.modelId ?? null,
+        sourceType: record.sourceType ?? "provider_usage_api",
+        sourceRef: record.sourceRef ?? null,
+        inputTokens,
+        outputTokens,
+        cachedTokens,
+        reasoningTokens,
+        totalTokens: totalTokens || null,
+        requestCount: record.requestCount ?? null,
+        costAmount: record.costAmount == null ? null : String(record.costAmount),
+        costCurrency: record.costCurrency ?? null,
+        confidence: record.confidence,
+        observedAt: new Date(record.observedAt)
+      };
+    });
+
+  if (rowsToInsert.length) {
+    await getDb().insert(usageRecords).values(rowsToInsert);
+  }
+
+  return {
+    rowsProcessed: rowsToInsert.length,
+    rowsSkipped: validRecords.length - rowsToInsert.length
+  };
+}
+
 export async function markProviderAccountsSynced(userId: string, providerAccountId?: string) {
   const db = getDb();
   const targetRows = await db
@@ -393,6 +449,36 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       });
       capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
       messages.push(`${account.displayName} refreshed OpenRouter credits.`);
+    } else if (account.providerId === "openai_api") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs an API key before OpenAI can refresh.`);
+        continue;
+      }
+
+      const apiKey = decryptCredential(account.encryptedCredentials);
+      const usage = await openAiConnector.fetchUsage?.({
+        providerAccountId: account.id,
+        credentials: { apiKey },
+        since: monthStart().toISOString(),
+        until: new Date().toISOString()
+      });
+      const inserted = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
+      messages.push(`${account.displayName} pulled ${inserted.rowsProcessed} OpenAI usage/cost rows${inserted.rowsSkipped ? ` and skipped ${inserted.rowsSkipped} duplicates` : ""}.`);
+    } else if (account.providerId === "anthropic_api") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs an API key before Anthropic can refresh.`);
+        continue;
+      }
+
+      const apiKey = decryptCredential(account.encryptedCredentials);
+      const usage = await anthropicConnector.fetchUsage?.({
+        providerAccountId: account.id,
+        credentials: { apiKey },
+        since: monthStart().toISOString(),
+        until: new Date().toISOString()
+      });
+      const inserted = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
+      messages.push(`${account.displayName} pulled ${inserted.rowsProcessed} Anthropic usage/cost rows${inserted.rowsSkipped ? ` and skipped ${inserted.rowsSkipped} duplicates` : ""}.`);
     } else {
       messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
     }
