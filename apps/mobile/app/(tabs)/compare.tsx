@@ -4,13 +4,36 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { SafeAreaView } from "react-native-safe-area-context";
 import { recommendProvider } from "../../lib/accountApi";
 
+const taskPresets = [
+  { label: "Quick question / explanation", inputTokens: 300, outputTokens: 500 },
+  { label: "Summarize pasted text", inputTokens: 2500, outputTokens: 450 },
+  { label: "Research synthesis / compare options", inputTokens: 3000, outputTokens: 1200 },
+  { label: "Long-form writing / report draft", inputTokens: 1500, outputTokens: 2500 },
+  { label: "Code help / debugging", inputTokens: 1800, outputTokens: 1200 },
+  { label: "Review a pull request / diff", inputTokens: 8000, outputTokens: 1500 },
+  { label: "Debug with logs and stack traces", inputTokens: 10000, outputTokens: 1800 },
+  { label: "Generate tests for existing code", inputTokens: 6000, outputTokens: 2500 },
+  { label: "Refactor a large file", inputTokens: 12000, outputTokens: 3000 },
+  { label: "Explain a codebase area", inputTokens: 20000, outputTokens: 2500 },
+  { label: "Build a simple website", inputTokens: 75000, outputTokens: 25000 },
+  { label: "Build a full-stack app feature", inputTokens: 500000, outputTokens: 150000 }
+];
+
 export default function CompareScreen() {
-  const [taskType, setTaskType] = useState("Summarise a messy PDF");
-  const [inputTokens, setInputTokens] = useState("12000");
-  const [outputTokens, setOutputTokens] = useState("1800");
+  const [selectedTask, setSelectedTask] = useState(taskPresets[1]);
+  const [inputTokens, setInputTokens] = useState(String(taskPresets[1].inputTokens));
+  const [outputTokens, setOutputTokens] = useState(String(taskPresets[1].outputTokens));
+  const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
   const [recommendations, setRecommendations] = useState<RecommendationBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  function selectTask(task: typeof taskPresets[number]) {
+    setSelectedTask(task);
+    setInputTokens(String(task.inputTokens));
+    setOutputTokens(String(task.outputTokens));
+    setIsTaskMenuOpen(false);
+  }
 
   async function handleRecommend() {
     setIsLoading(true);
@@ -18,7 +41,7 @@ export default function CompareScreen() {
 
     try {
       const result = await recommendProvider({
-        taskType,
+        taskType: selectedTask.label,
         estimatedInputTokens: Number(inputTokens) || 0,
         estimatedOutputTokens: Number(outputTokens) || 0,
         excludeNearCapProviders: false
@@ -38,7 +61,29 @@ export default function CompareScreen() {
         <Text style={styles.title}>Compare</Text>
         <View style={styles.panel}>
           <Text style={styles.label}>Task</Text>
-          <TextInput value={taskType} onChangeText={setTaskType} placeholder="Summarise a messy PDF" placeholderTextColor="#63636a" style={styles.input} />
+          <Pressable onPress={() => setIsTaskMenuOpen((value) => !value)} style={styles.select}>
+            <View style={styles.selectTextBlock}>
+              <Text style={styles.selectLabel}>{selectedTask.label}</Text>
+              <Text style={styles.selectMeta}>{selectedTask.inputTokens.toLocaleString()} in · {selectedTask.outputTokens.toLocaleString()} out</Text>
+            </View>
+            <Text style={styles.selectChevron}>{isTaskMenuOpen ? "Close" : "Choose"}</Text>
+          </Pressable>
+          {isTaskMenuOpen ? (
+            <View style={styles.menu}>
+              {taskPresets.map((task) => {
+                const isSelected = task.label === selectedTask.label;
+                return (
+                  <Pressable key={task.label} onPress={() => selectTask(task)} style={[styles.menuItem, isSelected && styles.menuItemActive]}>
+                    <View style={styles.selectTextBlock}>
+                      <Text style={styles.menuItemTitle}>{task.label}</Text>
+                      <Text style={styles.menuItemMeta}>{task.inputTokens.toLocaleString()} input · {task.outputTokens.toLocaleString()} output</Text>
+                    </View>
+                    <Text style={styles.menuItemCheck}>{isSelected ? "Selected" : ""}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
           <View style={styles.grid}>
             <View style={styles.field}>
               <Text style={styles.label}>Input tokens</Text>
@@ -104,6 +149,17 @@ const styles = StyleSheet.create({
   panel: { backgroundColor: "#111113", borderColor: "#242428", borderWidth: 1, borderRadius: 8, padding: 14, gap: 10 },
   label: { color: "#8b8b91", fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
   input: { color: "#f4f4f5", backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, minHeight: 44, fontSize: 16 },
+  select: { minHeight: 58, backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  selectTextBlock: { flex: 1, minWidth: 0 },
+  selectLabel: { color: "#f4f4f5", fontSize: 16, fontWeight: "900" },
+  selectMeta: { color: "#8b8b91", fontSize: 12, fontWeight: "800", marginTop: 3 },
+  selectChevron: { color: "#86efac", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  menu: { gap: 8 },
+  menuItem: { minHeight: 58, borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  menuItemActive: { borderColor: "#22c55e", backgroundColor: "#102016" },
+  menuItemTitle: { color: "#f4f4f5", fontSize: 14, fontWeight: "900" },
+  menuItemMeta: { color: "#8b8b91", fontSize: 12, fontWeight: "800", marginTop: 3 },
+  menuItemCheck: { color: "#86efac", fontSize: 12, fontWeight: "900" },
   grid: { flexDirection: "row", gap: 10 },
   field: { flex: 1, gap: 6 },
   button: { backgroundColor: "#f4f4f5", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
