@@ -85,7 +85,7 @@ type RecommendationTaskKind = "coding" | "summarising" | "writing" | "analysis" 
 function taskKindForRecommendation(taskType: string | undefined): RecommendationTaskKind {
   const text = (taskType ?? "").toLowerCase();
 
-  if (/\b(code|coding|debug|logs?|stack traces?|pull request|pr\b|diff|tests?|refactor|codebase|website|full-stack|app feature)\b/.test(text)) {
+  if (/\b(code|coding|debug|logs?|stack traces?|pull request|pr\b|diff|tests?|refactor|codebase|website|web app|app from scratch|product feature|full-stack|app feature|moderni[sz]e|audit)\b/.test(text)) {
     return "coding";
   }
 
@@ -111,8 +111,23 @@ function taskKindForRecommendation(taskType: string | undefined): Recommendation
 function normaliseModelMatchKey(value: string) {
   return value
     .toLowerCase()
-    .replace(/^(openai|anthropic|google|xai|deepseek|mistral|cohere|groq|perplexity|openrouter)[/:_-]+/, "")
+    .replace(/^~/, "")
+    .replace(/:.+$/, "")
+    .replace(/^(openai|anthropic|google|x-ai|xai|deepseek|mistralai|mistral|cohere|groq|perplexity|openrouter)[/:_-]+/, "")
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function modelMatchKeys(modelId: string, modelDisplayName: string) {
+  const keys = [
+    normaliseModelMatchKey(modelId),
+    normaliseModelMatchKey(modelDisplayName)
+  ];
+  const [, modelIdWithoutProvider] = modelId.replace(/^~/, "").split("/");
+  if (modelIdWithoutProvider) {
+    keys.push(normaliseModelMatchKey(modelIdWithoutProvider));
+  }
+
+  return [...new Set(keys.filter(Boolean))];
 }
 
 function scaledBenchmarkScore(value: unknown) {
@@ -1134,15 +1149,18 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
   }
 
   const latestBenchmarks = new Map<string, typeof benchmarkRows[number]>();
+  const latestBenchmarksByModel = new Map<string, typeof benchmarkRows[number]>();
   for (const row of benchmarkRows) {
-    const keys = [
-      `${row.providerId}:${normaliseModelMatchKey(row.modelId)}`,
-      `${row.providerId}:${normaliseModelMatchKey(row.modelDisplayName)}`
-    ];
+    const keys = modelMatchKeys(row.modelId, row.modelDisplayName);
 
-    for (const key of keys) {
-      if (!latestBenchmarks.has(key)) {
-        latestBenchmarks.set(key, row);
+    for (const modelKey of keys) {
+      const providerKey = `${row.providerId}:${modelKey}`;
+      if (!latestBenchmarks.has(providerKey)) {
+        latestBenchmarks.set(providerKey, row);
+      }
+
+      if (!latestBenchmarksByModel.has(modelKey)) {
+        latestBenchmarksByModel.set(modelKey, row);
       }
     }
   }
@@ -1153,16 +1171,18 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
 
   function benchmarkForPrice(price: typeof rows[number]) {
     const providerIds = aliasesForProvider(price.providerId);
-    const modelKeys = [
-      normaliseModelMatchKey(price.modelId),
-      normaliseModelMatchKey(price.modelDisplayName)
-    ];
+    const modelKeys = modelMatchKeys(price.modelId, price.modelDisplayName);
 
     for (const providerId of providerIds) {
       for (const modelKey of modelKeys) {
         const benchmark = latestBenchmarks.get(`${providerId}:${modelKey}`);
         if (benchmark) return benchmark;
       }
+    }
+
+    for (const modelKey of modelKeys) {
+      const benchmark = latestBenchmarksByModel.get(modelKey);
+      if (benchmark) return benchmark;
     }
 
     return null;
@@ -1274,7 +1294,12 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
   }
 
   const cheapestCandidate = [...candidates].sort((a, b) => a.score - b.score)[0];
+  const hasBenchmarkCandidates = candidates.some((candidate) => candidate.intelligenceSource === "benchmark");
   const qualityCandidate = [...candidates].sort((a, b) => {
+    if (hasBenchmarkCandidates && a.intelligenceSource !== b.intelligenceSource) {
+      return a.intelligenceSource === "benchmark" ? -1 : 1;
+    }
+
     if (b.intelligenceScore !== a.intelligenceScore) {
       return b.intelligenceScore - a.intelligenceScore;
     }
@@ -1282,8 +1307,10 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
   })[0];
   const cheapestCost = Math.max(cheapestCandidate.estimatedCostUsd, 0.000001);
   const balancedCandidate = [...candidates].sort((a, b) => {
-    const scoreA = a.intelligenceScore / 100 - Math.log10(Math.max(a.estimatedCostUsd, 0.000001) / cheapestCost + 1) * 0.2 - a.budgetRatio * 0.2;
-    const scoreB = b.intelligenceScore / 100 - Math.log10(Math.max(b.estimatedCostUsd, 0.000001) / cheapestCost + 1) * 0.2 - b.budgetRatio * 0.2;
+    const qualityA = a.intelligenceSource === "benchmark" ? a.intelligenceScore / 100 : a.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
+    const qualityB = b.intelligenceSource === "benchmark" ? b.intelligenceScore / 100 : b.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
+    const scoreA = qualityA - Math.log10(Math.max(a.estimatedCostUsd, 0.000001) / cheapestCost + 1) * 0.2 - a.budgetRatio * 0.2;
+    const scoreB = qualityB - Math.log10(Math.max(b.estimatedCostUsd, 0.000001) / cheapestCost + 1) * 0.2 - b.budgetRatio * 0.2;
     return scoreB - scoreA;
   })[0];
 

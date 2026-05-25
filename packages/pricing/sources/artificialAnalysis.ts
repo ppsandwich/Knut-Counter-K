@@ -71,6 +71,28 @@ function finiteNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function evaluationNumber(evaluations: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const directValue = finiteNumber(evaluations[key]);
+    if (directValue != null) return directValue;
+
+    const nested = evaluations[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const nestedRecord = nested as Record<string, unknown>;
+      const nestedValue = finiteNumber(
+        nestedRecord.score
+        ?? nestedRecord.value
+        ?? nestedRecord.percent
+        ?? nestedRecord.accuracy
+        ?? nestedRecord.index
+      );
+      if (nestedValue != null) return nestedValue;
+    }
+  }
+
+  return undefined;
+}
+
 function sourceModelIdFor(model: ArtificialAnalysisModel) {
   return model.slug ?? model.name ?? model.id;
 }
@@ -131,16 +153,16 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
       modelCreatorSlug: model.model_creator?.slug ?? null,
       evaluations,
       pricing: model.pricing ?? {},
-      artificialAnalysisIntelligenceIndex: finiteNumber(evaluations.artificial_analysis_intelligence_index),
-      artificialAnalysisCodingIndex: finiteNumber(evaluations.artificial_analysis_coding_index),
-      artificialAnalysisMathIndex: finiteNumber(evaluations.artificial_analysis_math_index),
-      mmluPro: finiteNumber(evaluations.mmlu_pro),
-      gpqa: finiteNumber(evaluations.gpqa),
-      hle: finiteNumber(evaluations.hle),
-      livecodebench: finiteNumber(evaluations.livecodebench),
-      scicode: finiteNumber(evaluations.scicode),
-      math500: finiteNumber(evaluations.math_500),
-      aime: finiteNumber(evaluations.aime),
+      artificialAnalysisIntelligenceIndex: evaluationNumber(evaluations, "artificial_analysis_intelligence_index", "Artificial Analysis Intelligence Index", "intelligence_index"),
+      artificialAnalysisCodingIndex: evaluationNumber(evaluations, "artificial_analysis_coding_index", "Artificial Analysis Coding Index", "coding_index"),
+      artificialAnalysisMathIndex: evaluationNumber(evaluations, "artificial_analysis_math_index", "Artificial Analysis Math Index", "math_index"),
+      mmluPro: evaluationNumber(evaluations, "mmlu_pro", "MMLU-Pro", "mmlu-pro"),
+      gpqa: evaluationNumber(evaluations, "gpqa", "GPQA"),
+      hle: evaluationNumber(evaluations, "hle", "Humanity's Last Exam", "humanitys_last_exam"),
+      livecodebench: evaluationNumber(evaluations, "livecodebench", "LiveCodeBench", "live_code_bench"),
+      scicode: evaluationNumber(evaluations, "scicode", "SciCode"),
+      math500: evaluationNumber(evaluations, "math_500", "MATH-500", "math500"),
+      aime: evaluationNumber(evaluations, "aime", "AIME"),
       medianOutputTokensPerSecond: finiteNumber(model.median_output_tokens_per_second),
       medianTimeToFirstTokenSeconds: finiteNumber(model.median_time_to_first_token_seconds),
       medianTimeToFirstAnswerTokenSeconds: finiteNumber(model.median_time_to_first_answer_token),
