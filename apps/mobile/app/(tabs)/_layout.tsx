@@ -11,6 +11,8 @@ const tabIcon = (name: keyof typeof Ionicons.glyphMap) =>
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const bottomInset = Platform.OS === "web" ? 0 : insets.bottom;
+  const tabBarHeight = Platform.OS === "web" ? 84 : 64 + bottomInset;
+  const tabBarPaddingBottom = Platform.OS === "web" ? 20 : bottomInset || 8;
 
   return (
     <Tabs
@@ -22,9 +24,9 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: "#09090b",
           borderTopColor: "#222225",
-          height: 64 + bottomInset,
+          height: tabBarHeight,
           paddingTop: 8,
-          paddingBottom: bottomInset || 8
+          paddingBottom: tabBarPaddingBottom
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" }
       }}

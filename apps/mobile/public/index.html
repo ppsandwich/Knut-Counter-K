@@ -19,6 +19,7 @@
       body {
         background: #050506;
         height: 100%;
+        min-height: 100%;
       }
       /* These styles disable body scrolling if you are using <ScrollView> */
       body {
@@ -31,12 +32,15 @@
         display: flex;
         height: 100%;
         flex: 1;
+        min-height: 100%;
       }
-      @supports (height: 100dvh) {
-        html,
+      @supports (-webkit-touch-callout: none) {
+        html {
+          height: -webkit-fill-available;
+        }
         body,
         #root {
-          height: 100dvh;
+          min-height: -webkit-fill-available;
         }
       }
     </style>
