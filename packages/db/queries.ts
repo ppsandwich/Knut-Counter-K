@@ -1430,16 +1430,18 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     return a.score - b.score;
   })[0];
   const cheapestCost = Math.max(cheapestCandidate.estimatedCostUsd, 0.000001);
-  const balancedCandidate = [...candidates].sort((a, b) => {
-    const qualityA = a.intelligenceSource === "benchmark" ? a.intelligenceScore / 100 : a.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
-    const qualityB = b.intelligenceSource === "benchmark" ? b.intelligenceScore / 100 : b.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
-    const qualityWeight = 0.7 + qualityPreference;
-    const costWeight = 0.15 + (1 - qualityPreference) * 0.85;
-    const budgetWeight = 0.15 + (1 - qualityPreference) * 0.2;
-    const scoreA = qualityA * qualityWeight - Math.log10(Math.max(a.estimatedCostUsd, 0.000001) / cheapestCost + 1) * costWeight - a.budgetRatio * budgetWeight;
-    const scoreB = qualityB * qualityWeight - Math.log10(Math.max(b.estimatedCostUsd, 0.000001) / cheapestCost + 1) * costWeight - b.budgetRatio * budgetWeight;
-    return scoreB - scoreA;
-  })[0];
+  const balancedCandidate = qualityPreference >= 1
+    ? qualityCandidate
+    : [...candidates].sort((a, b) => {
+      const qualityA = a.intelligenceSource === "benchmark" ? a.intelligenceScore / 100 : a.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
+      const qualityB = b.intelligenceSource === "benchmark" ? b.intelligenceScore / 100 : b.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
+      const qualityWeight = 0.7 + qualityPreference;
+      const costWeight = 0.15 + (1 - qualityPreference) * 0.85;
+      const budgetWeight = 0.15 + (1 - qualityPreference) * 0.2;
+      const scoreA = qualityA * qualityWeight - Math.log10(Math.max(a.estimatedCostUsd, 0.000001) / cheapestCost + 1) * costWeight - a.budgetRatio * budgetWeight;
+      const scoreB = qualityB * qualityWeight - Math.log10(Math.max(b.estimatedCostUsd, 0.000001) / cheapestCost + 1) * costWeight - b.budgetRatio * budgetWeight;
+      return scoreB - scoreA;
+    })[0];
 
   function toRecommendation(
     candidate: RecommendationCandidate,

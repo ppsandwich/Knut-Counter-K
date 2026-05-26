@@ -190,7 +190,7 @@ function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: 
   return (
     <View style={[styles.reco, tone === "recommended" && styles.recoRecommended]}>
       <View style={styles.recoHeader}>
-        <Text style={styles.kicker}>{item.label}</Text>
+        <Text style={[styles.kicker, tone === "neutral" && styles.kickerNeutral]}>{item.label}</Text>
         <View style={styles.scoreBlock}>
           <Text style={[styles.score, isBelowTop20Average && styles.scoreBelowAverage]}>{item.intelligenceScore}/100</Text>
           <Text style={styles.scoreMeta}>{benchmarkLabel}</Text>
@@ -242,6 +242,7 @@ const styles = StyleSheet.create({
   recoRecommended: { backgroundColor: "#132016", borderColor: "#1f4d2a" },
   recoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   kicker: { color: "#22c55e", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  kickerNeutral: { color: "#a1a1aa" },
   scoreBlock: { alignItems: "flex-end", flexShrink: 0 },
   score: { color: "#e5e7eb", fontSize: 12, fontWeight: "900" },
   scoreBelowAverage: { color: "#f87171" },
