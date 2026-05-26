@@ -16,7 +16,9 @@ export default function TabsLayout() {
       ? {
           backgroundColor: "#09090b",
           borderTopColor: "#222225",
-          paddingTop: 8
+          height: 84,
+          paddingTop: 8,
+          paddingBottom: 20
         }
       : {
           backgroundColor: "#09090b",
@@ -28,6 +30,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      safeAreaInsets={Platform.OS === "web" ? { bottom: 0 } : undefined}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#f4f4f5",
