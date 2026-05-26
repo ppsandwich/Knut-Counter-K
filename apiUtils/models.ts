@@ -51,8 +51,7 @@ type BenchmarkSummary = {
 };
 
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
-const upstreamTimeoutMs = 8_000;
-const requestBudgetMs = 7_500;
+const upstreamTimeoutMs = 2_500;
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
@@ -229,24 +228,25 @@ function emptyModelsPayload(warning: string) {
 }
 
 async function buildModelsPayload() {
-    const openRouterModelsPromise = Promise.race([
-      fetchOpenRouterModels().then((models) => ({ ok: true as const, models })),
-      new Promise<{ ok: false; models: OpenRouterModel[] }>((resolve) => setTimeout(() => resolve({ ok: false, models: [] }), upstreamTimeoutMs + 500))
-    ]);
-    const rankingsPromise = Promise.race([
-      fetchOpenRouterRankings().then((rankings) => ({ status: "fulfilled" as const, value: rankings })),
-      new Promise<{ status: "rejected"; value: [] }>((resolve) => setTimeout(() => resolve({ status: "rejected", value: [] }), upstreamTimeoutMs + 500))
-    ]);
-    const benchmarksPromise = Promise.race([
-      latestBenchmarksByModelKey().then((benchmarks) => ({ status: "fulfilled" as const, value: benchmarks })),
-      new Promise<{ status: "rejected"; value: Map<string, BenchmarkSummary> }>((resolve) => setTimeout(() => resolve({ status: "rejected", value: new Map() }), upstreamTimeoutMs + 500))
-    ]);
+    const openRouterModelsPromise = fetchOpenRouterModels()
+      .then((models) => ({ ok: true as const, models }))
+      .catch(() => ({ ok: false as const, models: [] }));
+    const rankingsPromise = fetchOpenRouterRankings()
+      .then((rankings) => ({ status: "fulfilled" as const, value: rankings }))
+      .catch(() => ({ status: "rejected" as const, value: [] }));
+    const benchmarksPromise = latestBenchmarksByModelKey()
+      .then((benchmarks) => ({ status: "fulfilled" as const, value: benchmarks }))
+      .catch(() => ({ status: "rejected" as const, value: new Map<string, BenchmarkSummary>() }));
 
     const [openRouterModelsResult, rankingsResult, benchmarksResult] = await Promise.all([
       openRouterModelsPromise,
       rankingsPromise,
       benchmarksPromise
     ]);
+    if (!openRouterModelsResult.ok) {
+      return emptyModelsPayload("OpenRouter models request timed out.");
+    }
+
     const openRouterModels = openRouterModelsResult.models;
     const rankings = rankingsResult.status === "fulfilled" ? rankingsResult.value : [];
     const benchmarks = benchmarksResult.status === "fulfilled" ? benchmarksResult.value : new Map<string, BenchmarkSummary>();
@@ -329,12 +329,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const payload = await Promise.race([
-      buildModelsPayload(),
-      new Promise<ReturnType<typeof emptyModelsPayload>>((resolve) => {
-        setTimeout(() => resolve(emptyModelsPayload("Model data request timed out.")), requestBudgetMs);
-      })
-    ]);
+    const payload = await buildModelsPayload();
 
     const user = await getOptionalUser(req);
     const profile = user ? await getUserProfile(user.id) : null;
