@@ -177,6 +177,28 @@ export type RecommendationDataStats = {
   tokenEfficiencyModelCount: number;
 };
 
+export type PopularModel = {
+  rank: number;
+  modelId: string;
+  modelName: string;
+  provider: string;
+  weeklyTokens: number;
+  inputCostPer1mUsd: number | null;
+  outputCostPer1mUsd: number | null;
+  ageDays: number | null;
+  artificialAnalysisIntelligenceIndex: number | null;
+  artificialAnalysisCodingIndex: number | null;
+  artificialAnalysisAgenticIndex: number | null;
+  speedScore: number | null;
+  priceScore: number | null;
+};
+
+export type PopularModelsPayload = {
+  models: PopularModel[];
+  refreshedAt: string;
+  sources: string[];
+};
+
 export type AccountAlert = {
   id: string;
   providerAccountId: string | null;

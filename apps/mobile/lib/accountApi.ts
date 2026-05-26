@@ -1,4 +1,4 @@
-import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, DeepSeekResponseImportInput, ImportUsageInput, ManualUsageInput, OpenRouterGenerationImportInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, XaiResponseImportInput } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, DeepSeekResponseImportInput, ImportUsageInput, ManualUsageInput, OpenRouterGenerationImportInput, PopularModelsPayload, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, XaiResponseImportInput } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -258,6 +258,19 @@ export async function recommendProvider(input: RecommendationInput): Promise<Rec
 
   const data = await response.json() as { recommendations: RecommendationBundle };
   return data.recommendations;
+}
+
+export async function fetchPopularModels(refresh = false): Promise<PopularModelsPayload> {
+  const response = await fetch(getApiUrl("/api/models"), {
+    method: refresh ? "POST" : "GET",
+    headers: refresh ? await authHeaders() : { "Content-Type": "application/json" }
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<PopularModelsPayload>;
 }
 
 export async function fetchAlerts(): Promise<AccountAlert[]> {

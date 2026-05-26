@@ -1292,6 +1292,22 @@ export async function insertModelBenchmarkSnapshots(snapshots: ArtificialAnalysi
   return { inserted: snapshots.length };
 }
 
+export async function listLatestModelBenchmarkSummaries(limit = 10_000) {
+  return getDb()
+    .select({
+      providerId: modelBenchmarkSnapshots.providerId,
+      modelId: modelBenchmarkSnapshots.modelId,
+      modelDisplayName: modelBenchmarkSnapshots.modelDisplayName,
+      artificialAnalysisIntelligenceIndex: modelBenchmarkSnapshots.artificialAnalysisIntelligenceIndex,
+      artificialAnalysisCodingIndex: modelBenchmarkSnapshots.artificialAnalysisCodingIndex,
+      medianOutputTokensPerSecond: modelBenchmarkSnapshots.medianOutputTokensPerSecond,
+      fetchedAt: modelBenchmarkSnapshots.fetchedAt
+    })
+    .from(modelBenchmarkSnapshots)
+    .orderBy(desc(modelBenchmarkSnapshots.fetchedAt))
+    .limit(limit);
+}
+
 export async function recommendProviderForUser(userId: string, input: RecommendationInput): Promise<RecommendationBundle | null> {
   const connectedProviders = await listProviderAccountsForUser(userId);
   if (!connectedProviders.length) {
