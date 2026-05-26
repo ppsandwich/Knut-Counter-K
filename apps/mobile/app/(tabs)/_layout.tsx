@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     bottom: -52,
     height: 136,
     paddingTop: 8,
-    paddingBottom: 72,
+    paddingBottom: 20,
     backgroundColor: "#09090b",
     borderTopColor: "#222225",
     borderTopWidth: StyleSheet.hairlineWidth,
