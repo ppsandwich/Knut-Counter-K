@@ -122,7 +122,7 @@ export default function DashboardScreen() {
         )}
 
         <SyncStatusStrip status={signedIn ? `${providerRows.length} provider accounts loaded.` : "Sign in to sync account data."} />
-        <AlertSummary alerts={alerts} />
+        {alerts.length ? <AlertSummary alerts={alerts} /> : null}
       </ScrollView>
     </SafeAreaView>
   );

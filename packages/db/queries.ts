@@ -1786,7 +1786,8 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     tokenEfficiencyModelCount: tokenEfficiencyModelKeys.size
   };
 
-  const cheapestCandidate = [...candidates].sort((a, b) => a.score - b.score)[0];
+  const cheapestCandidates = candidates.filter((candidate) => candidate.intelligenceScore >= 30);
+  const cheapestCandidate = [...(cheapestCandidates.length ? cheapestCandidates : candidates)].sort((a, b) => a.score - b.score)[0];
   const hasBenchmarkCandidates = candidates.some((candidate) => candidate.intelligenceSource === "benchmark");
   const qualityCandidate = [...candidates].sort((a, b) => {
     if (hasBenchmarkCandidates && a.intelligenceSource !== b.intelligenceSource) {
