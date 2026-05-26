@@ -9,7 +9,8 @@
     "@knut/db": "workspace:*",
     "@knut/pricing": "workspace:*",
     "@knut/providers": "workspace:*",
-    "@knut/shared": "workspace:*"
+    "@knut/shared": "workspace:*",
+    "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@vercel/node": "^5.1.0",
