@@ -4,6 +4,10 @@ import { convertPopularModelsPayload } from "./currency";
 
 type ApiRequest = {
   method?: string;
+  query?: {
+    source?: string | string[];
+  };
+  url?: string;
   headers: {
     authorization?: string;
   };
@@ -25,6 +29,23 @@ type ModelRow = {
   artificial_analysis_coding_index: string | null;
   median_output_tokens_per_second: string | null;
   model_creator_name: string | null;
+};
+
+type ModelSource = "aa" | "blm";
+type BenchLmModel = {
+  rank?: number;
+  model?: string;
+  creator?: string;
+  overallScore?: number | null;
+  categoryScores?: {
+    coding?: number | null;
+  };
+  inputPrice?: number | null;
+  outputPrice?: number | null;
+};
+type BenchLmPayload = {
+  lastUpdated?: string;
+  models?: BenchLmModel[];
 };
 
 let sqlClient: postgres.Sql | null = null;
@@ -73,6 +94,32 @@ function providerName(providerId: string) {
     .split(/[-_]/)
     .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : part)
     .join(" ");
+}
+
+function sourceFromRequest(req: ApiRequest): ModelSource {
+  const querySource = Array.isArray(req.query?.source) ? req.query?.source[0] : req.query?.source;
+  const urlSource = req.url && req.url.startsWith("/")
+    ? new URL(req.url, "https://local.invalid").searchParams.get("source")
+    : null;
+  return (querySource ?? urlSource) === "blm" ? "blm" : "aa";
+}
+
+async function fetchJsonWithTimeout<T>(url: string, timeoutMs = 4_000): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json"
+      }
+    });
+    if (!response.ok) throw new Error(`BenchLM fetch failed: ${response.status}`);
+    return await response.json() as T;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function preferredCurrencyForUser(userId: string) {
@@ -170,24 +217,63 @@ async function loadModelsFromSnapshots() {
   }));
 }
 
+async function loadBenchLmModels() {
+  const payload = await fetchJsonWithTimeout<BenchLmPayload>("https://benchlm.ai/api/data/leaderboard?limit=50");
+  const rows = payload.models ?? [];
+  const candidates = rows.map((row, index) => {
+    const inputCost = numberOrNull(row.inputPrice);
+    const outputCost = numberOrNull(row.outputPrice);
+    return {
+      row,
+      rank: row.rank ?? index + 1,
+      inputCost,
+      outputCost,
+      combinedCost: (inputCost ?? 0) + (outputCost ?? 0)
+    };
+  });
+  const costs = candidates.map((candidate) => candidate.combinedCost).filter((value) => value > 0);
+  const minCost = costs.length ? Math.min(...costs) : 0;
+  const maxCost = costs.length ? Math.max(...costs) : 0;
+
+  return candidates.map((candidate) => ({
+    rank: candidate.rank,
+    modelId: candidate.row.model ?? `benchlm-${candidate.rank}`,
+    modelName: candidate.row.model ?? "Unknown model",
+    provider: candidate.row.creator ?? "Unknown",
+    weeklyTokens: 0,
+    inputCostPer1mUsd: candidate.inputCost,
+    outputCostPer1mUsd: candidate.outputCost,
+    ageDays: null,
+    artificialAnalysisIntelligenceIndex: numberOrNull(candidate.row.overallScore),
+    artificialAnalysisCodingIndex: numberOrNull(candidate.row.categoryScores?.coding),
+    artificialAnalysisAgenticIndex: null,
+    speedScore: null,
+    priceScore: scoreFromRange(candidate.combinedCost, minCost, maxCost, true)
+  }));
+}
+
 export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
   try {
     if (req.method !== "GET" && req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
 
+    const benchmarkSource = sourceFromRequest(req);
     const [models, user] = await Promise.all([
-      loadModelsFromSnapshots(),
+      benchmarkSource === "blm" ? loadBenchLmModels() : loadModelsFromSnapshots(),
       getOptionalUser(req)
     ]);
     const currency = user ? await preferredCurrencyForUser(user.id) : "USD";
     const payload = {
       models,
       refreshedAt: new Date().toISOString(),
-      sources: [
-        "Pricing snapshots",
-        "Artificial Analysis benchmark snapshots"
-      ]
+      sources: benchmarkSource === "blm"
+        ? ["BenchLM leaderboard"]
+        : [
+            "Pricing snapshots",
+            "Artificial Analysis benchmark snapshots"
+          ],
+      benchmarkSource
     };
     const convertedPayload = await convertPopularModelsPayload(payload, currency);
 

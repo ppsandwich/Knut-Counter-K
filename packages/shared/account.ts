@@ -215,6 +215,7 @@ export type PopularModelsPayload = {
   refreshedAt: string;
   sources: string[];
   currency?: string;
+  benchmarkSource?: "aa" | "blm";
 };
 
 export type AccountAlert = {

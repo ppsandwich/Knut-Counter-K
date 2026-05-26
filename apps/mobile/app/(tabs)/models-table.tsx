@@ -16,6 +16,7 @@ type MetricRanges = {
 };
 type SortKey = "popularity" | "inputCost" | "outputCost" | "intelligence" | "coding" | "speed" | "price";
 type SortDirection = "desc" | "asc";
+type BenchmarkSource = "aa" | "blm";
 
 const metricColumns: Array<{ key: Exclude<SortKey, "popularity">; label: string; higherIsBetter: boolean }> = [
   { key: "inputCost", label: "In", higherIsBetter: false },
@@ -144,6 +145,7 @@ function MetricHeader({ sortKey, sortDirection, onChangeSort }: { sortKey: SortK
 export default function ModelsTableScreen() {
   const auth = useAuthSession();
   const [payload, setPayload] = useState<PopularModelsPayload | null>(null);
+  const [benchmarkSource, setBenchmarkSource] = useState<BenchmarkSource>("aa");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export default function ModelsTableScreen() {
     setError(null);
 
     try {
-      setPayload(await fetchPopularModels(refresh));
+      setPayload(await fetchPopularModels(refresh, benchmarkSource));
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Model data could not load.");
     } finally {
@@ -170,7 +172,7 @@ export default function ModelsTableScreen() {
 
   useEffect(() => {
     void load(false);
-  }, []);
+  }, [benchmarkSource]);
 
   const ranges = payload ? metricRangesFor(payload.models) : null;
   const visibleModels = payload ? sortedModels(payload.models, sortKey, sortDirection) : [];
@@ -186,19 +188,38 @@ export default function ModelsTableScreen() {
     setSortDirection("desc");
   }
 
+  function changeBenchmarkSource(nextSource: BenchmarkSource) {
+    if (nextSource === benchmarkSource) return;
+    setPayload(null);
+    setBenchmarkSource(nextSource);
+    setSortKey(nextSource === "blm" ? "intelligence" : "popularity");
+    setSortDirection("desc");
+  }
+
+  const sourceName = benchmarkSource === "blm" ? "BenchLM" : "Artificial Analysis";
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>Models</Text>
-            <Text style={styles.subtitle}>Top 50 by OpenRouter weekly usage</Text>
+            <Text style={styles.subtitle}>Scores from {sourceName}</Text>
           </View>
           {auth.session ? (
             <Pressable disabled={isRefreshing} onPress={() => load(true)} style={[styles.refreshButton, isRefreshing && styles.disabled]}>
               <Text style={styles.refreshText}>{isRefreshing ? "Refreshing..." : "Refresh model data"}</Text>
             </Pressable>
           ) : null}
+        </View>
+
+        <View style={styles.sourceToggle}>
+          <Pressable onPress={() => changeBenchmarkSource("aa")} style={[styles.sourceOption, benchmarkSource === "aa" && styles.sourceOptionActive]}>
+            <Text style={[styles.sourceOptionText, benchmarkSource === "aa" && styles.sourceOptionTextActive]}>AA</Text>
+          </Pressable>
+          <Pressable onPress={() => changeBenchmarkSource("blm")} style={[styles.sourceOption, benchmarkSource === "blm" && styles.sourceOptionActive]}>
+            <Text style={[styles.sourceOptionText, benchmarkSource === "blm" && styles.sourceOptionTextActive]}>BLM</Text>
+          </Pressable>
         </View>
 
         {error ? (
@@ -222,7 +243,7 @@ export default function ModelsTableScreen() {
           </View>
 
           <Text style={styles.footnote}>
-            Sources: OpenRouter weekly rankings and models API; Artificial Analysis benchmark snapshots and public model catalogue. Metric colors are normalized within this top-50 list.
+            Sources: {payload?.sources.join("; ") ?? sourceName}. Metric colors are normalized within this top-50 list.
           </Text>
         </ScrollView>
       </View>
@@ -265,6 +286,11 @@ const styles = StyleSheet.create({
   refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12 },
   refreshText: { color: "#050506", fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.6 },
+  sourceToggle: { flexDirection: "row", backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, padding: 3, marginBottom: 12 },
+  sourceOption: { flex: 1, minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: 5 },
+  sourceOptionActive: { backgroundColor: "#22c55e" },
+  sourceOptionText: { color: "#8b8b91", fontSize: 12, fontWeight: "900" },
+  sourceOptionTextActive: { color: "#041006" },
   stickyTableHeader: { borderColor: "#29292d", borderWidth: 1, borderBottomWidth: 0, borderTopLeftRadius: 8, borderTopRightRadius: 8, overflow: "hidden", backgroundColor: "#09090b", zIndex: 10, elevation: 10 },
   tableScroll: { flex: 1 },
   tableScrollContent: { paddingBottom: 4 },

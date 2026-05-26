@@ -265,10 +265,10 @@ export async function recommendProvider(input: RecommendationInput): Promise<Rec
   return data.recommendations;
 }
 
-export async function fetchPopularModels(refresh = false): Promise<PopularModelsPayload> {
+export async function fetchPopularModels(refresh = false, benchmarkSource: "aa" | "blm" = "aa"): Promise<PopularModelsPayload> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  const response = await fetch(getApiUrl("/api/models"), {
+  const response = await fetch(getApiUrl(`/api/models?source=${benchmarkSource}`), {
     method: refresh ? "POST" : "GET",
     headers: token
       ? {
