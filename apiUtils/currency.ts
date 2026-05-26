@@ -1,5 +1,5 @@
 import type { AccountProviderSummary, DashboardModelPicks, DashboardPayload, DashboardSummary, PopularModelsPayload, RecommendationBundle, RecommendationResult } from "@knut/shared";
-import { normaliseCurrencyCode } from "@knut/shared";
+import { normaliseApiCurrencyCode } from "./currencyCodes";
 
 type RateCache = {
   fetchedAt: number;
@@ -67,7 +67,7 @@ async function fetchUsdRates() {
 }
 
 export async function usdToCurrencyRate(currency: string) {
-  const targetCurrency = normaliseCurrencyCode(currency);
+  const targetCurrency = normaliseApiCurrencyCode(currency);
   if (targetCurrency === "USD") return 1;
 
   try {
@@ -124,7 +124,7 @@ function convertModelPicks(modelPicks: DashboardModelPicks, rate: number): Dashb
 }
 
 export async function convertDashboardPayload(payload: DashboardPayload, currency: string): Promise<DashboardPayload> {
-  const displayCurrency = normaliseCurrencyCode(currency);
+  const displayCurrency = normaliseApiCurrencyCode(currency);
   const rate = await usdToCurrencyRate(displayCurrency);
 
   return {
@@ -147,7 +147,7 @@ function convertRecommendation(recommendation: RecommendationResult, rate: numbe
 }
 
 export async function convertRecommendationBundle(bundle: RecommendationBundle, currency: string): Promise<RecommendationBundle> {
-  const displayCurrency = normaliseCurrencyCode(currency);
+  const displayCurrency = normaliseApiCurrencyCode(currency);
   const rate = await usdToCurrencyRate(displayCurrency);
 
   return {
@@ -159,7 +159,7 @@ export async function convertRecommendationBundle(bundle: RecommendationBundle, 
 }
 
 export async function convertPopularModelsPayload(payload: PopularModelsPayload, currency: string): Promise<PopularModelsPayload> {
-  const displayCurrency = normaliseCurrencyCode(currency);
+  const displayCurrency = normaliseApiCurrencyCode(currency);
   const rate = await usdToCurrencyRate(displayCurrency);
 
   return {
