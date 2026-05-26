@@ -1,5 +1,4 @@
 import type { PopularModel } from "@knut/shared";
-import { listLatestModelBenchmarkSummaries } from "@knut/db";
 
 type ApiRequest = {
   method?: string;
@@ -32,6 +31,14 @@ type OpenRouterRankingRow = {
   total_native_tokens_reasoning?: number;
 };
 
+type ArtificialAnalysisModel = {
+  id?: string;
+  slug?: string;
+  name?: string;
+  evaluations?: Record<string, unknown>;
+  median_output_tokens_per_second?: number;
+};
+
 type BenchmarkSummary = {
   modelId: string;
   modelDisplayName: string;
@@ -41,8 +48,8 @@ type BenchmarkSummary = {
 };
 
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
-const upstreamTimeoutMs = 3_000;
-const requestBudgetMs = 5_000;
+const upstreamTimeoutMs = 8_000;
+const requestBudgetMs = 9_500;
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
@@ -173,7 +180,25 @@ async function fetchOpenRouterRankings() {
 }
 
 async function latestBenchmarksByModelKey() {
-  const rows = await listLatestModelBenchmarkSummaries();
+  const apiKey = process.env.ARTIFICIAL_ANALYSIS_API_KEY;
+  if (!apiKey) return new Map<string, BenchmarkSummary>();
+
+  const response = await fetchWithTimeout("https://artificialanalysis.ai/api/v2/data/llms/models", {
+    headers: {
+      "x-api-key": apiKey
+    }
+  });
+
+  if (!response.ok) return new Map<string, BenchmarkSummary>();
+
+  const json = await response.json() as { data?: ArtificialAnalysisModel[] };
+  const rows: BenchmarkSummary[] = (json.data ?? []).map((model) => ({
+    modelId: model.slug ?? model.id ?? model.name ?? "",
+    modelDisplayName: model.name ?? model.slug ?? model.id ?? "",
+    artificialAnalysisIntelligenceIndex: model.evaluations?.artificial_analysis_intelligence_index,
+    artificialAnalysisCodingIndex: model.evaluations?.artificial_analysis_coding_index,
+    medianOutputTokensPerSecond: model.median_output_tokens_per_second
+  }));
   const benchmarks = new Map<string, BenchmarkSummary>();
 
   for (const row of rows) {
@@ -201,20 +226,26 @@ function emptyModelsPayload(warning: string) {
 }
 
 async function buildModelsPayload() {
-    const openRouterModelsResult = await Promise.race([
+    const openRouterModelsPromise = Promise.race([
       fetchOpenRouterModels().then((models) => ({ ok: true as const, models })),
       new Promise<{ ok: false; models: OpenRouterModel[] }>((resolve) => setTimeout(() => resolve({ ok: false, models: [] }), upstreamTimeoutMs + 500))
     ]);
-    const openRouterModels = openRouterModelsResult.models;
-    const rankingsResult = await Promise.race([
+    const rankingsPromise = Promise.race([
       fetchOpenRouterRankings().then((rankings) => ({ status: "fulfilled" as const, value: rankings })),
       new Promise<{ status: "rejected"; value: [] }>((resolve) => setTimeout(() => resolve({ status: "rejected", value: [] }), upstreamTimeoutMs + 500))
     ]);
-    const rankings = rankingsResult.status === "fulfilled" ? rankingsResult.value : [];
-    const benchmarksResult = await Promise.race([
+    const benchmarksPromise = Promise.race([
       latestBenchmarksByModelKey().then((benchmarks) => ({ status: "fulfilled" as const, value: benchmarks })),
       new Promise<{ status: "rejected"; value: Map<string, BenchmarkSummary> }>((resolve) => setTimeout(() => resolve({ status: "rejected", value: new Map() }), upstreamTimeoutMs + 500))
     ]);
+
+    const [openRouterModelsResult, rankingsResult, benchmarksResult] = await Promise.all([
+      openRouterModelsPromise,
+      rankingsPromise,
+      benchmarksPromise
+    ]);
+    const openRouterModels = openRouterModelsResult.models;
+    const rankings = rankingsResult.status === "fulfilled" ? rankingsResult.value : [];
     const benchmarks = benchmarksResult.status === "fulfilled" ? benchmarksResult.value : new Map<string, BenchmarkSummary>();
 
     const openRouterByKey = new Map<string, OpenRouterModel>();
@@ -295,11 +326,6 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       return res.status(405).json({ error: "Method not allowed" });
     }
 
-    if (req.method === "POST") {
-      const { requireUser } = await import("./auth.js");
-      await requireUser(req);
-    }
-
     const payload = await Promise.race([
       buildModelsPayload(),
       new Promise<ReturnType<typeof emptyModelsPayload>>((resolve) => {
@@ -309,12 +335,6 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
 
     return res.status(200).json(payload);
   } catch (error) {
-    if (req.method === "POST") {
-      return res.status(500).json({
-        error: error instanceof Error ? error.message : "Model data refresh failed"
-      });
-    }
-
     return res.status(200).json(emptyModelsPayload(error instanceof Error ? error.message : "Model data refresh failed"));
   }
 }
