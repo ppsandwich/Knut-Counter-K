@@ -11,13 +11,13 @@ const tabIcon = (name: keyof typeof Ionicons.glyphMap) =>
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const bottomInset = Platform.OS === "web" ? 0 : insets.bottom;
-  const tabBarHeight = Platform.OS === "web" ? 84 : 64 + bottomInset;
-  const tabBarPaddingBottom = Platform.OS === "web" ? 20 : bottomInset || 8;
+  const tabBarHeight = Platform.OS === "web" ? 136 : 64 + bottomInset;
+  const tabBarPaddingBottom = Platform.OS === "web" ? 72 : bottomInset || 8;
   const webFixedTabBarStyle =
     Platform.OS === "web"
       ? ({
           position: "fixed",
-          bottom: 0,
+          bottom: -52,
           left: 0,
           right: 0
         } as unknown as ViewStyle)
