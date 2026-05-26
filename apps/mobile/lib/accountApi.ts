@@ -134,7 +134,12 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
   return {
     profile: data.profile,
     summary: data.summary,
-    providers: data.providers
+    providers: data.providers,
+    modelPicks: data.modelPicks ?? {
+      smartest: null,
+      bestValue: null,
+      cheapest: null
+    }
   };
 }
 

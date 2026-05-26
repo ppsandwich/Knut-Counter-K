@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, RecommendationCard, SyncStatusStrip } from "@knut/ui";
 import { mockDashboard } from "@knut/shared/mockData";
-import type { RecommendationResult } from "@knut/shared";
+import type { DashboardModelPick, RecommendationResult } from "@knut/shared";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { recommendProvider, syncProviders } from "../../lib/accountApi";
 
@@ -15,6 +15,16 @@ const emptySummary = {
   status: "healthy" as const,
   statusText: "Sign in to load your usage data."
 };
+
+function formatModelCost(value: number | null) {
+  if (value == null) return "-";
+  if (value === 0) return "$0";
+  return `$${value.toFixed(value >= 10 ? 1 : value >= 1 ? 2 : 3)}`;
+}
+
+function formatModelScore(value: number | null) {
+  return value == null ? "-" : String(Math.round(value));
+}
 
 export default function DashboardScreen() {
   const dashboard = useDashboardData();
@@ -95,6 +105,7 @@ export default function DashboardScreen() {
         {refreshMessage ? <Text style={styles.refreshMessage}>{refreshMessage}</Text> : null}
 
         <MonthlyDamageCard summary={summary} />
+        <ModelPicksCard picks={dashboard.data?.modelPicks ?? null} loading={signedIn && dashboard.loading} />
         <RecommendationCard
           recommendation={recommendation ?? mockDashboard.recommendation}
           loading={recommendationLoading}
@@ -137,6 +148,34 @@ export default function DashboardScreen() {
   );
 }
 
+function ModelPicksCard({ picks, loading }: { picks: NonNullable<ReturnType<typeof useDashboardData>["data"]>["modelPicks"] | null; loading: boolean }) {
+  return (
+    <View style={styles.modelPicksCard}>
+      <ModelPickStrip label="Smartest" pick={picks?.smartest ?? null} loading={loading} />
+      <ModelPickStrip label="Best value" pick={picks?.bestValue ?? null} loading={loading} />
+      <ModelPickStrip label="Cheapest" pick={picks?.cheapest ?? null} loading={loading} isLast />
+    </View>
+  );
+}
+
+function ModelPickStrip({ label, pick, loading, isLast }: { label: string; pick: DashboardModelPick | null; loading: boolean; isLast?: boolean }) {
+  const detail = loading
+    ? "Loading model data..."
+    : pick
+      ? `${pick.provider} / In ${formatModelCost(pick.inputCostPer1mUsd)} / Out ${formatModelCost(pick.outputCostPer1mUsd)} / Intel ${formatModelScore(pick.intelligenceScore)}`
+      : "No priced benchmark model found.";
+
+  return (
+    <View style={[styles.modelPickStrip, isLast && styles.modelPickStripLast]}>
+      <Text style={styles.modelPickLabel}>{label}</Text>
+      <View style={styles.modelPickBody}>
+        <Text style={styles.modelPickName} numberOfLines={1}>{pick?.modelName ?? (loading ? "Checking models" : "Unavailable")}</Text>
+        <Text style={styles.modelPickDetail} numberOfLines={1}>{detail}</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
   content: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28, gap: 10 },
@@ -150,6 +189,13 @@ const styles = StyleSheet.create({
   refreshMessage: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
+  modelPicksCard: { backgroundColor: "#111113", borderColor: "#242428", borderWidth: 1, borderRadius: 8, overflow: "hidden" },
+  modelPickStrip: { minHeight: 58, flexDirection: "row", alignItems: "center", borderBottomColor: "#242428", borderBottomWidth: 1, paddingHorizontal: 12, paddingVertical: 8, gap: 10 },
+  modelPickStripLast: { borderBottomWidth: 0 },
+  modelPickLabel: { width: 76, color: "#86efac", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  modelPickBody: { flex: 1, minWidth: 0 },
+  modelPickName: { color: "#f4f4f5", fontSize: 14, fontWeight: "900" },
+  modelPickDetail: { color: "#a1a1aa", fontSize: 11, fontWeight: "800", marginTop: 2 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
   sectionTitle: { color: "#f4f4f5", fontSize: 20, fontWeight: "800" },
   sectionMeta: { color: "#71717a", fontSize: 12, fontWeight: "700", textTransform: "uppercase" },

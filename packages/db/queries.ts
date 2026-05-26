@@ -1,6 +1,6 @@
 import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
-import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, ne, or } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
@@ -18,6 +18,12 @@ function numberFromDecimal(value: unknown) {
   if (value == null) return 0;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function optionalNumberFromDecimal(value: unknown) {
+  if (value == null) return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
 }
 
 const pricingProviderAliases: Record<string, string[]> = {
@@ -45,6 +51,14 @@ const pricingProviderAliases: Record<string, string[]> = {
 
 function aliasesForProvider(providerId: string) {
   return new Set([providerId, ...(pricingProviderAliases[providerId] ?? [])]);
+}
+
+function displayProviderName(providerId: string) {
+  return providerId
+    .replace(/^~/, "")
+    .split(/[-_]/)
+    .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : part)
+    .join(" ");
 }
 
 function alertKey(input: { alertType: string; providerAccountId: string | null; title: string }) {
@@ -1306,6 +1320,134 @@ export async function listLatestModelBenchmarkSummaries(limit = 10_000) {
     .from(modelBenchmarkSnapshots)
     .orderBy(desc(modelBenchmarkSnapshots.fetchedAt))
     .limit(limit);
+}
+
+export async function getDashboardModelPicks(): Promise<DashboardModelPicks> {
+  const [priceRows, benchmarkRows] = await Promise.all([
+    getDb()
+      .select({
+        providerId: pricingSnapshots.providerId,
+        modelId: pricingSnapshots.modelId,
+        modelDisplayName: pricingSnapshots.modelDisplayName,
+        inputPricePer1mTokensUsd: pricingSnapshots.inputPricePer1mTokensUsd,
+        outputPricePer1mTokensUsd: pricingSnapshots.outputPricePer1mTokensUsd,
+        sourcePriority: pricingSnapshots.sourcePriority,
+        fetchedAt: pricingSnapshots.fetchedAt
+      })
+      .from(pricingSnapshots)
+      .orderBy(asc(pricingSnapshots.sourcePriority), desc(pricingSnapshots.fetchedAt))
+      .limit(10_000),
+    getDb()
+      .select({
+        providerId: modelBenchmarkSnapshots.providerId,
+        modelId: modelBenchmarkSnapshots.modelId,
+        modelDisplayName: modelBenchmarkSnapshots.modelDisplayName,
+        modelCreatorName: modelBenchmarkSnapshots.modelCreatorName,
+        artificialAnalysisIntelligenceIndex: modelBenchmarkSnapshots.artificialAnalysisIntelligenceIndex,
+        fetchedAt: modelBenchmarkSnapshots.fetchedAt
+      })
+      .from(modelBenchmarkSnapshots)
+      .orderBy(desc(modelBenchmarkSnapshots.fetchedAt))
+      .limit(10_000)
+  ]);
+
+  const latestPrices = new Map<string, typeof priceRows[number]>();
+  for (const row of priceRows) {
+    const key = `${row.providerId}:${row.modelId}`;
+    const existing = latestPrices.get(key);
+    if (!existing || row.sourcePriority < existing.sourcePriority || row.fetchedAt > existing.fetchedAt) {
+      latestPrices.set(key, row);
+    }
+  }
+
+  const benchmarksByProviderModelKey = new Map<string, typeof benchmarkRows[number]>();
+  const benchmarksByModelKey = new Map<string, typeof benchmarkRows[number]>();
+  for (const row of benchmarkRows) {
+    for (const modelKey of modelMatchKeys(row.modelId, row.modelDisplayName)) {
+      const providerKey = `${row.providerId}:${modelKey}`;
+      if (!benchmarksByProviderModelKey.has(providerKey)) {
+        benchmarksByProviderModelKey.set(providerKey, row);
+      }
+
+      if (!benchmarksByModelKey.has(modelKey)) {
+        benchmarksByModelKey.set(modelKey, row);
+      }
+    }
+  }
+
+  function benchmarkForPrice(price: typeof priceRows[number]) {
+    const providerIds = aliasesForProvider(price.providerId);
+    const modelKeys = modelMatchKeys(price.modelId, price.modelDisplayName);
+
+    for (const providerId of providerIds) {
+      for (const modelKey of modelKeys) {
+        const benchmark = benchmarksByProviderModelKey.get(`${providerId}:${modelKey}`);
+        if (benchmark) return benchmark;
+      }
+    }
+
+    for (const modelKey of modelKeys) {
+      const benchmark = benchmarksByModelKey.get(modelKey);
+      if (benchmark) return benchmark;
+    }
+
+    return null;
+  }
+
+  function toPick(candidate: {
+    price: typeof priceRows[number];
+    benchmark: typeof benchmarkRows[number] | null;
+    inputCost: number | null;
+    outputCost: number | null;
+    intelligenceScore: number | null;
+  }): DashboardModelPick {
+    return {
+      modelId: candidate.price.modelId,
+      modelName: candidate.price.modelDisplayName,
+      provider: candidate.benchmark?.modelCreatorName ?? displayProviderName(candidate.price.providerId),
+      inputCostPer1mUsd: candidate.inputCost,
+      outputCostPer1mUsd: candidate.outputCost,
+      intelligenceScore: candidate.intelligenceScore
+    };
+  }
+
+  const candidates = [...latestPrices.values()]
+    .map((price) => {
+      const inputCost = optionalNumberFromDecimal(price.inputPricePer1mTokensUsd);
+      const outputCost = optionalNumberFromDecimal(price.outputPricePer1mTokensUsd);
+      const combinedCost = (inputCost ?? 0) + (outputCost ?? 0);
+      const benchmark = benchmarkForPrice(price);
+      const intelligenceScore = scaledBenchmarkScore(benchmark?.artificialAnalysisIntelligenceIndex);
+
+      return {
+        price,
+        benchmark,
+        inputCost,
+        outputCost,
+        combinedCost,
+        intelligenceScore
+      };
+    })
+    .filter((candidate) => candidate.inputCost != null || candidate.outputCost != null);
+
+  const scoredCandidates = candidates.filter((candidate) => candidate.intelligenceScore != null);
+  const smartest = scoredCandidates.length
+    ? [...scoredCandidates].sort((a, b) => (b.intelligenceScore ?? 0) - (a.intelligenceScore ?? 0) || a.combinedCost - b.combinedCost)[0]
+    : null;
+  const bestValue = scoredCandidates.length
+    ? [...scoredCandidates]
+      .filter((candidate) => candidate.combinedCost > 0)
+      .sort((a, b) => ((b.intelligenceScore ?? 0) / b.combinedCost) - ((a.intelligenceScore ?? 0) / a.combinedCost))[0] ?? null
+    : null;
+  const cheapest = candidates.length
+    ? [...candidates].sort((a, b) => a.combinedCost - b.combinedCost || (b.intelligenceScore ?? 0) - (a.intelligenceScore ?? 0))[0]
+    : null;
+
+  return {
+    smartest: smartest ? toPick(smartest) : null,
+    bestValue: bestValue ? toPick(bestValue) : null,
+    cheapest: cheapest ? toPick(cheapest) : null
+  };
 }
 
 export async function recommendProviderForUser(userId: string, input: RecommendationInput): Promise<RecommendationBundle | null> {

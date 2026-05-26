@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { ensureUserProfile, getDashboardSummaryForUser, getUserProfile, listProviderAccountsForUser } from "@knut/db";
+import { ensureUserProfile, getDashboardModelPicks, getDashboardSummaryForUser, getUserProfile, listProviderAccountsForUser } from "@knut/db";
 import { requireUser } from "../apiUtils/auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -13,16 +13,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await ensureUserProfile({ id: user.id, email: user.email });
 
     const profile = await getUserProfile(user.id);
-    const [providers, summary] = await Promise.all([
+    const [providers, summary, modelPicks] = await Promise.all([
       listProviderAccountsForUser(user.id),
-      getDashboardSummaryForUser(user.id, profile)
+      getDashboardSummaryForUser(user.id, profile),
+      getDashboardModelPicks().catch(() => ({
+        smartest: null,
+        bestValue: null,
+        cheapest: null
+      }))
     ]);
 
     return res.status(200).json({
       ok: true,
       profile,
       summary,
-      providers
+      providers,
+      modelPicks
     });
   } catch (error) {
     return res.status(401).json({ error: error instanceof Error ? error.message : "Unauthorized" });

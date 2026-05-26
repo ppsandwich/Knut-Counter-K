@@ -67,10 +67,26 @@ export type AccountProviderSummary = {
   creditConfidence: string | null;
 };
 
+export type DashboardModelPick = {
+  modelId: string;
+  modelName: string;
+  provider: string;
+  inputCostPer1mUsd: number | null;
+  outputCostPer1mUsd: number | null;
+  intelligenceScore: number | null;
+};
+
+export type DashboardModelPicks = {
+  smartest: DashboardModelPick | null;
+  bestValue: DashboardModelPick | null;
+  cheapest: DashboardModelPick | null;
+};
+
 export type DashboardPayload = {
   profile: AccountProfile | null;
   summary: DashboardSummary;
   providers: AccountProviderSummary[];
+  modelPicks: DashboardModelPicks;
 };
 
 export type ProviderRegistryOption = {
