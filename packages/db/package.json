@@ -10,6 +10,7 @@
     "db:push": "drizzle-kit push --config drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config drizzle.config.ts",
     "db:seed:providers": "tsx scripts/seedProviderRegistry.ts",
+    "db:diagnose:tokens": "tsx scripts/diagnoseTokenEfficiency.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
