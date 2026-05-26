@@ -7,7 +7,7 @@ export function MonthlyDamageCard({ summary }: { summary: DashboardSummary }) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.label}>This month's AI damage</Text>
+      <Text style={styles.label}>This month's AI usage</Text>
       <View style={styles.moneyRow}>
         <Text style={styles.amount}>{formatCurrency(summary.monthlySpend)}</Text>
         <Text style={styles.projected}>{formatCurrency(summary.projectedSpend)} projected</Text>
