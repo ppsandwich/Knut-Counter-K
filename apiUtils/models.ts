@@ -296,7 +296,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
     }
 
     if (req.method === "POST") {
-      const { requireUser } = await import("./auth");
+      const { requireUser } = await import("./auth.js");
       await requireUser(req);
     }
 
