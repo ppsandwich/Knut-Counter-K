@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { insertModelBenchmarkSnapshots, insertPricingSnapshots } from "@knut/db";
 import { fetchArtificialAnalysisPricingAndBenchmarks, fetchLiteLlmPricing, fetchModelsDevPricing, fetchOpenRouterPricing, normalisePricing, type ArtificialAnalysisBenchmark, type RawPrice } from "@knut/pricing";
+import { handleModelsRequest } from "../../apiUtils/models";
 
 const maxRowsPerSource = 750;
 
@@ -47,6 +48,10 @@ async function settleArtificialAnalysis(fetchedAt: string): Promise<{
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
+    if (req.query.action === "models") {
+      return handleModelsRequest(req, res);
+    }
+
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }

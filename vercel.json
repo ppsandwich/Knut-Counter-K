@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/models",
+      "destination": "/api/pricing/refresh?action=models"
+    },
+    {
       "source": "/api/alerts/evaluate",
       "destination": "/api/alerts?action=evaluate"
     }

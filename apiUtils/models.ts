@@ -1,7 +1,19 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { PopularModel } from "@knut/shared";
 import { listLatestModelBenchmarkSummaries } from "@knut/db";
-import { requireUser } from "../apiUtils/auth";
+import { requireUser } from "./auth";
+
+type ApiRequest = {
+  method?: string;
+  headers: {
+    authorization?: string;
+  };
+};
+
+type ApiResponse = {
+  status(code: number): {
+    json(body: unknown): unknown;
+  };
+};
 
 type OpenRouterModel = {
   id: string;
@@ -205,7 +217,7 @@ function scoreFromRange(value: number | null, min: number, max: number, invert =
   return Math.round((invert ? 1 - ratio : ratio) * 100);
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
   try {
     if (req.method !== "GET" && req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
