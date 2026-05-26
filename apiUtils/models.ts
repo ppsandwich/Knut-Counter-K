@@ -1,5 +1,4 @@
 import type { PopularModel } from "@knut/shared";
-import { listLatestModelBenchmarkSummaries } from "@knut/db";
 import { requireUser } from "./auth";
 
 type ApiRequest = {
@@ -33,21 +32,8 @@ type OpenRouterRankingRow = {
   total_native_tokens_reasoning?: number;
 };
 
-type BenchmarkRow = {
-  providerId: string;
-  modelId: string;
-  modelDisplayName: string;
-  artificialAnalysisIntelligenceIndex: unknown;
-  artificialAnalysisCodingIndex: unknown;
-  medianOutputTokensPerSecond: unknown;
-};
-
-type ArtificialAnalysisPublicMetric = {
-  agenticIndex: number | null;
-};
-
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
-const upstreamTimeoutMs = 4_000;
+const upstreamTimeoutMs = 3_000;
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
@@ -105,34 +91,6 @@ function modelKey(value: string) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
-function modelMetricKey(value: string) {
-  return modelKey(value)
-    .replace(/(?:nonreasoning|reasoning|thinking|adaptive|max|xhigh|high|medium|low|minimal|preview|fast|free)$/g, "")
-    .replace(/(?:nonreasoning|reasoning|thinking|adaptive|max|xhigh|high|medium|low|minimal|preview|fast|free)/g, "");
-}
-
-function modelKeysForOpenRouter(model: OpenRouterModel) {
-  const keys = [
-    modelKey(model.id),
-    model.canonical_slug ? modelKey(model.canonical_slug) : "",
-    model.name ? modelKey(displayNameFor(model)) : "",
-    modelMetricKey(model.id),
-    model.canonical_slug ? modelMetricKey(model.canonical_slug) : "",
-    model.name ? modelMetricKey(displayNameFor(model)) : ""
-  ];
-  const [, modelIdWithoutProvider] = model.id.replace(/^~/, "").split("/");
-  if (modelIdWithoutProvider) keys.push(modelKey(modelIdWithoutProvider));
-
-  return [...new Set(keys.filter(Boolean))];
-}
-
-function modelKeysForBenchmark(row: BenchmarkRow) {
-  return [...new Set([
-    modelKey(row.modelId),
-    modelKey(row.modelDisplayName)
-  ].filter(Boolean))];
-}
-
 function parseRankingsResponse(source: string) {
   const match = source.match(/(?:^|\n)1:(\[[\s\S]*\])\s*$/);
   if (!match) return [];
@@ -175,19 +133,6 @@ async function fetchOpenRouterRankings() {
   return parseRankingsResponse(await response.text());
 }
 
-async function latestBenchmarksByModelKey() {
-  const rows = await listLatestModelBenchmarkSummaries();
-
-  const benchmarks = new Map<string, typeof rows[number]>();
-  for (const row of rows) {
-    for (const key of modelKeysForBenchmark(row)) {
-      if (!benchmarks.has(key)) benchmarks.set(key, row);
-    }
-  }
-
-  return benchmarks;
-}
-
 function scoreFromRange(value: number | null, min: number, max: number, invert = false) {
   if (value == null || max <= min) return null;
   const ratio = Math.min(1, Math.max(0, (value - min) / (max - min)));
@@ -204,14 +149,16 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       await requireUser(req);
     }
 
-    const openRouterModels = await fetchOpenRouterModels();
-    const [rankingsResult, benchmarksResult] = await Promise.allSettled([
-      fetchOpenRouterRankings(),
-      latestBenchmarksByModelKey()
+    const openRouterModelsResult = await Promise.race([
+      fetchOpenRouterModels().then((models) => ({ ok: true as const, models })),
+      new Promise<{ ok: false; models: OpenRouterModel[] }>((resolve) => setTimeout(() => resolve({ ok: false, models: [] }), upstreamTimeoutMs + 500))
+    ]);
+    const openRouterModels = openRouterModelsResult.models;
+    const rankingsResult = await Promise.race([
+      fetchOpenRouterRankings().then((rankings) => ({ status: "fulfilled" as const, value: rankings })),
+      new Promise<{ status: "rejected"; value: [] }>((resolve) => setTimeout(() => resolve({ status: "rejected", value: [] }), upstreamTimeoutMs + 500))
     ]);
     const rankings = rankingsResult.status === "fulfilled" ? rankingsResult.value : [];
-    const benchmarks = benchmarksResult.status === "fulfilled" ? benchmarksResult.value : new Map<string, Awaited<ReturnType<typeof listLatestModelBenchmarkSummaries>>[number]>();
-    const artificialAnalysisPublicMetrics = new Map<string, ArtificialAnalysisPublicMetric>();
 
     const openRouterByKey = new Map<string, OpenRouterModel>();
     for (const model of openRouterModels) {
@@ -239,24 +186,13 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
     const costs = rankedModels
       .map(({ model }) => (perTokenToPerMillion(model.pricing?.prompt) ?? 0) + (perTokenToPerMillion(model.pricing?.completion) ?? 0))
       .filter((value) => value > 0);
-    const speeds = rankedModels
-      .map(({ model }) => {
-        const benchmark = modelKeysForOpenRouter(model).map((key) => benchmarks.get(key)).find(Boolean);
-        return finiteNumber(benchmark?.medianOutputTokensPerSecond);
-      })
-      .filter((value): value is number => value != null && value > 0);
     const minCost = Math.min(...costs);
     const maxCost = Math.max(...costs);
-    const minSpeed = Math.min(...speeds);
-    const maxSpeed = Math.max(...speeds);
 
     const models: PopularModel[] = rankedModels.map(({ ranking, model }, index) => {
-      const benchmark = modelKeysForOpenRouter(model).map((key) => benchmarks.get(key)).find(Boolean);
-      const publicMetrics = modelKeysForOpenRouter(model).map((key) => artificialAnalysisPublicMetrics.get(key)).find(Boolean);
       const inputCost = perTokenToPerMillion(model.pricing?.prompt);
       const outputCost = perTokenToPerMillion(model.pricing?.completion);
       const combinedCost = inputCost != null || outputCost != null ? (inputCost ?? 0) + (outputCost ?? 0) : null;
-      const speed = finiteNumber(benchmark?.medianOutputTokensPerSecond);
 
       return {
         rank: index + 1,
@@ -267,10 +203,10 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
         inputCostPer1mUsd: inputCost,
         outputCostPer1mUsd: outputCost,
         ageDays: ageDaysFor(model.created),
-        artificialAnalysisIntelligenceIndex: finiteNumber(benchmark?.artificialAnalysisIntelligenceIndex),
-        artificialAnalysisCodingIndex: finiteNumber(benchmark?.artificialAnalysisCodingIndex),
-        artificialAnalysisAgenticIndex: publicMetrics?.agenticIndex ?? null,
-        speedScore: scoreFromRange(speed, minSpeed, maxSpeed),
+        artificialAnalysisIntelligenceIndex: null,
+        artificialAnalysisCodingIndex: null,
+        artificialAnalysisAgenticIndex: null,
+        speedScore: null,
         priceScore: scoreFromRange(combinedCost, minCost, maxCost, true)
       };
     });
@@ -281,13 +217,21 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       sources: [
         rankings.length ? "OpenRouter weekly rankings" : "OpenRouter models API fallback order",
         "OpenRouter models API",
-        "Artificial Analysis benchmark snapshots",
-        "Artificial Analysis public model catalogue"
+        "Artificial Analysis benchmark fields are temporarily disabled on the public endpoint"
       ]
     });
   } catch (error) {
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : "Model data refresh failed"
+    if (req.method === "POST") {
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : "Model data refresh failed"
+      });
+    }
+
+    return res.status(200).json({
+      models: [],
+      refreshedAt: new Date().toISOString(),
+      sources: ["Model data fallback"],
+      warning: error instanceof Error ? error.message : "Model data refresh failed"
     });
   }
 }
