@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ProviderUsageRow } from "@knut/ui";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { syncProviders } from "../../lib/accountApi";
+import { blurActiveElement } from "../../lib/focus";
 
 export default function ProvidersScreen() {
   const dashboard = useDashboardData();
+  const router = useRouter();
   const providerRows = dashboard.providerRows;
   const signedIn = Boolean(dashboard.auth.user);
   const [refreshingProviderId, setRefreshingProviderId] = useState<string | null>(null);
@@ -27,6 +29,11 @@ export default function ProvidersScreen() {
     } finally {
       setRefreshingProviderId(null);
     }
+  }
+
+  function openProvider(providerAccountId: string) {
+    blurActiveElement();
+    router.push(`/provider/${providerAccountId}`);
   }
 
   return (
@@ -57,9 +64,7 @@ export default function ProvidersScreen() {
             const isRefreshing = refreshingProviderId === provider.providerId;
             return (
               <View key={provider.providerId} style={styles.providerItem}>
-                <Link href={`/provider/${provider.providerId}`} asChild>
-                  <ProviderUsageRow provider={provider} />
-                </Link>
+                <ProviderUsageRow provider={provider} onPress={() => openProvider(provider.providerId)} />
                 <Pressable disabled={Boolean(refreshingProviderId)} onPress={() => refreshProvider(provider.providerId)} style={({ pressed }) => [styles.refreshButton, refreshingProviderId !== null && styles.disabled, pressed && styles.pressed]}>
                   <Text style={styles.refreshButtonText}>{isRefreshing ? "Refreshing..." : "Refresh provider"}</Text>
                 </Pressable>

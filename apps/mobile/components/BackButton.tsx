@@ -1,11 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text } from "react-native";
+import { blurActiveElement } from "../lib/focus";
 
 export function BackButton({ fallbackHref = "/providers" }: { fallbackHref?: string }) {
   const router = useRouter();
 
   function goBack() {
+    blurActiveElement();
+
     if (router.canGoBack()) {
       router.back();
       return;
