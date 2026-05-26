@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { Platform, type ViewStyle } from "react-native";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const tabIcon = (name: keyof typeof Ionicons.glyphMap) =>
@@ -11,17 +11,8 @@ const tabIcon = (name: keyof typeof Ionicons.glyphMap) =>
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const bottomInset = Platform.OS === "web" ? 0 : insets.bottom;
-  const tabBarHeight = Platform.OS === "web" ? 136 : 64 + bottomInset;
-  const tabBarPaddingBottom = Platform.OS === "web" ? 72 : bottomInset || 8;
-  const webFixedTabBarStyle =
-    Platform.OS === "web"
-      ? ({
-          position: "fixed",
-          bottom: -52,
-          left: 0,
-          right: 0
-        } as unknown as ViewStyle)
-      : null;
+  const tabBarHeight = Platform.OS === "web" ? 84 : 64 + bottomInset;
+  const tabBarPaddingBottom = Platform.OS === "web" ? 20 : bottomInset || 8;
 
   return (
     <Tabs
@@ -31,7 +22,6 @@ export default function TabsLayout() {
         tabBarActiveTintColor: "#f4f4f5",
         tabBarInactiveTintColor: "#737373",
         tabBarStyle: {
-          ...webFixedTabBarStyle,
           backgroundColor: "#09090b",
           borderTopColor: "#222225",
           height: tabBarHeight,

@@ -46,6 +46,17 @@
         }
       }
       @media (display-mode: standalone) {
+        div:has(> [role="tablist"]) {
+          background: #09090b !important;
+          bottom: -52px !important;
+          height: 136px !important;
+          left: 0 !important;
+          padding-bottom: 72px !important;
+          position: fixed !important;
+          right: 0 !important;
+          transform: none !important;
+          z-index: 2147483647 !important;
+        }
         body::after {
           background: #09090b;
           bottom: 0;
