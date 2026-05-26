@@ -1,6 +1,6 @@
-const CACHE_NAME = "knut-counter-v7";
+const CACHE_NAME = "knut-counter-v8";
+const APP_SHELL_CACHE_KEY = "/__app-shell";
 const STATIC_PATHS = [
-  "/",
   "/manifest.json",
   "/logo192.png",
   "/logo512.png",
@@ -40,7 +40,15 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).catch(() => caches.match("/")));
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(APP_SHELL_CACHE_KEY, copy));
+          return response;
+        })
+        .catch(() => caches.match(APP_SHELL_CACHE_KEY))
+    );
     return;
   }
 
