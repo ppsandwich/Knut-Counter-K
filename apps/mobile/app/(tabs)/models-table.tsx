@@ -191,7 +191,7 @@ export default function ModelsTableScreen() {
       <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[error ? 2 : 1]}>
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.title}>Models Table</Text>
+            <Text style={styles.title}>Models</Text>
             <Text style={styles.subtitle}>Top 50 by OpenRouter weekly usage</Text>
           </View>
           {auth.session ? (
