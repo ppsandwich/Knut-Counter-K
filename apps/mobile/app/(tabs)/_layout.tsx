@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const tabIcon = (name: keyof typeof Ionicons.glyphMap) =>
   function Icon({ color, size }: { color: string; size: number }) {
@@ -7,8 +9,12 @@ const tabIcon = (name: keyof typeof Ionicons.glyphMap) =>
   };
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === "web" ? 0 : insets.bottom;
+
   return (
     <Tabs
+      safeAreaInsets={{ bottom: 0 }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#f4f4f5",
@@ -16,9 +22,9 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: "#09090b",
           borderTopColor: "#222225",
-          height: 84,
+          height: 64 + bottomInset,
           paddingTop: 8,
-          paddingBottom: 20
+          paddingBottom: bottomInset || 8
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" }
       }}
