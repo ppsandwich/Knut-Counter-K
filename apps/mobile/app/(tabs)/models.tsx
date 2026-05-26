@@ -16,6 +16,20 @@ type MetricRanges = {
   speed: MetricRange | null;
   price: MetricRange | null;
 };
+type SortKey = "popularity" | "inputCost" | "outputCost" | "age" | "intelligence" | "coding" | "agentic" | "speed" | "price";
+type SortDirection = "desc" | "asc";
+
+const sortOptions: Array<{ key: SortKey; label: string }> = [
+  { key: "popularity", label: "Pop" },
+  { key: "inputCost", label: "In" },
+  { key: "outputCost", label: "Out" },
+  { key: "age", label: "Age" },
+  { key: "intelligence", label: "Intel" },
+  { key: "coding", label: "Code" },
+  { key: "agentic", label: "Agent" },
+  { key: "speed", label: "Speed" },
+  { key: "price", label: "Price" }
+];
 
 function formatCost(value: number | null) {
   if (value == null) return "-";
@@ -72,12 +86,40 @@ function colorForMetric(value: number | null, range: MetricRange | null, higherI
   return "#f87171";
 }
 
+function valueForSort(model: PopularModel, sortKey: SortKey) {
+  if (sortKey === "popularity") return model.weeklyTokens;
+  if (sortKey === "inputCost") return model.inputCostPer1mUsd;
+  if (sortKey === "outputCost") return model.outputCostPer1mUsd;
+  if (sortKey === "age") return model.ageDays;
+  if (sortKey === "intelligence") return model.artificialAnalysisIntelligenceIndex;
+  if (sortKey === "coding") return model.artificialAnalysisCodingIndex;
+  if (sortKey === "agentic") return model.artificialAnalysisAgenticIndex;
+  if (sortKey === "speed") return model.speedScore;
+  return model.priceScore;
+}
+
+function sortedModels(models: PopularModel[], sortKey: SortKey, sortDirection: SortDirection) {
+  return [...models].sort((a, b) => {
+    const aValue = valueForSort(a, sortKey);
+    const bValue = valueForSort(b, sortKey);
+    if (aValue == null && bValue == null) return a.rank - b.rank;
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+
+    const comparison = aValue - bValue;
+    if (comparison === 0) return a.rank - b.rank;
+    return sortDirection === "asc" ? comparison : -comparison;
+  });
+}
+
 export default function ModelsScreen() {
   const auth = useAuthSession();
   const [payload, setPayload] = useState<PopularModelsPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("popularity");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   async function load(refresh = false) {
     if (refresh) {
@@ -102,6 +144,17 @@ export default function ModelsScreen() {
   }, []);
 
   const ranges = payload ? metricRangesFor(payload.models) : null;
+  const visibleModels = payload ? sortedModels(payload.models, sortKey, sortDirection) : [];
+
+  function changeSort(nextSortKey: SortKey) {
+    if (nextSortKey === sortKey) {
+      setSortDirection((direction) => direction === "desc" ? "asc" : "desc");
+      return;
+    }
+
+    setSortKey(nextSortKey);
+    setSortDirection("desc");
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -125,11 +178,24 @@ export default function ModelsScreen() {
           </View>
         ) : null}
 
+        <View style={styles.sortBar}>
+          {sortOptions.map((option) => {
+            const isActive = option.key === sortKey;
+            return (
+              <Pressable key={option.key} onPress={() => changeSort(option.key)} style={[styles.sortButton, isActive && styles.sortButtonActive]}>
+                <Text style={[styles.sortText, isActive && styles.sortTextActive]}>
+                  {option.label}{isActive ? sortDirection === "desc" ? " ↓" : " ↑" : ""}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <View style={styles.list}>
           {isLoading && !payload ? (
             <Text style={styles.loading}>Loading model rankings...</Text>
           ) : payload && ranges ? (
-            payload.models.map((model) => <ModelRow key={`${model.rank}:${model.modelId}`} model={model} ranges={ranges} />)
+            visibleModels.map((model) => <ModelRow key={`${model.rank}:${model.modelId}`} model={model} ranges={ranges} />)
           ) : null}
         </View>
 
@@ -187,6 +253,11 @@ const styles = StyleSheet.create({
   refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12 },
   refreshText: { color: "#050506", fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.6 },
+  sortBar: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  sortButton: { minHeight: 26, justifyContent: "center", borderRadius: 6, borderColor: "#242428", borderWidth: 1, backgroundColor: "#09090b", paddingHorizontal: 8 },
+  sortButtonActive: { borderColor: "#1f4d2a", backgroundColor: "#132016" },
+  sortText: { color: "#8b8b91", fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
+  sortTextActive: { color: "#86efac" },
   list: { gap: 8 },
   loading: { color: "#a1a1aa", fontSize: 14, fontWeight: "800", padding: 14, backgroundColor: "#111113", borderRadius: 8 },
   row: { backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 8, padding: 10, gap: 8 },
