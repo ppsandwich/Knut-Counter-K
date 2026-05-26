@@ -132,6 +132,12 @@ function modelMatchKeys(modelId: string, modelDisplayName: string) {
 
 function modelVersionParts(modelId: string, modelDisplayName: string) {
   const text = `${modelId} ${modelDisplayName}`.toLowerCase();
+  const geminiVersionMatch = text.match(/gemini[^0-9]*(\d+(?:[._-]\d+){0,3})/);
+  if (geminiVersionMatch) {
+    const parts = geminiVersionMatch[1].split(/[._-]/).map((part) => Number(part));
+    return parts.every((part) => Number.isFinite(part)) ? parts : null;
+  }
+
   const versionMatch = text.match(/(?:^|[^a-z0-9])(?:v|version)?(\d+(?:[._-]\d+){0,3})(?=$|[^a-z0-9])/);
   if (!versionMatch) return null;
 
@@ -140,6 +146,20 @@ function modelVersionParts(modelId: string, modelDisplayName: string) {
 }
 
 function modelFamilyKey(modelId: string, modelDisplayName: string) {
+  const normalisedText = `${modelId} ${modelDisplayName}`
+    .toLowerCase()
+    .replace(/^~/, "")
+    .replace(/:.+$/, "")
+    .replace(/^(openai|anthropic|google|x-ai|xai|deepseek|mistralai|mistral|cohere|groq|perplexity|openrouter)[/:_-]+/, "")
+    .replace(/[^a-z0-9]+/g, " ");
+
+  if (normalisedText.includes("gemini")) {
+    if (/\bdeep think\b/.test(normalisedText)) return "gemini-deep-think";
+    if (/\bflash lite\b|\bflashlite\b/.test(normalisedText)) return "gemini-flash-lite";
+    if (/\bflash\b/.test(normalisedText)) return "gemini-flash";
+    if (/\bpro\b/.test(normalisedText)) return normalisedText.includes("image") ? "gemini-pro-image" : "gemini-pro";
+  }
+
   const text = `${modelId} ${modelDisplayName}`
     .toLowerCase()
     .replace(/^~/, "")
