@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   headerCellTextActive: { color: "#86efac" },
   loading: { color: "#a1a1aa", fontSize: 14, fontWeight: "800", padding: 14 },
   group: { borderBottomColor: "#242428", borderBottomWidth: 1 },
-  modelInfoRow: { minHeight: 44, justifyContent: "center", paddingHorizontal: 9, paddingVertical: 6, backgroundColor: "#111113" },
+  modelInfoRow: { minHeight: 44, justifyContent: "center", paddingHorizontal: 9, paddingVertical: 6, backgroundColor: "#171719" },
   modelName: { color: "#f4f4f5", fontSize: 13, fontWeight: "900" },
   modelMeta: { color: "#8b8b91", fontSize: 10, fontWeight: "800", marginTop: 2 },
   metricRow: { flexDirection: "row", minHeight: 30, backgroundColor: "#09090b" },
