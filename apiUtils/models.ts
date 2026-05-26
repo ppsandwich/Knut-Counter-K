@@ -1,6 +1,4 @@
 import type { PopularModel } from "@knut/shared";
-import { listLatestModelBenchmarkSummaries } from "@knut/db";
-import { requireUser } from "./auth";
 
 type ApiRequest = {
   method?: string;
@@ -33,7 +31,13 @@ type OpenRouterRankingRow = {
   total_native_tokens_reasoning?: number;
 };
 
-type BenchmarkSummary = Awaited<ReturnType<typeof listLatestModelBenchmarkSummaries>>[number];
+type BenchmarkSummary = {
+  modelId: string;
+  modelDisplayName: string;
+  artificialAnalysisIntelligenceIndex: unknown;
+  artificialAnalysisCodingIndex: unknown;
+  medianOutputTokensPerSecond: unknown;
+};
 
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
 const upstreamTimeoutMs = 3_000;
@@ -168,6 +172,7 @@ async function fetchOpenRouterRankings() {
 }
 
 async function latestBenchmarksByModelKey() {
+  const { listLatestModelBenchmarkSummaries } = await import("@knut/db");
   const rows = await listLatestModelBenchmarkSummaries();
   const benchmarks = new Map<string, BenchmarkSummary>();
 
@@ -291,6 +296,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
     }
 
     if (req.method === "POST") {
+      const { requireUser } = await import("./auth");
       await requireUser(req);
     }
 
