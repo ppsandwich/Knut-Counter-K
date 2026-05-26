@@ -1638,7 +1638,15 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
         ? candidate.intelligenceScore >= minimumQualityScore
         : false;
     });
-  const balancedCandidates = balancedPool.length ? balancedPool : candidates;
+  const recommendedQualityFloor = qualityPreference >= 0.5 ? benchmarkTop20AverageScore : null;
+  const aboveRecommendedQualityFloor = recommendedQualityFloor == null
+    ? balancedPool
+    : balancedPool.filter((candidate) => candidate.intelligenceScore >= recommendedQualityFloor);
+  const balancedCandidates = aboveRecommendedQualityFloor.length
+    ? aboveRecommendedQualityFloor
+    : balancedPool.length
+      ? balancedPool
+      : candidates;
   const balancedCandidate = qualityPreference <= 0
     ? cheapestCandidate
     : qualityPreference >= 1

@@ -109,7 +109,7 @@ export default function CompareScreen() {
         ) : null}
         {recommendations ? (
           <View style={styles.results}>
-            <RecommendationCard item={{ ...recommendations.balanced, label: "Recommended" }} tone="recommended" />
+            <RecommendationCard item={{ ...recommendations.balanced, label: "Recommended" }} tone="recommended" suppressBelowAverageScore={qualityPreference >= 0.5} />
             <RecommendationCard item={recommendations.quality} tone="neutral" />
             <RecommendationCard item={recommendations.cheapest} tone="neutral" />
             <Text style={styles.attribution}>Benchmarks from Artificial Analysis</Text>
@@ -214,11 +214,11 @@ function PreferenceSlider({ value, onChange }: { value: number; onChange: (value
   );
 }
 
-function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: "recommended" | "neutral" }) {
+function RecommendationCard({ item, tone, suppressBelowAverageScore = false }: { item: RecommendationResult; tone: "recommended" | "neutral"; suppressBelowAverageScore?: boolean }) {
   const benchmarkLabel = item.intelligenceBenchmark
     ? `${item.intelligenceBenchmark} benchmark`
     : `${item.intelligenceSource} intelligence`;
-  const isBelowTop20Average = item.benchmarkTop20AverageScore != null && item.intelligenceScore < item.benchmarkTop20AverageScore;
+  const isBelowTop20Average = !suppressBelowAverageScore && item.benchmarkTop20AverageScore != null && item.intelligenceScore < item.benchmarkTop20AverageScore;
 
   return (
     <View style={[styles.reco, tone === "recommended" && styles.recoRecommended]}>
