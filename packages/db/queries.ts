@@ -236,6 +236,50 @@ function nestedPositiveNumber(source: unknown, ...keys: string[]) {
   return null;
 }
 
+function findPositiveNumberByKey(source: unknown, predicate: (key: string) => boolean): number | null {
+  if (!source || typeof source !== "object") return null;
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      const nestedValue = findPositiveNumberByKey(item, predicate);
+      if (nestedValue != null) return nestedValue;
+    }
+
+    return null;
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    if (predicate(key)) {
+      const parsed = positiveNumberFromDecimal(value);
+      if (parsed != null) return parsed;
+    }
+
+    const nestedValue = findPositiveNumberByKey(value, predicate);
+    if (nestedValue != null) return nestedValue;
+  }
+
+  return null;
+}
+
+function isTokenUseKey(key: string) {
+  const normalised = key.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  if (!normalised.includes("token")) return false;
+  if (/(price|cost|usd|dollar|rate|per|second|latency|speed|throughput|context|window|limit)/.test(normalised)) return false;
+
+  return (
+    /(output|reasoning|answer|completion).*(used|use|count|total)/.test(normalised)
+    || /(used|use|count|total).*(output|reasoning|answer|completion)/.test(normalised)
+    || /intelligence.*index.*tokens/.test(normalised)
+  );
+}
+
+function isTokenEfficiencyKey(key: string) {
+  const normalised = key.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  if (/(price|cost|usd|dollar|rate|per|second|latency|speed|throughput|context|window|limit)/.test(normalised)) return false;
+
+  return normalised.includes("token") && /(efficiency|efficient|verbosity|verbose)/.test(normalised);
+}
+
 export async function upsertUserProfile(input: AccountProfile) {
   const [profile] = await getDb()
     .insert(users)
@@ -1207,6 +1251,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       modelId: modelBenchmarkSnapshots.modelId,
       modelDisplayName: modelBenchmarkSnapshots.modelDisplayName,
       evaluations: modelBenchmarkSnapshots.evaluations,
+      pricing: modelBenchmarkSnapshots.pricing,
       artificialAnalysisIntelligenceIndex: modelBenchmarkSnapshots.artificialAnalysisIntelligenceIndex,
       artificialAnalysisCodingIndex: modelBenchmarkSnapshots.artificialAnalysisCodingIndex,
       artificialAnalysisMathIndex: modelBenchmarkSnapshots.artificialAnalysisMathIndex,
@@ -1387,22 +1432,29 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       };
     }
 
+    const outputTokensUsed = nestedPositiveNumber(
+      benchmark.evaluations,
+      "artificial_analysis_output_tokens_used",
+      "output_tokens_used",
+      "output_tokens_used_to_run_artificial_analysis_intelligence_index",
+      "intelligence_index_output_tokens",
+      "intelligence_index.output_tokens_used"
+    )
+      ?? findPositiveNumberByKey(benchmark.evaluations, isTokenUseKey)
+      ?? findPositiveNumberByKey(benchmark.pricing, isTokenUseKey);
+    const tokenEfficiency = nestedPositiveNumber(
+      benchmark.evaluations,
+      "artificial_analysis_token_efficiency",
+      "token_efficiency",
+      "token_efficiency_index",
+      "tokenizer_efficiency"
+    )
+      ?? findPositiveNumberByKey(benchmark.evaluations, isTokenEfficiencyKey)
+      ?? findPositiveNumberByKey(benchmark.pricing, isTokenEfficiencyKey);
+
     return {
-      outputTokensUsed: nestedPositiveNumber(
-        benchmark.evaluations,
-        "artificial_analysis_output_tokens_used",
-        "output_tokens_used",
-        "output_tokens_used_to_run_artificial_analysis_intelligence_index",
-        "intelligence_index_output_tokens",
-        "intelligence_index.output_tokens_used"
-      ),
-      tokenEfficiency: nestedPositiveNumber(
-        benchmark.evaluations,
-        "artificial_analysis_token_efficiency",
-        "token_efficiency",
-        "token_efficiency_index",
-        "tokenizer_efficiency"
-      )
+      outputTokensUsed,
+      tokenEfficiency
     };
   }
 

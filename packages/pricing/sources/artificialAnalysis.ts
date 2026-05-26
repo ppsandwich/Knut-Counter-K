@@ -114,6 +114,50 @@ function nestedNumber(source: Record<string, unknown>, ...keys: string[]) {
   return undefined;
 }
 
+function findNumberByKey(source: unknown, predicate: (key: string) => boolean): number | undefined {
+  if (!source || typeof source !== "object") return undefined;
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      const nestedValue = findNumberByKey(item, predicate);
+      if (nestedValue != null) return nestedValue;
+    }
+
+    return undefined;
+  }
+
+  for (const [key, value] of Object.entries(source)) {
+    if (predicate(key)) {
+      const parsed = finiteNumber(value);
+      if (parsed != null && parsed > 0) return parsed;
+    }
+
+    const nestedValue = findNumberByKey(value, predicate);
+    if (nestedValue != null) return nestedValue;
+  }
+
+  return undefined;
+}
+
+function isTokenUseKey(key: string) {
+  const normalised = key.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  if (!normalised.includes("token")) return false;
+  if (/(price|cost|usd|dollar|rate|per|second|latency|speed|throughput|context|window|limit)/.test(normalised)) return false;
+
+  return (
+    /(output|reasoning|answer|completion).*(used|use|count|total)/.test(normalised)
+    || /(used|use|count|total).*(output|reasoning|answer|completion)/.test(normalised)
+    || /intelligence.*index.*tokens/.test(normalised)
+  );
+}
+
+function isTokenEfficiencyKey(key: string) {
+  const normalised = key.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  if (/(price|cost|usd|dollar|rate|per|second|latency|speed|throughput|context|window|limit)/.test(normalised)) return false;
+
+  return normalised.includes("token") && /(efficiency|efficient|verbosity|verbose)/.test(normalised);
+}
+
 function sourceModelIdFor(model: ArtificialAnalysisModel) {
   return model.slug ?? model.name ?? model.id;
 }
@@ -175,7 +219,10 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
       "evaluations.output_tokens_used",
       "evaluations.output_tokens_used_to_run_artificial_analysis_intelligence_index",
       "evaluations.intelligence_index_output_tokens"
-    );
+    )
+      ?? findNumberByKey(model.evaluations, isTokenUseKey)
+      ?? findNumberByKey(model.pricing, isTokenUseKey)
+      ?? findNumberByKey(modelRecord, isTokenUseKey);
     const artificialAnalysisTokenEfficiency = nestedNumber(
       modelRecord,
       "artificial_analysis_token_efficiency",
@@ -186,7 +233,10 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
       "evaluations.token_efficiency",
       "evaluations.token_efficiency_index",
       "evaluations.tokenizer_efficiency"
-    );
+    )
+      ?? findNumberByKey(model.evaluations, isTokenEfficiencyKey)
+      ?? findNumberByKey(model.pricing, isTokenEfficiencyKey)
+      ?? findNumberByKey(modelRecord, isTokenEfficiencyKey);
     const enrichedEvaluations = {
       ...evaluations,
       ...(artificialAnalysisOutputTokensUsed == null ? {} : { artificial_analysis_output_tokens_used: artificialAnalysisOutputTokensUsed }),
