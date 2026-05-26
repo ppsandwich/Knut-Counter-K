@@ -37,6 +37,7 @@ type BenchmarkSummary = Awaited<ReturnType<typeof listLatestModelBenchmarkSummar
 
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
 const upstreamTimeoutMs = 3_000;
+const requestBudgetMs = 5_000;
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
@@ -185,16 +186,16 @@ function scoreFromRange(value: number | null, min: number, max: number, invert =
   return Math.round((invert ? 1 - ratio : ratio) * 100);
 }
 
-export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
-  try {
-    if (req.method !== "GET" && req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
+function emptyModelsPayload(warning: string) {
+  return {
+    models: [],
+    refreshedAt: new Date().toISOString(),
+    sources: ["Model data fallback"],
+    warning
+  };
+}
 
-    if (req.method === "POST") {
-      await requireUser(req);
-    }
-
+async function buildModelsPayload() {
     const openRouterModelsResult = await Promise.race([
       fetchOpenRouterModels().then((models) => ({ ok: true as const, models })),
       new Promise<{ ok: false; models: OpenRouterModel[] }>((resolve) => setTimeout(() => resolve({ ok: false, models: [] }), upstreamTimeoutMs + 500))
@@ -272,7 +273,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       };
     });
 
-    return res.status(200).json({
+    return {
       models,
       refreshedAt: new Date().toISOString(),
       sources: [
@@ -280,7 +281,27 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
         "OpenRouter models API",
         benchmarks.size ? "Artificial Analysis benchmark snapshots" : "Artificial Analysis benchmark snapshots unavailable"
       ]
-    });
+    };
+}
+
+export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
+  try {
+    if (req.method !== "GET" && req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    if (req.method === "POST") {
+      await requireUser(req);
+    }
+
+    const payload = await Promise.race([
+      buildModelsPayload(),
+      new Promise<ReturnType<typeof emptyModelsPayload>>((resolve) => {
+        setTimeout(() => resolve(emptyModelsPayload("Model data request timed out.")), requestBudgetMs);
+      })
+    ]);
+
+    return res.status(200).json(payload);
   } catch (error) {
     if (req.method === "POST") {
       return res.status(500).json({
@@ -288,11 +309,6 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       });
     }
 
-    return res.status(200).json({
-      models: [],
-      refreshedAt: new Date().toISOString(),
-      sources: ["Model data fallback"],
-      warning: error instanceof Error ? error.message : "Model data refresh failed"
-    });
+    return res.status(200).json(emptyModelsPayload(error instanceof Error ? error.message : "Model data refresh failed"));
   }
 }
