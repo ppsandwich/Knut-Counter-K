@@ -30,10 +30,6 @@
   ],
   "rewrites": [
     {
-      "source": "/api/account/settings",
-      "destination": "/api/account/me?action=settings"
-    },
-    {
       "source": "/api/alerts/evaluate",
       "destination": "/api/alerts?action=evaluate"
     },

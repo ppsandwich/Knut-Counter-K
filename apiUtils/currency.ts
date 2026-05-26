@@ -7,10 +7,24 @@ type RateCache = {
 };
 
 const cacheTtlMs = 6 * 60 * 60 * 1000;
+const rateFetchTimeoutMs = 900;
 let rateCache: RateCache | null = null;
 
+async function fetchWithTimeout(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), rateFetchTimeoutMs);
+
+  try {
+    return await fetch(url, {
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchOpenExchangeRates() {
-  const response = await fetch("https://open.er-api.com/v6/latest/USD");
+  const response = await fetchWithTimeout("https://open.er-api.com/v6/latest/USD");
   if (!response.ok) {
     throw new Error(`Currency rate fetch failed: ${response.status}`);
   }
@@ -27,7 +41,7 @@ async function fetchOpenExchangeRates() {
 }
 
 async function fetchFrankfurterRates() {
-  const response = await fetch("https://api.frankfurter.dev/v1/latest?base=USD");
+  const response = await fetchWithTimeout("https://api.frankfurter.dev/v1/latest?base=USD");
   if (!response.ok) {
     throw new Error(`Currency rate fetch failed: ${response.status}`);
   }

@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const input = {
         timezone: String(req.body?.timezone ?? "UTC"),
         preferredCurrency: normaliseCurrencyCode(String(req.body?.preferredCurrency ?? "USD")),
-        monthlyAiBudget: req.body?.monthlyAiBudget == null ? null : Number(req.body.monthlyAiBudget)
+        monthlyAiBudget: req.body?.monthlyAiBudget == null || req.body.monthlyAiBudget === "" ? null : Number(req.body.monthlyAiBudget)
       };
 
       await upsertUserProfile({
@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       email: user.email,
       timezone: String(req.body?.timezone ?? "UTC"),
       preferredCurrency: normaliseCurrencyCode(String(req.body?.preferredCurrency ?? "USD")),
-      monthlyAiBudget: req.body?.monthlyAiBudget == null ? null : Number(req.body.monthlyAiBudget)
+      monthlyAiBudget: req.body?.monthlyAiBudget == null || req.body.monthlyAiBudget === "" ? null : Number(req.body.monthlyAiBudget)
     });
 
     return res.status(200).json({ ok: true, profile });

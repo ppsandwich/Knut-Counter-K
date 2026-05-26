@@ -52,7 +52,7 @@ type BenchmarkSummary = {
 
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
 const upstreamTimeoutMs = 8_000;
-const requestBudgetMs = 9_500;
+const requestBudgetMs = 7_500;
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
