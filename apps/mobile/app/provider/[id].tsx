@@ -8,6 +8,7 @@ import { mockDashboard } from "@knut/shared";
 import { BackButton } from "../../components/BackButton";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { createManualUsage, deleteAccountProvider, importDeepSeekResponses, importOpenRouterGenerations, importUsage, importXaiResponses, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
+import { blurActiveElement } from "../../lib/focus";
 
 function todayForInput() {
   return new Date().toISOString().slice(0, 10);
@@ -385,6 +386,7 @@ export default function ProviderDetailScreen() {
     try {
       await deleteAccountProvider(providerAccount.id);
       await dashboard.refresh();
+      blurActiveElement();
       router.replace("/providers");
     } catch (error) {
       setAccountMessage(error instanceof Error ? error.message : "Provider account could not be deleted.");
