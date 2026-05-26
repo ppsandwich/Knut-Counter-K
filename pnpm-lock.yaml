@@ -32,6 +32,9 @@ importers:
       '@knut/providers':
         specifier: workspace:*
         version: link:../packages/providers
+      '@knut/shared':
+        specifier: workspace:*
+        version: link:../packages/shared
     devDependencies:
       '@vercel/node':
         specifier: ^5.1.0
