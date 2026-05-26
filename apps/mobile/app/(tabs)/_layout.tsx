@@ -24,9 +24,9 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="dashboard" options={{ title: "Dashboard", tabBarIcon: tabIcon("analytics") }} />
+      <Tabs.Screen name="compare" options={{ title: "Compare", tabBarIcon: tabIcon("git-compare") }} />
       <Tabs.Screen name="providers" options={{ title: "Providers", tabBarIcon: tabIcon("server") }} />
       <Tabs.Screen name="alerts" options={{ title: "Alerts", tabBarIcon: tabIcon("warning") }} />
-      <Tabs.Screen name="compare" options={{ title: "Compare", tabBarIcon: tabIcon("git-compare") }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: tabIcon("settings") }} />
     </Tabs>
   );

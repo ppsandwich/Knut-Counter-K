@@ -30,6 +30,10 @@ type IntelligenceIndexTokenCounts = {
   reasoningTokens?: number;
 };
 
+const publicTokenCountFetchConcurrency = 4;
+const publicTokenCountFetchTimeoutMs = 12_000;
+const artificialAnalysisModelsUrl = "https://artificialanalysis.ai/models";
+
 export type ArtificialAnalysisBenchmark = {
   providerId: string;
   modelId: string;
@@ -238,22 +242,86 @@ function parseIntelligenceIndexTokenCounts(html: string) {
   return tokenCountsBySlug;
 }
 
-async function fetchArtificialAnalysisPublicTokenCounts() {
+function firstIntelligenceIndexTokenCounts(html: string) {
+  const match = html.match(/(?:\\?")intelligence_index_token_counts(?:\\?")\s*:\s*\{([^}]+)\}/);
+  if (!match) return undefined;
+
+  return {
+    inputTokens: escapedJsonNumber(match[1], "input_tokens"),
+    answerTokens: escapedJsonNumber(match[1], "answer_tokens"),
+    outputTokens: escapedJsonNumber(match[1], "output_tokens"),
+    reasoningTokens: escapedJsonNumber(match[1], "reasoning_tokens")
+  };
+}
+
+async function fetchArtificialAnalysisModelPage(slug: string) {
+  return fetchArtificialAnalysisPublicPage(`${artificialAnalysisModelsUrl}/${encodeURIComponent(slug)}`);
+}
+
+async function fetchArtificialAnalysisPublicPage(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), publicTokenCountFetchTimeoutMs);
+
   try {
-    const response = await fetch("https://artificialanalysis.ai/models/gpt-5-5-non-reasoning", {
+    const response = await fetch(url, {
       headers: {
         "user-agent": "Knut Counter pricing refresh"
-      }
+      },
+      signal: controller.signal
     });
 
     if (!response.ok) {
-      return new Map<string, IntelligenceIndexTokenCounts>();
+      return null;
     }
 
-    return parseIntelligenceIndexTokenCounts(await response.text());
+    return await response.text();
   } catch {
-    return new Map<string, IntelligenceIndexTokenCounts>();
+    return null;
+  } finally {
+    clearTimeout(timeout);
   }
+}
+
+async function fetchArtificialAnalysisPublicTokenCounts(models: ArtificialAnalysisModel[]) {
+  const tokenCountsBySlug = new Map<string, IntelligenceIndexTokenCounts>();
+  const indexHtml = await fetchArtificialAnalysisPublicPage(artificialAnalysisModelsUrl);
+  if (indexHtml) {
+    for (const [key, counts] of parseIntelligenceIndexTokenCounts(indexHtml)) {
+      tokenCountsBySlug.set(key, counts);
+    }
+  }
+
+  const slugs = [...new Set(models
+    .filter((model) => !(model.slug && tokenCountsBySlug.has(model.slug)) && !(model.id && tokenCountsBySlug.has(model.id)))
+    .map((model) => model.slug)
+    .filter((slug): slug is string => Boolean(slug)))];
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < slugs.length) {
+      const slug = slugs[nextIndex];
+      nextIndex += 1;
+
+      const html = await fetchArtificialAnalysisModelPage(slug);
+      if (!html) continue;
+
+      const pageTokenCounts = parseIntelligenceIndexTokenCounts(html);
+      for (const [key, counts] of pageTokenCounts) {
+        tokenCountsBySlug.set(key, counts);
+      }
+
+      if (!tokenCountsBySlug.has(slug)) {
+        const counts = firstIntelligenceIndexTokenCounts(html);
+        if (counts?.outputTokens != null) {
+          tokenCountsBySlug.set(slug, counts);
+        }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(publicTokenCountFetchConcurrency, slugs.length) }, worker));
+
+  return tokenCountsBySlug;
 }
 
 export async function fetchArtificialAnalysisPricingAndBenchmarks(
@@ -276,7 +344,7 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
 
   const json = await response.json() as { data?: ArtificialAnalysisModel[] };
   const models = json.data ?? [];
-  const tokenCountsBySlug = await fetchArtificialAnalysisPublicTokenCounts();
+  const tokenCountsBySlug = await fetchArtificialAnalysisPublicTokenCounts(models);
 
   const prices: RawPrice[] = [];
   const benchmarks: ArtificialAnalysisBenchmark[] = [];
