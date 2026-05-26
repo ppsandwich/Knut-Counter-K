@@ -1,4 +1,5 @@
 import type { PopularModel } from "@knut/shared";
+import { listLatestModelBenchmarkSummaries } from "@knut/db";
 import { requireUser } from "./auth";
 
 type ApiRequest = {
@@ -31,6 +32,8 @@ type OpenRouterRankingRow = {
   total_prompt_tokens?: number;
   total_native_tokens_reasoning?: number;
 };
+
+type BenchmarkSummary = Awaited<ReturnType<typeof listLatestModelBenchmarkSummaries>>[number];
 
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
 const upstreamTimeoutMs = 3_000;
@@ -91,6 +94,36 @@ function modelKey(value: string) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+function modelMetricKey(value: string) {
+  return modelKey(value)
+    .replace(/(?:nonreasoning|reasoning|thinking|adaptive|max|xhigh|high|medium|low|minimal|preview|fast|free)$/g, "")
+    .replace(/(?:nonreasoning|reasoning|thinking|adaptive|max|xhigh|high|medium|low|minimal|preview|fast|free)/g, "");
+}
+
+function modelKeysForOpenRouter(model: OpenRouterModel) {
+  const keys = [
+    modelKey(model.id),
+    model.canonical_slug ? modelKey(model.canonical_slug) : "",
+    model.name ? modelKey(displayNameFor(model)) : "",
+    modelMetricKey(model.id),
+    model.canonical_slug ? modelMetricKey(model.canonical_slug) : "",
+    model.name ? modelMetricKey(displayNameFor(model)) : ""
+  ];
+  const [, modelIdWithoutProvider] = model.id.replace(/^~/, "").split("/");
+  if (modelIdWithoutProvider) keys.push(modelKey(modelIdWithoutProvider));
+
+  return [...new Set(keys.filter(Boolean))];
+}
+
+function modelKeysForBenchmark(row: BenchmarkSummary) {
+  return [...new Set([
+    modelKey(row.modelId),
+    modelKey(row.modelDisplayName),
+    modelMetricKey(row.modelId),
+    modelMetricKey(row.modelDisplayName)
+  ].filter(Boolean))];
+}
+
 function parseRankingsResponse(source: string) {
   const match = source.match(/(?:^|\n)1:(\[[\s\S]*\])\s*$/);
   if (!match) return [];
@@ -133,6 +166,19 @@ async function fetchOpenRouterRankings() {
   return parseRankingsResponse(await response.text());
 }
 
+async function latestBenchmarksByModelKey() {
+  const rows = await listLatestModelBenchmarkSummaries();
+  const benchmarks = new Map<string, BenchmarkSummary>();
+
+  for (const row of rows) {
+    for (const key of modelKeysForBenchmark(row)) {
+      if (!benchmarks.has(key)) benchmarks.set(key, row);
+    }
+  }
+
+  return benchmarks;
+}
+
 function scoreFromRange(value: number | null, min: number, max: number, invert = false) {
   if (value == null || max <= min) return null;
   const ratio = Math.min(1, Math.max(0, (value - min) / (max - min)));
@@ -159,6 +205,11 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       new Promise<{ status: "rejected"; value: [] }>((resolve) => setTimeout(() => resolve({ status: "rejected", value: [] }), upstreamTimeoutMs + 500))
     ]);
     const rankings = rankingsResult.status === "fulfilled" ? rankingsResult.value : [];
+    const benchmarksResult = await Promise.race([
+      latestBenchmarksByModelKey().then((benchmarks) => ({ status: "fulfilled" as const, value: benchmarks })),
+      new Promise<{ status: "rejected"; value: Map<string, BenchmarkSummary> }>((resolve) => setTimeout(() => resolve({ status: "rejected", value: new Map() }), upstreamTimeoutMs + 500))
+    ]);
+    const benchmarks = benchmarksResult.status === "fulfilled" ? benchmarksResult.value : new Map<string, BenchmarkSummary>();
 
     const openRouterByKey = new Map<string, OpenRouterModel>();
     for (const model of openRouterModels) {
@@ -186,13 +237,23 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
     const costs = rankedModels
       .map(({ model }) => (perTokenToPerMillion(model.pricing?.prompt) ?? 0) + (perTokenToPerMillion(model.pricing?.completion) ?? 0))
       .filter((value) => value > 0);
+    const speeds = rankedModels
+      .map(({ model }) => {
+        const benchmark = modelKeysForOpenRouter(model).map((key) => benchmarks.get(key)).find(Boolean);
+        return finiteNumber(benchmark?.medianOutputTokensPerSecond);
+      })
+      .filter((value): value is number => value != null && value > 0);
     const minCost = Math.min(...costs);
     const maxCost = Math.max(...costs);
+    const minSpeed = Math.min(...speeds);
+    const maxSpeed = Math.max(...speeds);
 
     const models: PopularModel[] = rankedModels.map(({ ranking, model }, index) => {
+      const benchmark = modelKeysForOpenRouter(model).map((key) => benchmarks.get(key)).find(Boolean);
       const inputCost = perTokenToPerMillion(model.pricing?.prompt);
       const outputCost = perTokenToPerMillion(model.pricing?.completion);
       const combinedCost = inputCost != null || outputCost != null ? (inputCost ?? 0) + (outputCost ?? 0) : null;
+      const speed = finiteNumber(benchmark?.medianOutputTokensPerSecond);
 
       return {
         rank: index + 1,
@@ -203,10 +264,10 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
         inputCostPer1mUsd: inputCost,
         outputCostPer1mUsd: outputCost,
         ageDays: ageDaysFor(model.created),
-        artificialAnalysisIntelligenceIndex: null,
-        artificialAnalysisCodingIndex: null,
+        artificialAnalysisIntelligenceIndex: finiteNumber(benchmark?.artificialAnalysisIntelligenceIndex),
+        artificialAnalysisCodingIndex: finiteNumber(benchmark?.artificialAnalysisCodingIndex),
         artificialAnalysisAgenticIndex: null,
-        speedScore: null,
+        speedScore: scoreFromRange(speed, minSpeed, maxSpeed),
         priceScore: scoreFromRange(combinedCost, minCost, maxCost, true)
       };
     });
@@ -217,7 +278,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       sources: [
         rankings.length ? "OpenRouter weekly rankings" : "OpenRouter models API fallback order",
         "OpenRouter models API",
-        "Artificial Analysis benchmark fields are temporarily disabled on the public endpoint"
+        benchmarks.size ? "Artificial Analysis benchmark snapshots" : "Artificial Analysis benchmark snapshots unavailable"
       ]
     });
   } catch (error) {

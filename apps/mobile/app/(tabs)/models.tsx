@@ -5,6 +5,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthSession } from "../../hooks/useAuthSession";
 import { fetchPopularModels } from "../../lib/accountApi";
 
+type MetricRange = { min: number; max: number };
+type MetricRanges = {
+  inputCost: MetricRange | null;
+  outputCost: MetricRange | null;
+  age: MetricRange | null;
+  intelligence: MetricRange | null;
+  coding: MetricRange | null;
+  agentic: MetricRange | null;
+  speed: MetricRange | null;
+  price: MetricRange | null;
+};
+
 function formatCost(value: number | null) {
   if (value == null) return "-";
   if (value === 0) return "$0";
@@ -28,6 +40,36 @@ function formatWeeklyTokens(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(0)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
   return value.toLocaleString();
+}
+
+function rangeFor(models: PopularModel[], getValue: (model: PopularModel) => number | null) {
+  const values = models.map(getValue).filter((value): value is number => value != null && Number.isFinite(value));
+  if (!values.length) return null;
+  return { min: Math.min(...values), max: Math.max(...values) };
+}
+
+function metricRangesFor(models: PopularModel[]): MetricRanges {
+  return {
+    inputCost: rangeFor(models, (model) => model.inputCostPer1mUsd),
+    outputCost: rangeFor(models, (model) => model.outputCostPer1mUsd),
+    age: rangeFor(models, (model) => model.ageDays),
+    intelligence: rangeFor(models, (model) => model.artificialAnalysisIntelligenceIndex),
+    coding: rangeFor(models, (model) => model.artificialAnalysisCodingIndex),
+    agentic: rangeFor(models, (model) => model.artificialAnalysisAgenticIndex),
+    speed: rangeFor(models, (model) => model.speedScore),
+    price: rangeFor(models, (model) => model.priceScore)
+  };
+}
+
+function colorForMetric(value: number | null, range: MetricRange | null, higherIsBetter: boolean) {
+  if (value == null || !range || range.max <= range.min) return "#e5e7eb";
+
+  const ratio = Math.min(1, Math.max(0, (value - range.min) / (range.max - range.min)));
+  const score = higherIsBetter ? ratio : 1 - ratio;
+  if (score >= 0.75) return "#86efac";
+  if (score >= 0.5) return "#bef264";
+  if (score >= 0.25) return "#fbbf24";
+  return "#f87171";
 }
 
 export default function ModelsScreen() {
@@ -59,6 +101,8 @@ export default function ModelsScreen() {
     void load(false);
   }, []);
 
+  const ranges = payload ? metricRangesFor(payload.models) : null;
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -84,47 +128,50 @@ export default function ModelsScreen() {
         <View style={styles.list}>
           {isLoading && !payload ? (
             <Text style={styles.loading}>Loading model rankings...</Text>
-          ) : payload?.models.map((model) => (
-            <ModelRow key={`${model.rank}:${model.modelId}`} model={model} />
-          ))}
+          ) : payload && ranges ? (
+            payload.models.map((model) => <ModelRow key={`${model.rank}:${model.modelId}`} model={model} ranges={ranges} />)
+          ) : null}
         </View>
 
         <Text style={styles.footnote}>
-          Sources: OpenRouter weekly rankings and models API; Artificial Analysis benchmark snapshots and public model catalogue. Speed and price scores are normalized within this top-50 list.
+          Sources: OpenRouter weekly rankings and models API; Artificial Analysis benchmark snapshots and public model catalogue. Metric colors are normalized within this top-50 list.
         </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function ModelRow({ model }: { model: PopularModel }) {
+function ModelRow({ model, ranges }: { model: PopularModel; ranges: MetricRanges }) {
   return (
     <View style={styles.row}>
       <View style={styles.rowTop}>
         <Text style={styles.rank}>#{model.rank}</Text>
         <View style={styles.identity}>
           <Text style={styles.modelName} numberOfLines={1}>{model.modelName}</Text>
-          <Text style={styles.provider}>{model.provider} · {formatWeeklyTokens(model.weeklyTokens)} tokens/wk · age {formatAge(model.ageDays)}</Text>
+          <Text style={styles.provider}>
+            {model.provider} / {formatWeeklyTokens(model.weeklyTokens)} tokens/wk / age{" "}
+            <Text style={{ color: colorForMetric(model.ageDays, ranges.age, false) }}>{formatAge(model.ageDays)}</Text>
+          </Text>
         </View>
       </View>
 
       <View style={styles.metrics}>
-        <Metric label="In $/1M" value={formatCost(model.inputCostPer1mUsd)} />
-        <Metric label="Out $/1M" value={formatCost(model.outputCostPer1mUsd)} />
-        <Metric label="Intel" value={formatScore(model.artificialAnalysisIntelligenceIndex)} />
-        <Metric label="Code" value={formatScore(model.artificialAnalysisCodingIndex)} />
-        <Metric label="Agent" value={formatScore(model.artificialAnalysisAgenticIndex)} />
-        <Metric label="Speed" value={formatScore(model.speedScore)} />
-        <Metric label="Price" value={formatScore(model.priceScore)} />
+        <Metric label="In $/1M" value={formatCost(model.inputCostPer1mUsd)} color={colorForMetric(model.inputCostPer1mUsd, ranges.inputCost, false)} />
+        <Metric label="Out $/1M" value={formatCost(model.outputCostPer1mUsd)} color={colorForMetric(model.outputCostPer1mUsd, ranges.outputCost, false)} />
+        <Metric label="Intel" value={formatScore(model.artificialAnalysisIntelligenceIndex)} color={colorForMetric(model.artificialAnalysisIntelligenceIndex, ranges.intelligence, true)} />
+        <Metric label="Code" value={formatScore(model.artificialAnalysisCodingIndex)} color={colorForMetric(model.artificialAnalysisCodingIndex, ranges.coding, true)} />
+        <Metric label="Agent" value={formatScore(model.artificialAnalysisAgenticIndex)} color={colorForMetric(model.artificialAnalysisAgenticIndex, ranges.agentic, true)} />
+        <Metric label="Speed" value={formatScore(model.speedScore)} color={colorForMetric(model.speedScore, ranges.speed, true)} />
+        <Metric label="Price" value={formatScore(model.priceScore)} color={colorForMetric(model.priceScore, ranges.price, true)} />
       </View>
     </View>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <View style={styles.metric}>
-      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={[styles.metricValue, { color }]}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
   );
