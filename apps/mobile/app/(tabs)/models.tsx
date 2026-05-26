@@ -12,11 +12,10 @@ type MetricRanges = {
   age: MetricRange | null;
   intelligence: MetricRange | null;
   coding: MetricRange | null;
-  agentic: MetricRange | null;
   speed: MetricRange | null;
   price: MetricRange | null;
 };
-type SortKey = "popularity" | "inputCost" | "outputCost" | "age" | "intelligence" | "coding" | "agentic" | "speed" | "price";
+type SortKey = "popularity" | "inputCost" | "outputCost" | "age" | "intelligence" | "coding" | "speed" | "price";
 type SortDirection = "desc" | "asc";
 
 const sortOptions: Array<{ key: SortKey; label: string }> = [
@@ -26,7 +25,6 @@ const sortOptions: Array<{ key: SortKey; label: string }> = [
   { key: "age", label: "Age" },
   { key: "intelligence", label: "Intel" },
   { key: "coding", label: "Code" },
-  { key: "agentic", label: "Agent" },
   { key: "speed", label: "Speed" },
   { key: "price", label: "Price" }
 ];
@@ -69,7 +67,6 @@ function metricRangesFor(models: PopularModel[]): MetricRanges {
     age: rangeFor(models, (model) => model.ageDays),
     intelligence: rangeFor(models, (model) => model.artificialAnalysisIntelligenceIndex),
     coding: rangeFor(models, (model) => model.artificialAnalysisCodingIndex),
-    agentic: rangeFor(models, (model) => model.artificialAnalysisAgenticIndex),
     speed: rangeFor(models, (model) => model.speedScore),
     price: rangeFor(models, (model) => model.priceScore)
   };
@@ -93,7 +90,6 @@ function valueForSort(model: PopularModel, sortKey: SortKey) {
   if (sortKey === "age") return model.ageDays;
   if (sortKey === "intelligence") return model.artificialAnalysisIntelligenceIndex;
   if (sortKey === "coding") return model.artificialAnalysisCodingIndex;
-  if (sortKey === "agentic") return model.artificialAnalysisAgenticIndex;
   if (sortKey === "speed") return model.speedScore;
   return model.priceScore;
 }
@@ -226,7 +222,6 @@ function ModelRow({ model, ranges }: { model: PopularModel; ranges: MetricRanges
         <Metric label="Out $/1M" value={formatCost(model.outputCostPer1mUsd)} color={colorForMetric(model.outputCostPer1mUsd, ranges.outputCost, false)} />
         <Metric label="Intel" value={formatScore(model.artificialAnalysisIntelligenceIndex)} color={colorForMetric(model.artificialAnalysisIntelligenceIndex, ranges.intelligence, true)} />
         <Metric label="Code" value={formatScore(model.artificialAnalysisCodingIndex)} color={colorForMetric(model.artificialAnalysisCodingIndex, ranges.coding, true)} />
-        <Metric label="Agent" value={formatScore(model.artificialAnalysisAgenticIndex)} color={colorForMetric(model.artificialAnalysisAgenticIndex, ranges.agentic, true)} />
         <Metric label="Speed" value={formatScore(model.speedScore)} color={colorForMetric(model.speedScore, ranges.speed, true)} />
         <Metric label="Price" value={formatScore(model.priceScore)} color={colorForMetric(model.priceScore, ranges.price, true)} />
       </View>
@@ -267,7 +262,7 @@ const styles = StyleSheet.create({
   modelName: { color: "#f4f4f5", fontSize: 15, fontWeight: "900" },
   provider: { color: "#8b8b91", fontSize: 11, fontWeight: "800", marginTop: 2 },
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  metric: { minWidth: 54, flexGrow: 1, backgroundColor: "#09090b", borderColor: "#242428", borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 6 },
+  metric: { minWidth: 86, flexBasis: "31.5%", flexGrow: 1, backgroundColor: "#09090b", borderColor: "#242428", borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 6 },
   metricValue: { color: "#e5e7eb", fontSize: 13, fontWeight: "900" },
   metricLabel: { color: "#7b8b7f", fontSize: 9, fontWeight: "900", marginTop: 2, textTransform: "uppercase" },
   footnote: { color: "#6f7b72", fontSize: 10, lineHeight: 15, fontWeight: "800" },
