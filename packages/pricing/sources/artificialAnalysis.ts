@@ -114,6 +114,35 @@ function nestedNumber(source: Record<string, unknown>, ...keys: string[]) {
   return undefined;
 }
 
+function firstNumber(source: unknown): number | undefined {
+  if (!source || typeof source !== "object") {
+    const parsed = finiteNumber(source);
+    return parsed != null && parsed > 0 ? parsed : undefined;
+  }
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      const parsed = firstNumber(item);
+      if (parsed != null) return parsed;
+    }
+
+    return undefined;
+  }
+
+  const record = source as Record<string, unknown>;
+  for (const key of ["total", "total_tokens", "tokens", "token_use", "token_usage", "output", "output_tokens", "reasoning", "reasoning_tokens", "answer", "answer_tokens"]) {
+    const parsed = finiteNumber(record[key]);
+    if (parsed != null && parsed > 0) return parsed;
+  }
+
+  for (const value of Object.values(record)) {
+    const parsed = firstNumber(value);
+    if (parsed != null) return parsed;
+  }
+
+  return undefined;
+}
+
 function findNumberByKey(source: unknown, predicate: (key: string) => boolean): number | undefined {
   if (!source || typeof source !== "object") return undefined;
 
@@ -130,6 +159,9 @@ function findNumberByKey(source: unknown, predicate: (key: string) => boolean): 
     if (predicate(key)) {
       const parsed = finiteNumber(value);
       if (parsed != null && parsed > 0) return parsed;
+
+      const nestedParsed = firstNumber(value);
+      if (nestedParsed != null) return nestedParsed;
     }
 
     const nestedValue = findNumberByKey(value, predicate);
@@ -147,7 +179,9 @@ function isTokenUseKey(key: string) {
   return (
     /(output|reasoning|answer|completion).*(used|use|count|total)/.test(normalised)
     || /(used|use|count|total).*(output|reasoning|answer|completion)/.test(normalised)
-    || /intelligence.*index.*tokens/.test(normalised)
+    || /intelligence.*index.*token/.test(normalised)
+    || /token.*(use|usage|used|count|total)/.test(normalised)
+    || /(use|usage|used|count|total).*token/.test(normalised)
   );
 }
 

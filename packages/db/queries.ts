@@ -236,6 +236,32 @@ function nestedPositiveNumber(source: unknown, ...keys: string[]) {
   return null;
 }
 
+function firstPositiveNumber(source: unknown): number | null {
+  if (!source || typeof source !== "object") return positiveNumberFromDecimal(source);
+
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      const parsed = firstPositiveNumber(item);
+      if (parsed != null) return parsed;
+    }
+
+    return null;
+  }
+
+  const record = source as Record<string, unknown>;
+  for (const key of ["total", "total_tokens", "tokens", "token_use", "token_usage", "output", "output_tokens", "reasoning", "reasoning_tokens", "answer", "answer_tokens"]) {
+    const parsed = positiveNumberFromDecimal(record[key]);
+    if (parsed != null) return parsed;
+  }
+
+  for (const value of Object.values(record)) {
+    const parsed = firstPositiveNumber(value);
+    if (parsed != null) return parsed;
+  }
+
+  return null;
+}
+
 function findPositiveNumberByKey(source: unknown, predicate: (key: string) => boolean): number | null {
   if (!source || typeof source !== "object") return null;
 
@@ -252,6 +278,9 @@ function findPositiveNumberByKey(source: unknown, predicate: (key: string) => bo
     if (predicate(key)) {
       const parsed = positiveNumberFromDecimal(value);
       if (parsed != null) return parsed;
+
+      const nestedParsed = firstPositiveNumber(value);
+      if (nestedParsed != null) return nestedParsed;
     }
 
     const nestedValue = findPositiveNumberByKey(value, predicate);
@@ -269,7 +298,9 @@ function isTokenUseKey(key: string) {
   return (
     /(output|reasoning|answer|completion).*(used|use|count|total)/.test(normalised)
     || /(used|use|count|total).*(output|reasoning|answer|completion)/.test(normalised)
-    || /intelligence.*index.*tokens/.test(normalised)
+    || /intelligence.*index.*token/.test(normalised)
+    || /token.*(use|usage|used|count|total)/.test(normalised)
+    || /(use|usage|used|count|total).*token/.test(normalised)
   );
 }
 
