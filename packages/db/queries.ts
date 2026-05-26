@@ -1,6 +1,6 @@
 import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
-import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, ne, or } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
@@ -203,6 +203,12 @@ function scaledBenchmarkScore(value: unknown) {
   const parsed = numberFromDecimal(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return parsed <= 1 ? parsed * 100 : parsed;
+}
+
+function scoreFromRange(value: number | null, min: number, max: number, invert = false) {
+  if (value == null || max <= min) return null;
+  const ratio = Math.min(1, Math.max(0, (value - min) / (max - min)));
+  return Math.round((invert ? 1 - ratio : ratio) * 100);
 }
 
 function weightedBenchmarkScore(
@@ -1449,6 +1455,133 @@ export async function getDashboardModelPicks(): Promise<DashboardModelPicks> {
     bestValue: bestValue ? toPick(bestValue) : null,
     cheapest: cheapest ? toPick(cheapest) : null
   };
+}
+
+export async function listPopularModelsFromSnapshots(limit = 50): Promise<PopularModel[]> {
+  const [priceRows, benchmarkRows] = await Promise.all([
+    getDb()
+      .select({
+        providerId: pricingSnapshots.providerId,
+        modelId: pricingSnapshots.modelId,
+        modelDisplayName: pricingSnapshots.modelDisplayName,
+        inputPricePer1mTokensUsd: pricingSnapshots.inputPricePer1mTokensUsd,
+        outputPricePer1mTokensUsd: pricingSnapshots.outputPricePer1mTokensUsd,
+        sourcePriority: pricingSnapshots.sourcePriority,
+        fetchedAt: pricingSnapshots.fetchedAt
+      })
+      .from(pricingSnapshots)
+      .orderBy(asc(pricingSnapshots.sourcePriority), desc(pricingSnapshots.fetchedAt))
+      .limit(10_000),
+    getDb()
+      .select({
+        providerId: modelBenchmarkSnapshots.providerId,
+        modelId: modelBenchmarkSnapshots.modelId,
+        modelDisplayName: modelBenchmarkSnapshots.modelDisplayName,
+        modelCreatorName: modelBenchmarkSnapshots.modelCreatorName,
+        artificialAnalysisIntelligenceIndex: modelBenchmarkSnapshots.artificialAnalysisIntelligenceIndex,
+        artificialAnalysisCodingIndex: modelBenchmarkSnapshots.artificialAnalysisCodingIndex,
+        medianOutputTokensPerSecond: modelBenchmarkSnapshots.medianOutputTokensPerSecond,
+        fetchedAt: modelBenchmarkSnapshots.fetchedAt
+      })
+      .from(modelBenchmarkSnapshots)
+      .orderBy(desc(modelBenchmarkSnapshots.fetchedAt))
+      .limit(10_000)
+  ]);
+
+  const latestPrices = new Map<string, typeof priceRows[number]>();
+  for (const row of priceRows) {
+    const key = `${row.providerId}:${row.modelId}`;
+    const existing = latestPrices.get(key);
+    if (!existing || row.sourcePriority < existing.sourcePriority || row.fetchedAt > existing.fetchedAt) {
+      latestPrices.set(key, row);
+    }
+  }
+
+  const latestBenchmarksByProviderModelKey = new Map<string, typeof benchmarkRows[number]>();
+  const latestBenchmarksByModelKey = new Map<string, typeof benchmarkRows[number]>();
+  for (const row of benchmarkRows) {
+    for (const modelKey of modelMatchKeys(row.modelId, row.modelDisplayName)) {
+      const providerKey = `${row.providerId}:${modelKey}`;
+      if (!latestBenchmarksByProviderModelKey.has(providerKey)) {
+        latestBenchmarksByProviderModelKey.set(providerKey, row);
+      }
+
+      if (!latestBenchmarksByModelKey.has(modelKey)) {
+        latestBenchmarksByModelKey.set(modelKey, row);
+      }
+    }
+  }
+
+  function benchmarkForPrice(price: typeof priceRows[number]) {
+    const providerIds = aliasesForProvider(price.providerId);
+    const modelKeys = modelMatchKeys(price.modelId, price.modelDisplayName);
+
+    for (const providerId of providerIds) {
+      for (const modelKey of modelKeys) {
+        const benchmark = latestBenchmarksByProviderModelKey.get(`${providerId}:${modelKey}`);
+        if (benchmark) return benchmark;
+      }
+    }
+
+    for (const modelKey of modelKeys) {
+      const benchmark = latestBenchmarksByModelKey.get(modelKey);
+      if (benchmark) return benchmark;
+    }
+
+    return null;
+  }
+
+  const candidates = [...latestPrices.values()]
+    .map((price) => {
+      const benchmark = benchmarkForPrice(price);
+      const inputCost = optionalNumberFromDecimal(price.inputPricePer1mTokensUsd);
+      const outputCost = optionalNumberFromDecimal(price.outputPricePer1mTokensUsd);
+      const combinedCost = (inputCost ?? 0) + (outputCost ?? 0);
+      const intelligenceScore = scaledBenchmarkScore(benchmark?.artificialAnalysisIntelligenceIndex);
+      const codingScore = scaledBenchmarkScore(benchmark?.artificialAnalysisCodingIndex);
+      const speed = optionalNumberFromDecimal(benchmark?.medianOutputTokensPerSecond);
+
+      return {
+        price,
+        benchmark,
+        inputCost,
+        outputCost,
+        combinedCost,
+        intelligenceScore,
+        codingScore,
+        speed
+      };
+    })
+    .filter((candidate) => candidate.inputCost != null || candidate.outputCost != null)
+    .sort((a, b) => (
+      (b.intelligenceScore ?? 0) - (a.intelligenceScore ?? 0)
+      || (b.codingScore ?? 0) - (a.codingScore ?? 0)
+      || a.combinedCost - b.combinedCost
+    ))
+    .slice(0, limit);
+
+  const costs = candidates.map((candidate) => candidate.combinedCost).filter((value) => value > 0);
+  const speeds = candidates.map((candidate) => candidate.speed).filter((value): value is number => value != null && value > 0);
+  const minCost = costs.length ? Math.min(...costs) : 0;
+  const maxCost = costs.length ? Math.max(...costs) : 0;
+  const minSpeed = speeds.length ? Math.min(...speeds) : 0;
+  const maxSpeed = speeds.length ? Math.max(...speeds) : 0;
+
+  return candidates.map((candidate, index) => ({
+    rank: index + 1,
+    modelId: candidate.price.modelId,
+    modelName: candidate.price.modelDisplayName,
+    provider: candidate.benchmark?.modelCreatorName ?? displayProviderName(candidate.price.providerId),
+    weeklyTokens: 0,
+    inputCostPer1mUsd: candidate.inputCost,
+    outputCostPer1mUsd: candidate.outputCost,
+    ageDays: null,
+    artificialAnalysisIntelligenceIndex: candidate.intelligenceScore,
+    artificialAnalysisCodingIndex: candidate.codingScore,
+    artificialAnalysisAgenticIndex: null,
+    speedScore: scoreFromRange(candidate.speed, minSpeed, maxSpeed),
+    priceScore: scoreFromRange(candidate.combinedCost, minCost, maxCost, true)
+  }));
 }
 
 export async function recommendProviderForUser(userId: string, input: RecommendationInput): Promise<RecommendationBundle | null> {
