@@ -47,7 +47,7 @@ type ArtificialAnalysisPublicMetric = {
 };
 
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
-const upstreamTimeoutMs = 7_500;
+const upstreamTimeoutMs = 4_000;
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}) {
   const controller = new AbortController();
@@ -175,44 +175,6 @@ async function fetchOpenRouterRankings() {
   return parseRankingsResponse(await response.text());
 }
 
-function escapedJsonString(source: string, key: string) {
-  const match = source.match(new RegExp(`(?:\\\\?")${key}(?:\\\\?")\\s*:\\s*(?:\\\\?")([^"\\\\]+)(?:\\\\?")`));
-  return match?.[1] ?? null;
-}
-
-function escapedJsonNumber(source: string, key: string) {
-  const match = source.match(new RegExp(`(?:\\\\?")${key}(?:\\\\?")\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`));
-  return match ? finiteNumber(match[1]) : null;
-}
-
-async function fetchArtificialAnalysisPublicMetrics() {
-  try {
-    const response = await fetchWithTimeout("https://artificialanalysis.ai/models", {
-      headers: { "user-agent": "Knut Counter model refresh" }
-    });
-    if (!response.ok) return new Map<string, ArtificialAnalysisPublicMetric>();
-
-    const html = await response.text();
-    const metrics = new Map<string, ArtificialAnalysisPublicMetric>();
-    const records = html.split(/(?:\\?")additional_text(?:\\?")\s*:/).slice(1);
-    for (const record of records) {
-      const name = escapedJsonString(record, "name");
-      if (!name) continue;
-
-      metrics.set(modelKey(name), {
-        agenticIndex: escapedJsonNumber(record, "agentic_index")
-      });
-      metrics.set(modelMetricKey(name), {
-        agenticIndex: escapedJsonNumber(record, "agentic_index")
-      });
-    }
-
-    return metrics;
-  } catch {
-    return new Map<string, ArtificialAnalysisPublicMetric>();
-  }
-}
-
 async function latestBenchmarksByModelKey() {
   const rows = await listLatestModelBenchmarkSummaries();
 
@@ -242,12 +204,14 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       await requireUser(req);
     }
 
-    const [openRouterModels, rankings, benchmarks, artificialAnalysisPublicMetrics] = await Promise.all([
-      fetchOpenRouterModels(),
+    const openRouterModels = await fetchOpenRouterModels();
+    const [rankingsResult, benchmarksResult] = await Promise.allSettled([
       fetchOpenRouterRankings(),
-      latestBenchmarksByModelKey(),
-      fetchArtificialAnalysisPublicMetrics()
+      latestBenchmarksByModelKey()
     ]);
+    const rankings = rankingsResult.status === "fulfilled" ? rankingsResult.value : [];
+    const benchmarks = benchmarksResult.status === "fulfilled" ? benchmarksResult.value : new Map<string, Awaited<ReturnType<typeof listLatestModelBenchmarkSummaries>>[number]>();
+    const artificialAnalysisPublicMetrics = new Map<string, ArtificialAnalysisPublicMetric>();
 
     const openRouterByKey = new Map<string, OpenRouterModel>();
     for (const model of openRouterModels) {
@@ -256,13 +220,21 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       }
     }
 
-    const rankedModels = rankings
-      .map((ranking) => ({
-        ranking,
-        model: openRouterByKey.get(modelKey(ranking.modelPermaslug))
-      }))
-      .filter((item): item is { ranking: typeof rankings[number]; model: OpenRouterModel } => Boolean(item.model))
-      .slice(0, 50);
+    const rankedModels = rankings.length
+      ? rankings
+        .map((ranking) => ({
+          ranking,
+          model: openRouterByKey.get(modelKey(ranking.modelPermaslug))
+        }))
+        .filter((item): item is { ranking: typeof rankings[number]; model: OpenRouterModel } => Boolean(item.model))
+        .slice(0, 50)
+      : openRouterModels.slice(0, 50).map((model) => ({
+        model,
+        ranking: {
+          modelPermaslug: model.canonical_slug ?? model.id,
+          weeklyTokens: 0
+        }
+      }));
 
     const costs = rankedModels
       .map(({ model }) => (perTokenToPerMillion(model.pricing?.prompt) ?? 0) + (perTokenToPerMillion(model.pricing?.completion) ?? 0))
@@ -307,7 +279,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       models,
       refreshedAt: new Date().toISOString(),
       sources: [
-        "OpenRouter weekly rankings",
+        rankings.length ? "OpenRouter weekly rankings" : "OpenRouter models API fallback order",
         "OpenRouter models API",
         "Artificial Analysis benchmark snapshots",
         "Artificial Analysis public model catalogue"
