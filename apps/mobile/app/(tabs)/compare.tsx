@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import type { RecommendationBundle, RecommendationResult } from "@knut/shared";
-import { formatCompactNumber } from "@knut/shared";
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { recommendProvider } from "../../lib/accountApi";
@@ -129,6 +128,12 @@ function formatCost(value: number) {
   return `~$${value.toFixed(value > 0.01 ? 2 : 5)}`;
 }
 
+function formatTokenBasis(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 1 : 2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}K`;
+  return value.toLocaleString();
+}
+
 function BenchmarkTag({ label }: { label: string }) {
   return (
     <View style={styles.benchmarkTag}>
@@ -201,7 +206,7 @@ function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: 
       <Text style={styles.model}>{item.recommendedModel}</Text>
       <View style={styles.costRow}>
         <Text style={styles.cost}>{formatCost(item.estimatedCostUsd)}</Text>
-        <Text style={styles.tokenBasis}>{formatCompactNumber(item.estimatedTokens)} tokens</Text>
+        <Text style={styles.tokenBasis}>{formatTokenBasis(item.estimatedTokens)} tokens</Text>
       </View>
       {item.capWarning ? <Text style={styles.warning}>{item.capWarning}</Text> : null}
       <Text style={styles.reason}>{item.reason}</Text>

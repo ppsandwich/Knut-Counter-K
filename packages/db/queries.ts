@@ -130,6 +130,41 @@ function modelMatchKeys(modelId: string, modelDisplayName: string) {
   return [...new Set(keys.filter(Boolean))];
 }
 
+function modelVersionParts(modelId: string, modelDisplayName: string) {
+  const text = `${modelId} ${modelDisplayName}`.toLowerCase();
+  const versionMatch = text.match(/(?:^|[^a-z0-9])(?:v|version)?(\d+(?:[._-]\d+){0,3})(?=$|[^a-z0-9])/);
+  if (!versionMatch) return null;
+
+  const parts = versionMatch[1].split(/[._-]/).map((part) => Number(part));
+  return parts.every((part) => Number.isFinite(part)) ? parts : null;
+}
+
+function modelFamilyKey(modelId: string, modelDisplayName: string) {
+  const text = `${modelId} ${modelDisplayName}`
+    .toLowerCase()
+    .replace(/^~/, "")
+    .replace(/:.+$/, "")
+    .replace(/^(openai|anthropic|google|x-ai|xai|deepseek|mistralai|mistral|cohere|groq|perplexity|openrouter)[/:_-]+/, "")
+    .replace(/\b(\d+(?:\.\d+)?)([bkmt]b)\b/g, " size$1$2 ")
+    .replace(/\b(?:v|version)?\d+(?:[._-]\d+){0,3}\b/g, " ")
+    .replace(/\b(?:20\d{2}[._-]?\d{2}[._-]?\d{2}|20\d{2}[._-]?\d{2}|20\d{2})\b/g, " ")
+    .replace(/\b(?:latest|preview|beta|alpha|experimental|instruct|chat|turbo)\b/g, " ")
+    .replace(/[^a-z]+/g, "");
+
+  return text || null;
+}
+
+function compareVersionParts(a: number[], b: number[]) {
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const aPart = a[index] ?? 0;
+    const bPart = b[index] ?? 0;
+    if (aPart !== bPart) return aPart - bPart;
+  }
+
+  return 0;
+}
+
 function scaledBenchmarkScore(value: unknown) {
   const parsed = numberFromDecimal(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
@@ -1203,6 +1238,28 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     }
   }
 
+  const latestVersionsByFamily = new Map<string, number[]>();
+  for (const price of latestPrices.values()) {
+    const familyKey = modelFamilyKey(price.modelId, price.modelDisplayName);
+    const versionParts = modelVersionParts(price.modelId, price.modelDisplayName);
+    if (!familyKey || !versionParts) continue;
+
+    const key = `${price.providerId}:${familyKey}`;
+    const existing = latestVersionsByFamily.get(key);
+    if (!existing || compareVersionParts(versionParts, existing) > 0) {
+      latestVersionsByFamily.set(key, versionParts);
+    }
+  }
+
+  function isLatestModelVersion(price: typeof rows[number]) {
+    const familyKey = modelFamilyKey(price.modelId, price.modelDisplayName);
+    const versionParts = modelVersionParts(price.modelId, price.modelDisplayName);
+    if (!familyKey || !versionParts) return true;
+
+    const latestVersionParts = latestVersionsByFamily.get(`${price.providerId}:${familyKey}`);
+    return !latestVersionParts || compareVersionParts(versionParts, latestVersionParts) === 0;
+  }
+
   const latestBenchmarks = new Map<string, typeof benchmarkRows[number]>();
   const latestBenchmarksByModel = new Map<string, typeof benchmarkRows[number]>();
   for (const row of benchmarkRows) {
@@ -1378,6 +1435,9 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       if (!aliases.has(price.providerId)) {
         continue;
       }
+      if (!isLatestModelVersion(price)) {
+        continue;
+      }
 
       const inputPrice = numberFromDecimal(price.inputPricePer1mTokensUsd);
       const outputPrice = numberFromDecimal(price.outputPricePer1mTokensUsd);
@@ -1425,7 +1485,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
 
     candidate.tokenEfficiencyMultiplier = multiplier;
     candidate.estimatedCostUsd = candidate.baseInputCostUsd + candidate.baseOutputCostUsd * multiplier;
-    candidate.estimatedTokens = Math.round(inputTokens + outputTokens * multiplier);
+    candidate.estimatedTokens = Math.round((inputTokens + outputTokens) * multiplier);
     candidate.score = candidate.estimatedCostUsd
       + (candidate.budgetRatio >= 0.95 ? candidate.estimatedCostUsd * 4 : candidate.budgetRatio >= 0.8 ? candidate.estimatedCostUsd * 1.5 : 0)
       + (candidate.price.sourceConfidence === "official" ? 0 : candidate.estimatedCostUsd * 0.05);
