@@ -151,6 +151,7 @@ export type RecommendationResult = {
   providerAccountId: string;
   recommendedModel: string;
   estimatedCostUsd: number;
+  estimatedTokens: number;
   intelligenceScore: number;
   intelligenceSource: "benchmark" | "inferred" | "unknown";
   intelligenceBenchmark?: string;

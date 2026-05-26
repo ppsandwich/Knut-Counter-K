@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { RecommendationBundle, RecommendationResult } from "@knut/shared";
+import { formatCompactNumber } from "@knut/shared";
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { recommendProvider } from "../../lib/accountApi";
@@ -198,7 +199,10 @@ function RecommendationCard({ item, tone }: { item: RecommendationResult; tone: 
       </View>
       <Text style={styles.provider}>{item.recommendedProvider}</Text>
       <Text style={styles.model}>{item.recommendedModel}</Text>
-      <Text style={styles.cost}>{formatCost(item.estimatedCostUsd)}</Text>
+      <View style={styles.costRow}>
+        <Text style={styles.cost}>{formatCost(item.estimatedCostUsd)}</Text>
+        <Text style={styles.tokenBasis}>{formatCompactNumber(item.estimatedTokens)} tokens</Text>
+      </View>
       {item.capWarning ? <Text style={styles.warning}>{item.capWarning}</Text> : null}
       <Text style={styles.reason}>{item.reason}</Text>
       <Text style={styles.meta}>{item.priceSource} · {item.priceConfidence} · intelligence {item.intelligenceSource}</Text>
@@ -249,7 +253,9 @@ const styles = StyleSheet.create({
   scoreMeta: { color: "#7b8b7f", fontSize: 10, fontWeight: "900", marginTop: 2, textTransform: "uppercase" },
   provider: { color: "#c8f7d2", fontSize: 14, fontWeight: "800", marginTop: 6 },
   model: { color: "#f4f4f5", fontSize: 22, fontWeight: "900", marginTop: 2 },
+  costRow: { flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginTop: 4 },
   cost: { color: "#86efac", fontSize: 30, fontWeight: "900", marginTop: 4 },
+  tokenBasis: { color: "#a1a1aa", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   warning: { color: "#fbbf24", fontSize: 13, lineHeight: 18, marginTop: 4, fontWeight: "800" },
   reason: { color: "#b7c4ba", fontSize: 14, lineHeight: 20, marginTop: 6 },
   meta: { color: "#7b8b7f", fontSize: 12, fontWeight: "800", marginTop: 10, textTransform: "uppercase" },

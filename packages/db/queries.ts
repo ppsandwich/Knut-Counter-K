@@ -166,6 +166,17 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function rankScores<T>(items: T[], sortedItems: T[]) {
+  const denominator = Math.max(1, sortedItems.length - 1);
+  const scores = new Map<T, number>();
+
+  sortedItems.forEach((item, index) => {
+    scores.set(item, 1 - index / denominator);
+  });
+
+  return scores;
+}
+
 function positiveNumberFromDecimal(value: unknown) {
   const parsed = numberFromDecimal(value);
   return parsed > 0 ? parsed : null;
@@ -1344,6 +1355,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     baseInputCostUsd: number;
     baseOutputCostUsd: number;
     estimatedCostUsd: number;
+    estimatedTokens: number;
     score: number;
     intelligenceScore: number;
     intelligenceSource: "benchmark" | "inferred";
@@ -1383,6 +1395,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
         baseInputCostUsd: inputTokens / 1_000_000 * inputPrice,
         baseOutputCostUsd: outputTokens / 1_000_000 * outputPrice,
         estimatedCostUsd,
+        estimatedTokens: inputTokens + outputTokens,
         score: estimatedCostUsd,
         intelligenceScore: quality.score,
         intelligenceSource: quality.source,
@@ -1412,6 +1425,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
 
     candidate.tokenEfficiencyMultiplier = multiplier;
     candidate.estimatedCostUsd = candidate.baseInputCostUsd + candidate.baseOutputCostUsd * multiplier;
+    candidate.estimatedTokens = Math.round(inputTokens + outputTokens * multiplier);
     candidate.score = candidate.estimatedCostUsd
       + (candidate.budgetRatio >= 0.95 ? candidate.estimatedCostUsd * 4 : candidate.budgetRatio >= 0.8 ? candidate.estimatedCostUsd * 1.5 : 0)
       + (candidate.price.sourceConfidence === "official" ? 0 : candidate.estimatedCostUsd * 0.05);
@@ -1429,17 +1443,36 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     }
     return a.score - b.score;
   })[0];
-  const cheapestCost = Math.max(cheapestCandidate.estimatedCostUsd, 0.000001);
-  const balancedCandidate = qualityPreference >= 1
+  const costRanks = rankScores(candidates, [...candidates].sort((a, b) => a.score - b.score));
+  const qualityRanks = rankScores(candidates, [...candidates].sort((a, b) => {
+    if (hasBenchmarkCandidates && a.intelligenceSource !== b.intelligenceSource) {
+      return a.intelligenceSource === "benchmark" ? -1 : 1;
+    }
+
+    if (b.intelligenceScore !== a.intelligenceScore) {
+      return b.intelligenceScore - a.intelligenceScore;
+    }
+    return a.score - b.score;
+  }));
+  const balancedPool = qualityPreference <= 0
+    ? [cheapestCandidate]
+    : candidates.filter((candidate) => {
+      const minimumQualityScore = qualityCandidate.intelligenceScore - (55 - qualityPreference * 40);
+      return candidate.intelligenceSource === "benchmark" || !hasBenchmarkCandidates
+        ? candidate.intelligenceScore >= minimumQualityScore
+        : false;
+    });
+  const balancedCandidates = balancedPool.length ? balancedPool : candidates;
+  const balancedCandidate = qualityPreference <= 0
+    ? cheapestCandidate
+    : qualityPreference >= 1
     ? qualityCandidate
-    : [...candidates].sort((a, b) => {
-      const qualityA = a.intelligenceSource === "benchmark" ? a.intelligenceScore / 100 : a.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
-      const qualityB = b.intelligenceSource === "benchmark" ? b.intelligenceScore / 100 : b.intelligenceScore / 100 * (hasBenchmarkCandidates ? 0.25 : 1);
-      const qualityWeight = 0.7 + qualityPreference;
-      const costWeight = 0.15 + (1 - qualityPreference) * 0.85;
-      const budgetWeight = 0.15 + (1 - qualityPreference) * 0.2;
-      const scoreA = qualityA * qualityWeight - Math.log10(Math.max(a.estimatedCostUsd, 0.000001) / cheapestCost + 1) * costWeight - a.budgetRatio * budgetWeight;
-      const scoreB = qualityB * qualityWeight - Math.log10(Math.max(b.estimatedCostUsd, 0.000001) / cheapestCost + 1) * costWeight - b.budgetRatio * budgetWeight;
+    : [...balancedCandidates].sort((a, b) => {
+      const qualityWeight = 0.35 + qualityPreference * 0.65;
+      const costWeight = 1 - qualityWeight;
+      const budgetWeight = 0.15 * (1 - qualityPreference);
+      const scoreA = (qualityRanks.get(a) ?? 0) * qualityWeight + (costRanks.get(a) ?? 0) * costWeight - a.budgetRatio * budgetWeight;
+      const scoreB = (qualityRanks.get(b) ?? 0) * qualityWeight + (costRanks.get(b) ?? 0) * costWeight - b.budgetRatio * budgetWeight;
       return scoreB - scoreA;
     })[0];
 
@@ -1493,6 +1526,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       providerAccountId: candidate.account.id,
       recommendedModel: candidate.price.modelDisplayName,
       estimatedCostUsd: candidate.estimatedCostUsd,
+      estimatedTokens: candidate.estimatedTokens,
       intelligenceScore: candidate.intelligenceScore,
       intelligenceSource: candidate.intelligenceSource,
       intelligenceBenchmark: candidate.intelligenceSource === "benchmark" ? taskLabel : undefined,
