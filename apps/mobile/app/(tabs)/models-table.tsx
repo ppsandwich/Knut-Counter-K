@@ -188,7 +188,7 @@ export default function ModelsTableScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[error ? 2 : 1]}>
+      <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>Models</Text>
@@ -212,18 +212,20 @@ export default function ModelsTableScreen() {
           <MetricHeader sortKey={sortKey} sortDirection={sortDirection} onChangeSort={changeSort} />
         </View>
 
-        <View style={styles.tableBody}>
-          {isLoading && !payload ? (
-            <Text style={styles.loading}>Loading model rankings...</Text>
-          ) : payload && ranges ? (
-            visibleModels.map((model) => <ModelGroup key={`${model.rank}:${model.modelId}`} model={model} ranges={ranges} />)
-          ) : null}
-        </View>
+        <ScrollView style={styles.tableScroll} contentContainerStyle={styles.tableScrollContent}>
+          <View style={styles.tableBody}>
+            {isLoading && !payload ? (
+              <Text style={styles.loading}>Loading model rankings...</Text>
+            ) : payload && ranges ? (
+              visibleModels.map((model) => <ModelGroup key={`${model.rank}:${model.modelId}`} model={model} ranges={ranges} />)
+            ) : null}
+          </View>
 
-        <Text style={styles.footnote}>
-          Sources: OpenRouter weekly rankings and models API; Artificial Analysis benchmark snapshots and public model catalogue. Metric colors are normalized within this top-50 list.
-        </Text>
-      </ScrollView>
+          <Text style={styles.footnote}>
+            Sources: OpenRouter weekly rankings and models API; Artificial Analysis benchmark snapshots and public model catalogue. Metric colors are normalized within this top-50 list.
+          </Text>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -255,7 +257,7 @@ function ModelGroup({ model, ranges }: { model: PopularModel; ranges: MetricRang
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
-  content: { padding: 16 },
+  content: { flex: 1, padding: 16 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
   headerText: { flex: 1, minWidth: 0 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800" },
@@ -264,6 +266,8 @@ const styles = StyleSheet.create({
   refreshText: { color: "#050506", fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.6 },
   stickyTableHeader: { borderColor: "#29292d", borderWidth: 1, borderBottomWidth: 0, borderTopLeftRadius: 8, borderTopRightRadius: 8, overflow: "hidden", backgroundColor: "#09090b", zIndex: 10, elevation: 10 },
+  tableScroll: { flex: 1 },
+  tableScrollContent: { paddingBottom: 4 },
   tableBody: { borderColor: "#29292d", borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, overflow: "hidden", backgroundColor: "#0c0c0e" },
   metricHeader: { flexDirection: "row", backgroundColor: "#09090b", borderBottomColor: "#29292d", borderBottomWidth: 1 },
   headerCell: { flex: 1, minHeight: 30, alignItems: "center", justifyContent: "center", borderRightColor: "#242428", borderRightWidth: 1, paddingHorizontal: 2 },
