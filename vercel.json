@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/models",
-      "destination": "/api/pricing/refresh?action=models"
+      "destination": "/api/dashboard?action=models"
     },
     {
       "source": "/api/alerts/evaluate",

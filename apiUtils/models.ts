@@ -47,6 +47,21 @@ type ArtificialAnalysisPublicMetric = {
 };
 
 const openRouterRankingsActionId = "40824635c5eb77626bdf6795ffbf382c0862b321e1";
+const upstreamTimeoutMs = 7_500;
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), upstreamTimeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function finiteNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
@@ -138,7 +153,7 @@ function parseRankingsResponse(source: string) {
 }
 
 async function fetchOpenRouterModels() {
-  const response = await fetch("https://openrouter.ai/api/v1/models");
+  const response = await fetchWithTimeout("https://openrouter.ai/api/v1/models");
   if (!response.ok) throw new Error(`OpenRouter models fetch failed: ${response.status}`);
 
   const json = await response.json() as { data?: OpenRouterModel[] };
@@ -146,7 +161,7 @@ async function fetchOpenRouterModels() {
 }
 
 async function fetchOpenRouterRankings() {
-  const response = await fetch("https://openrouter.ai/rankings", {
+  const response = await fetchWithTimeout("https://openrouter.ai/rankings", {
     method: "POST",
     headers: {
       "Next-Action": openRouterRankingsActionId,
@@ -172,7 +187,7 @@ function escapedJsonNumber(source: string, key: string) {
 
 async function fetchArtificialAnalysisPublicMetrics() {
   try {
-    const response = await fetch("https://artificialanalysis.ai/models", {
+    const response = await fetchWithTimeout("https://artificialanalysis.ai/models", {
       headers: { "user-agent": "Knut Counter model refresh" }
     });
     if (!response.ok) return new Map<string, ArtificialAnalysisPublicMetric>();
