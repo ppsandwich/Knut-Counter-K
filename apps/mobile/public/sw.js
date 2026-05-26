@@ -1,4 +1,4 @@
-const CACHE_NAME = "knut-counter-v1";
+const CACHE_NAME = "knut-counter-v2";
 const STATIC_PATHS = [
   "/",
   "/manifest.json",
