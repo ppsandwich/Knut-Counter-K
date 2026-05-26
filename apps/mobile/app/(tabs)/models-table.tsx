@@ -125,6 +125,23 @@ function sortedModels(models: PopularModel[], sortKey: SortKey, sortDirection: S
   });
 }
 
+function MetricHeader({ sortKey, sortDirection, onChangeSort }: { sortKey: SortKey; sortDirection: SortDirection; onChangeSort: (sortKey: SortKey) => void }) {
+  return (
+    <View style={styles.metricHeader}>
+      {metricColumns.map((column) => {
+        const isActive = sortKey === column.key;
+        return (
+          <Pressable key={column.key} onPress={() => onChangeSort(column.key)} style={[styles.headerCell, isActive && styles.headerCellActive]}>
+            <Text style={[styles.headerCellText, isActive && styles.headerCellTextActive]}>
+              {column.label}{isActive ? sortDirection === "desc" ? " v" : " ^" : ""}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function ModelsTableScreen() {
   const auth = useAuthSession();
   const [payload, setPayload] = useState<PopularModelsPayload | null>(null);
@@ -171,7 +188,7 @@ export default function ModelsTableScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[error ? 2 : 1]}>
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>Models Table</Text>
@@ -191,20 +208,11 @@ export default function ModelsTableScreen() {
           </View>
         ) : null}
 
-        <View style={styles.table}>
-          <View style={styles.metricHeader}>
-            {metricColumns.map((column) => {
-              const isActive = sortKey === column.key;
-              return (
-                <Pressable key={column.key} onPress={() => changeSort(column.key)} style={[styles.headerCell, isActive && styles.headerCellActive]}>
-                  <Text style={[styles.headerCellText, isActive && styles.headerCellTextActive]}>
-                    {column.label}{isActive ? sortDirection === "desc" ? " v" : " ^" : ""}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+        <View style={styles.stickyTableHeader}>
+          <MetricHeader sortKey={sortKey} sortDirection={sortDirection} onChangeSort={changeSort} />
+        </View>
 
+        <View style={styles.tableBody}>
           {isLoading && !payload ? (
             <Text style={styles.loading}>Loading model rankings...</Text>
           ) : payload && ranges ? (
@@ -247,15 +255,16 @@ function ModelGroup({ model, ranges }: { model: PopularModel; ranges: MetricRang
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
-  content: { padding: 16, gap: 12 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  content: { padding: 16 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
   headerText: { flex: 1, minWidth: 0 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800" },
   subtitle: { color: "#a1a1aa", fontSize: 12, fontWeight: "800", marginTop: 2, textTransform: "uppercase" },
   refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12 },
   refreshText: { color: "#050506", fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.6 },
-  table: { borderColor: "#29292d", borderWidth: 1, borderRadius: 8, overflow: "hidden", backgroundColor: "#0c0c0e" },
+  stickyTableHeader: { borderColor: "#29292d", borderWidth: 1, borderBottomWidth: 0, borderTopLeftRadius: 8, borderTopRightRadius: 8, overflow: "hidden", backgroundColor: "#09090b", zIndex: 10, elevation: 10 },
+  tableBody: { borderColor: "#29292d", borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 8, borderBottomRightRadius: 8, overflow: "hidden", backgroundColor: "#0c0c0e" },
   metricHeader: { flexDirection: "row", backgroundColor: "#09090b", borderBottomColor: "#29292d", borderBottomWidth: 1 },
   headerCell: { flex: 1, minHeight: 30, alignItems: "center", justifyContent: "center", borderRightColor: "#242428", borderRightWidth: 1, paddingHorizontal: 2 },
   headerCellActive: { backgroundColor: "#132016" },
@@ -269,8 +278,8 @@ const styles = StyleSheet.create({
   metricRow: { flexDirection: "row", minHeight: 30, backgroundColor: "#09090b" },
   metricCell: { flex: 1, alignItems: "center", justifyContent: "center", borderRightColor: "#1f1f23", borderRightWidth: 1, paddingHorizontal: 2 },
   metricValue: { color: "#e5e7eb", fontSize: 11, fontWeight: "900" },
-  footnote: { color: "#6f7b72", fontSize: 10, lineHeight: 15, fontWeight: "800" },
-  errorBox: { backgroundColor: "#241314", borderColor: "#7f1d1d", borderWidth: 1, borderRadius: 8, padding: 14 },
+  footnote: { color: "#6f7b72", fontSize: 10, lineHeight: 15, fontWeight: "800", marginTop: 12 },
+  errorBox: { backgroundColor: "#241314", borderColor: "#7f1d1d", borderWidth: 1, borderRadius: 8, padding: 14, marginBottom: 12 },
   errorTitle: { color: "#fecaca", fontSize: 16, fontWeight: "900" },
   errorText: { color: "#fca5a5", fontSize: 13, lineHeight: 18, marginTop: 4 }
 });
