@@ -1436,11 +1436,12 @@ export async function getDashboardModelPicks(): Promise<DashboardModelPicks> {
     : null;
   const bestValue = scoredCandidates.length
     ? [...scoredCandidates]
-      .filter((candidate) => candidate.combinedCost > 0)
+      .filter((candidate) => candidate.combinedCost > 0 && (candidate.intelligenceScore ?? 0) > 40)
       .sort((a, b) => ((b.intelligenceScore ?? 0) / b.combinedCost) - ((a.intelligenceScore ?? 0) / a.combinedCost))[0] ?? null
     : null;
-  const cheapest = candidates.length
-    ? [...candidates].sort((a, b) => a.combinedCost - b.combinedCost || (b.intelligenceScore ?? 0) - (a.intelligenceScore ?? 0))[0]
+  const pricedCandidates = candidates.filter((candidate) => candidate.combinedCost > 0);
+  const cheapest = pricedCandidates.length
+    ? [...pricedCandidates].sort((a, b) => a.combinedCost - b.combinedCost || (b.intelligenceScore ?? 0) - (a.intelligenceScore ?? 0))[0]
     : null;
 
   return {

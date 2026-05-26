@@ -3,11 +3,13 @@ import type { AppAlert } from "@knut/shared";
 import { colors } from "./theme";
 
 export function AlertSummary({ alerts }: { alerts: AppAlert[] }) {
+  if (!alerts.length) return null;
+
   const topAlert = alerts[0];
   return (
     <View style={styles.panel}>
       <Text style={styles.label}>{alerts.length} alerts</Text>
-      <Text style={styles.title}>{topAlert?.title ?? "Everything looks boring. Excellent."}</Text>
+      <Text style={styles.title}>{topAlert.title}</Text>
     </View>
   );
 }

@@ -1,11 +1,10 @@
 import { RefreshControl, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, RecommendationCard, SyncStatusStrip } from "@knut/ui";
-import { mockDashboard } from "@knut/shared/mockData";
-import type { DashboardModelPick, RecommendationResult } from "@knut/shared";
+import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, SyncStatusStrip } from "@knut/ui";
+import type { AccountAlert, DashboardModelPick } from "@knut/shared";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { recommendProvider, syncProviders } from "../../lib/accountApi";
+import { fetchAlerts, syncProviders } from "../../lib/accountApi";
 
 const emptySummary = {
   monthlySpend: 0,
@@ -33,38 +32,24 @@ export default function DashboardScreen() {
   const summary = dashboard.data?.summary ?? emptySummary;
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
-  const [recommendation, setRecommendation] = useState<RecommendationResult | null>(null);
-  const [recommendationLoading, setRecommendationLoading] = useState(false);
-  const [recommendationError, setRecommendationError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<AccountAlert[]>([]);
 
-  async function refreshRecommendation() {
+  async function refreshAlerts() {
     if (!signedIn) {
-      setRecommendation(null);
-      setRecommendationError(null);
+      setAlerts([]);
       return;
     }
 
-    setRecommendationLoading(true);
-    setRecommendationError(null);
     try {
-      const result = await recommendProvider({
-        taskType: "General next task",
-        estimatedInputTokens: 10000,
-        estimatedOutputTokens: 1500,
-        excludeNearCapProviders: true
-      });
-      setRecommendation(result.balanced);
-    } catch (error) {
-      setRecommendation(null);
-      setRecommendationError(error instanceof Error ? error.message : "Could not calculate a recommendation yet.");
-    } finally {
-      setRecommendationLoading(false);
+      setAlerts(await fetchAlerts());
+    } catch {
+      setAlerts([]);
     }
   }
 
   useEffect(() => {
-    void refreshRecommendation();
-  }, [signedIn, providerRows.length, summary.monthlySpend, summary.totalTokens]);
+    void refreshAlerts();
+  }, [signedIn]);
 
   async function refreshUsage() {
     if (!signedIn || refreshing) return;
@@ -74,7 +59,7 @@ export default function DashboardScreen() {
     try {
       const result = await syncProviders();
       await dashboard.refresh();
-      await refreshRecommendation();
+      await refreshAlerts();
       setRefreshMessage(result.synced ? `Refreshed ${result.synced} provider${result.synced === 1 ? "" : "s"}.` : "No active providers to refresh.");
     } catch (error) {
       setRefreshMessage(error instanceof Error ? error.message : "Refresh failed.");
@@ -106,11 +91,6 @@ export default function DashboardScreen() {
 
         <MonthlyDamageCard summary={summary} />
         <ModelPicksCard picks={dashboard.data?.modelPicks ?? null} loading={signedIn && dashboard.loading} />
-        <RecommendationCard
-          recommendation={recommendation ?? mockDashboard.recommendation}
-          loading={recommendationLoading}
-          error={signedIn ? recommendationError : "Sign in and connect providers to get a real recommendation."}
-        />
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Providers</Text>
@@ -142,7 +122,7 @@ export default function DashboardScreen() {
         )}
 
         <SyncStatusStrip status={signedIn ? `${providerRows.length} provider accounts loaded.` : "Sign in to sync account data."} />
-        <AlertSummary alerts={mockDashboard.alerts} />
+        <AlertSummary alerts={alerts} />
       </ScrollView>
     </SafeAreaView>
   );
