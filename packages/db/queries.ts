@@ -1595,6 +1595,18 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       + (candidate.price.sourceConfidence === "official" ? 0 : candidate.estimatedCostUsd * 0.05);
   }
 
+  const pricedProviderIds = new Set(candidates.map((candidate) => candidate.account.providerId));
+  const pricedModelKeys = new Set(candidates.map((candidate) => `${candidate.account.providerId}:${candidate.price.modelId}`));
+  const tokenEfficiencyCandidates = candidates.filter((candidate) => candidate.artificialAnalysisOutputTokensUsed != null || candidate.artificialAnalysisTokenEfficiency != null);
+  const tokenEfficiencyProviderIds = new Set(tokenEfficiencyCandidates.map((candidate) => candidate.account.providerId));
+  const tokenEfficiencyModelKeys = new Set(tokenEfficiencyCandidates.map((candidate) => `${candidate.account.providerId}:${candidate.price.modelId}`));
+  const stats = {
+    pricedProviderCount: pricedProviderIds.size,
+    pricedModelCount: pricedModelKeys.size,
+    tokenEfficiencyProviderCount: tokenEfficiencyProviderIds.size,
+    tokenEfficiencyModelCount: tokenEfficiencyModelKeys.size
+  };
+
   const cheapestCandidate = [...candidates].sort((a, b) => a.score - b.score)[0];
   const hasBenchmarkCandidates = candidates.some((candidate) => candidate.intelligenceSource === "benchmark");
   const qualityCandidate = [...candidates].sort((a, b) => {
@@ -1706,7 +1718,8 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
   return {
     cheapest: toRecommendation(cheapestCandidate, "cheapest", "Cheapest"),
     quality: toRecommendation(qualityCandidate, "quality", "Best quality"),
-    balanced: toRecommendation(balancedCandidate, "balanced", "Best balance")
+    balanced: toRecommendation(balancedCandidate, "balanced", "Best balance"),
+    stats
   };
 }
 

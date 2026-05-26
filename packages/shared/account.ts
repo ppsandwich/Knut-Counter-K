@@ -167,6 +167,14 @@ export type RecommendationBundle = {
   cheapest: RecommendationResult;
   quality: RecommendationResult;
   balanced: RecommendationResult;
+  stats?: RecommendationDataStats;
+};
+
+export type RecommendationDataStats = {
+  pricedProviderCount: number;
+  pricedModelCount: number;
+  tokenEfficiencyProviderCount: number;
+  tokenEfficiencyModelCount: number;
 };
 
 export type AccountAlert = {

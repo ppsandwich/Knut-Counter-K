@@ -100,6 +100,7 @@ export default function CompareScreen() {
             <Text style={styles.buttonText}>{isLoading ? "Checking prices..." : "Compare options"}</Text>
           </Pressable>
         </View>
+        {recommendations?.stats ? <DataCoverageWidget stats={recommendations.stats} /> : null}
         {error ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorTitle}>No clean answer yet.</Text>
@@ -138,6 +139,32 @@ function BenchmarkTag({ label }: { label: string }) {
   return (
     <View style={styles.benchmarkTag}>
       <Text style={styles.benchmarkTagText}>{label}</Text>
+    </View>
+  );
+}
+
+function DataCoverageWidget({ stats }: { stats: NonNullable<RecommendationBundle["stats"]> }) {
+  return (
+    <View style={styles.coverage}>
+      <View style={styles.coverageItem}>
+        <Text style={styles.coverageValue}>{stats.pricedProviderCount}</Text>
+        <Text style={styles.coverageLabel}>providers with cost data</Text>
+      </View>
+      <View style={styles.coverageDivider} />
+      <View style={styles.coverageItem}>
+        <Text style={styles.coverageValue}>{stats.pricedModelCount}</Text>
+        <Text style={styles.coverageLabel}>models with cost data</Text>
+      </View>
+      <View style={styles.coverageDivider} />
+      <View style={styles.coverageItem}>
+        <Text style={styles.coverageValue}>{stats.tokenEfficiencyProviderCount}</Text>
+        <Text style={styles.coverageLabel}>providers with token efficiency</Text>
+      </View>
+      <View style={styles.coverageDivider} />
+      <View style={styles.coverageItem}>
+        <Text style={styles.coverageValue}>{stats.tokenEfficiencyModelCount}</Text>
+        <Text style={styles.coverageLabel}>models with token efficiency</Text>
+      </View>
     </View>
   );
 }
@@ -246,6 +273,11 @@ const styles = StyleSheet.create({
   button: { backgroundColor: "#f4f4f5", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: "#050506", fontSize: 15, fontWeight: "900" },
+  coverage: { backgroundColor: "#0f0f11", borderColor: "#29292d", borderWidth: 1, borderRadius: 8, padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  coverageItem: { flexGrow: 1, flexBasis: "45%", minWidth: 132 },
+  coverageValue: { color: "#e5e7eb", fontSize: 20, fontWeight: "900" },
+  coverageLabel: { color: "#a1a1aa", fontSize: 11, lineHeight: 15, fontWeight: "800", textTransform: "uppercase", marginTop: 2 },
+  coverageDivider: { width: 1, backgroundColor: "#29292d", alignSelf: "stretch" },
   results: { gap: 10 },
   reco: { backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 8, padding: 14 },
   recoRecommended: { backgroundColor: "#132016", borderColor: "#1f4d2a" },
