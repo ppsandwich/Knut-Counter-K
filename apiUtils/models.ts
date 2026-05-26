@@ -1,4 +1,5 @@
 import type { PopularModel } from "@knut/shared";
+import { listLatestModelBenchmarkSummaries } from "@knut/db";
 
 type ApiRequest = {
   method?: string;
@@ -172,7 +173,6 @@ async function fetchOpenRouterRankings() {
 }
 
 async function latestBenchmarksByModelKey() {
-  const { listLatestModelBenchmarkSummaries } = await import("@knut/db");
   const rows = await listLatestModelBenchmarkSummaries();
   const benchmarks = new Map<string, BenchmarkSummary>();
 
