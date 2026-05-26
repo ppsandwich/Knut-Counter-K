@@ -24,7 +24,7 @@ async function authHeaders() {
 }
 
 export async function saveAccountSettings(input: AccountSettingsInput) {
-  const response = await fetch(getApiUrl("/api/account/settings"), {
+  const response = await fetch(getApiUrl("/api/account/me?action=settings"), {
     method: "PATCH",
     headers: await authHeaders(),
     body: JSON.stringify(input)
