@@ -1,14 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ensureUserProfile, getDashboardSummaryForUser, getUserProfile, listProviderAccountsForUser } from "@knut/db";
 import { requireUser } from "../apiUtils/auth";
-import { handleModelsRequest } from "../apiUtils/models";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    if (req.query.action === "models") {
-      return handleModelsRequest(req, res);
-    }
-
     const user = await requireUser(req);
 
     if (req.method !== "GET") {

@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/models",
-      "destination": "/api/dashboard?action=models"
+      "source": "/api/account/settings",
+      "destination": "/api/account/me?action=settings"
     },
     {
       "source": "/api/alerts/evaluate",
