@@ -30,7 +30,7 @@ export default function ProvidersScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Providers</Text>

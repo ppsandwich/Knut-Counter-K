@@ -187,7 +187,7 @@ export default function ModelsTableScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.headerText}>

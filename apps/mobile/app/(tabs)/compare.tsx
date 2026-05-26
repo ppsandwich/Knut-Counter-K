@@ -61,7 +61,7 @@ export default function CompareScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Compare</Text>
         <View style={styles.panel}>

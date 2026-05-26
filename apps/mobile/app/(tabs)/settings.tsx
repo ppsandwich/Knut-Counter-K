@@ -9,7 +9,7 @@ export default function SettingsScreen() {
   const auth = useAuthSession();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Settings</Text>
         <Link href="/account" asChild>
