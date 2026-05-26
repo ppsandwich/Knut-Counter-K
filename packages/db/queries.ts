@@ -171,6 +171,25 @@ function positiveNumberFromDecimal(value: unknown) {
   return parsed > 0 ? parsed : null;
 }
 
+function nestedPositiveNumber(source: unknown, ...keys: string[]) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return null;
+  const record = source as Record<string, unknown>;
+
+  for (const key of keys) {
+    const directValue = positiveNumberFromDecimal(record[key]);
+    if (directValue != null) return directValue;
+
+    const pathValue = key.split(".").reduce<unknown>((value, segment) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+      return (value as Record<string, unknown>)[segment];
+    }, record);
+    const parsedPathValue = positiveNumberFromDecimal(pathValue);
+    if (parsedPathValue != null) return parsedPathValue;
+  }
+
+  return null;
+}
+
 export async function upsertUserProfile(input: AccountProfile) {
   const [profile] = await getDb()
     .insert(users)
@@ -1101,8 +1120,6 @@ export async function insertModelBenchmarkSnapshots(snapshots: ArtificialAnalysi
     medianOutputTokensPerSecond: decimalValue(snapshot.medianOutputTokensPerSecond),
     medianTimeToFirstTokenSeconds: decimalValue(snapshot.medianTimeToFirstTokenSeconds),
     medianTimeToFirstAnswerTokenSeconds: decimalValue(snapshot.medianTimeToFirstAnswerTokenSeconds),
-    artificialAnalysisOutputTokensUsed: decimalValue(snapshot.artificialAnalysisOutputTokensUsed),
-    artificialAnalysisTokenEfficiency: decimalValue(snapshot.artificialAnalysisTokenEfficiency),
     sourceName: snapshot.sourceName,
     sourceConfidence: snapshot.sourceConfidence,
     fetchedAt: new Date(snapshot.fetchedAt)
@@ -1143,6 +1160,7 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       providerId: modelBenchmarkSnapshots.providerId,
       modelId: modelBenchmarkSnapshots.modelId,
       modelDisplayName: modelBenchmarkSnapshots.modelDisplayName,
+      evaluations: modelBenchmarkSnapshots.evaluations,
       artificialAnalysisIntelligenceIndex: modelBenchmarkSnapshots.artificialAnalysisIntelligenceIndex,
       artificialAnalysisCodingIndex: modelBenchmarkSnapshots.artificialAnalysisCodingIndex,
       artificialAnalysisMathIndex: modelBenchmarkSnapshots.artificialAnalysisMathIndex,
@@ -1153,8 +1171,6 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       scicode: modelBenchmarkSnapshots.scicode,
       math500: modelBenchmarkSnapshots.math500,
       aime: modelBenchmarkSnapshots.aime,
-      artificialAnalysisOutputTokensUsed: modelBenchmarkSnapshots.artificialAnalysisOutputTokensUsed,
-      artificialAnalysisTokenEfficiency: modelBenchmarkSnapshots.artificialAnalysisTokenEfficiency,
       sourceName: modelBenchmarkSnapshots.sourceName,
       fetchedAt: modelBenchmarkSnapshots.fetchedAt
     })
@@ -1304,8 +1320,21 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     }
 
     return {
-      outputTokensUsed: positiveNumberFromDecimal(benchmark.artificialAnalysisOutputTokensUsed),
-      tokenEfficiency: positiveNumberFromDecimal(benchmark.artificialAnalysisTokenEfficiency)
+      outputTokensUsed: nestedPositiveNumber(
+        benchmark.evaluations,
+        "artificial_analysis_output_tokens_used",
+        "output_tokens_used",
+        "output_tokens_used_to_run_artificial_analysis_intelligence_index",
+        "intelligence_index_output_tokens",
+        "intelligence_index.output_tokens_used"
+      ),
+      tokenEfficiency: nestedPositiveNumber(
+        benchmark.evaluations,
+        "artificial_analysis_token_efficiency",
+        "token_efficiency",
+        "token_efficiency_index",
+        "tokenizer_efficiency"
+      )
     };
   }
 

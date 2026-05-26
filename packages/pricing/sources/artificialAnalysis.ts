@@ -164,6 +164,35 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
 
     const evaluations = model.evaluations ?? {};
     const modelRecord = model as Record<string, unknown>;
+    const artificialAnalysisOutputTokensUsed = nestedNumber(
+      modelRecord,
+      "artificial_analysis_output_tokens_used",
+      "output_tokens_used",
+      "output_tokens_used_to_run_artificial_analysis_intelligence_index",
+      "intelligence_index_output_tokens",
+      "intelligence_index.output_tokens_used",
+      "evaluations.artificial_analysis_output_tokens_used",
+      "evaluations.output_tokens_used",
+      "evaluations.output_tokens_used_to_run_artificial_analysis_intelligence_index",
+      "evaluations.intelligence_index_output_tokens"
+    );
+    const artificialAnalysisTokenEfficiency = nestedNumber(
+      modelRecord,
+      "artificial_analysis_token_efficiency",
+      "token_efficiency",
+      "token_efficiency_index",
+      "tokenizer_efficiency",
+      "evaluations.artificial_analysis_token_efficiency",
+      "evaluations.token_efficiency",
+      "evaluations.token_efficiency_index",
+      "evaluations.tokenizer_efficiency"
+    );
+    const enrichedEvaluations = {
+      ...evaluations,
+      ...(artificialAnalysisOutputTokensUsed == null ? {} : { artificial_analysis_output_tokens_used: artificialAnalysisOutputTokensUsed }),
+      ...(artificialAnalysisTokenEfficiency == null ? {} : { artificial_analysis_token_efficiency: artificialAnalysisTokenEfficiency })
+    };
+
     benchmarks.push({
       providerId,
       modelId,
@@ -173,7 +202,7 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
       modelCreatorId: model.model_creator?.id ?? null,
       modelCreatorName: model.model_creator?.name ?? null,
       modelCreatorSlug: model.model_creator?.slug ?? null,
-      evaluations,
+      evaluations: enrichedEvaluations,
       pricing: model.pricing ?? {},
       artificialAnalysisIntelligenceIndex: evaluationNumber(evaluations, "artificial_analysis_intelligence_index", "Artificial Analysis Intelligence Index", "intelligence_index"),
       artificialAnalysisCodingIndex: evaluationNumber(evaluations, "artificial_analysis_coding_index", "Artificial Analysis Coding Index", "coding_index"),
@@ -188,29 +217,8 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
       medianOutputTokensPerSecond: finiteNumber(model.median_output_tokens_per_second),
       medianTimeToFirstTokenSeconds: finiteNumber(model.median_time_to_first_token_seconds),
       medianTimeToFirstAnswerTokenSeconds: finiteNumber(model.median_time_to_first_answer_token),
-      artificialAnalysisOutputTokensUsed: nestedNumber(
-        modelRecord,
-        "artificial_analysis_output_tokens_used",
-        "output_tokens_used",
-        "output_tokens_used_to_run_artificial_analysis_intelligence_index",
-        "intelligence_index_output_tokens",
-        "intelligence_index.output_tokens_used",
-        "evaluations.artificial_analysis_output_tokens_used",
-        "evaluations.output_tokens_used",
-        "evaluations.output_tokens_used_to_run_artificial_analysis_intelligence_index",
-        "evaluations.intelligence_index_output_tokens"
-      ),
-      artificialAnalysisTokenEfficiency: nestedNumber(
-        modelRecord,
-        "artificial_analysis_token_efficiency",
-        "token_efficiency",
-        "token_efficiency_index",
-        "tokenizer_efficiency",
-        "evaluations.artificial_analysis_token_efficiency",
-        "evaluations.token_efficiency",
-        "evaluations.token_efficiency_index",
-        "evaluations.tokenizer_efficiency"
-      ),
+      artificialAnalysisOutputTokensUsed,
+      artificialAnalysisTokenEfficiency,
       sourceName: "Artificial Analysis",
       sourceConfidence: "public_catalogue",
       fetchedAt
