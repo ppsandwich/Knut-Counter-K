@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { recommendProviderForUser } from "@knut/db";
+import { getUserProfile, recommendProviderForUser } from "@knut/db";
 import type { RecommendationInput } from "@knut/shared";
 import { requireUser } from "../../apiUtils/auth";
+import { convertRecommendationBundle } from "../../apiUtils/currency";
 
 function numberFromBody(value: unknown) {
   const numberValue = Number(value);
@@ -24,14 +25,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       qualityPreference: qualityPreference == null ? undefined : numberFromBody(qualityPreference)
     };
 
-    const recommendations = await recommendProviderForUser(user.id, input);
-    if (!recommendations) {
+    const [profile, rawRecommendations] = await Promise.all([
+      getUserProfile(user.id),
+      recommendProviderForUser(user.id, input)
+    ]);
+    if (!rawRecommendations) {
       return res.status(404).json({
         error: "No priced connected provider was found. Refresh pricing and connect at least one supported API provider."
       });
     }
 
+    const recommendations = await convertRecommendationBundle(rawRecommendations, profile?.preferredCurrency ?? "USD");
     const recommendation = recommendations.balanced;
+    const rawRecommendation = rawRecommendations.balanced;
     return res.status(200).json({
       ok: true,
       recommendations,
@@ -40,7 +46,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       recommended_provider_id: recommendation.recommendedProviderId,
       provider_account_id: recommendation.providerAccountId,
       recommended_model: recommendation.recommendedModel,
-      estimated_cost_usd: recommendation.estimatedCostUsd,
+      estimated_cost_usd: rawRecommendation.estimatedCostUsd,
+      estimated_cost: recommendation.estimatedCostUsd,
+      estimated_cost_currency: recommendation.estimatedCostCurrency ?? "USD",
       intelligence_score: recommendation.intelligenceScore,
       intelligence_source: recommendation.intelligenceSource,
       intelligence_benchmark: recommendation.intelligenceBenchmark,

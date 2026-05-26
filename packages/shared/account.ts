@@ -167,6 +167,7 @@ export type RecommendationResult = {
   providerAccountId: string;
   recommendedModel: string;
   estimatedCostUsd: number;
+  estimatedCostCurrency?: string;
   estimatedTokens: number;
   intelligenceScore: number;
   intelligenceSource: "benchmark" | "inferred" | "unknown";
@@ -213,6 +214,7 @@ export type PopularModelsPayload = {
   models: PopularModel[];
   refreshedAt: string;
   sources: string[];
+  currency?: string;
 };
 
 export type AccountAlert = {

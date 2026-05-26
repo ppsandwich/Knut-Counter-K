@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ensureUserProfile, getDashboardModelPicks, getDashboardSummaryForUser, getUserProfile, listProviderAccountsForUser } from "@knut/db";
 import { requireUser } from "../apiUtils/auth";
+import { convertDashboardPayload } from "../apiUtils/currency";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -23,13 +24,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }))
     ]);
 
-    return res.status(200).json({
-      ok: true,
+    const payload = await convertDashboardPayload({
       profile,
       summary,
       providers,
       modelPicks
-    });
+    }, profile?.preferredCurrency ?? "USD");
+
+    return res.status(200).json({ ok: true, ...payload });
   } catch (error) {
     return res.status(401).json({ error: error instanceof Error ? error.message : "Unauthorized" });
   }

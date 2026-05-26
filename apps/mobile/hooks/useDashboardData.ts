@@ -3,7 +3,7 @@ import { formatCompactNumber, formatCurrency, type AccountProviderSummary, type 
 import { fetchDashboard } from "../lib/accountApi";
 import { useAuthSession } from "./useAuthSession";
 
-export function providerAccountToUsageRow(provider: AccountProviderSummary): ProviderUsageSummary {
+export function providerAccountToUsageRow(provider: AccountProviderSummary, currency = "USD"): ProviderUsageSummary {
   const isManual = provider.authType === "manual" || provider.authType === "csv_json_import";
   const hasUsage = provider.currentMonthRecords > 0;
   const hasCreditData = provider.creditUsedAmount != null && provider.creditBalanceAmount != null;
@@ -12,14 +12,14 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary): Pro
     providerId: provider.id,
     providerName: provider.providerName,
     accountDisplayName: provider.displayName,
-    primaryMetric: hasUsage ? formatCurrency(provider.currentMonthSpend) : hasCreditData ? formatCurrency(provider.creditUsedAmount ?? 0) : "Unknown",
+    primaryMetric: hasUsage ? formatCurrency(provider.currentMonthSpend, currency) : hasCreditData ? formatCurrency(provider.creditUsedAmount ?? 0, currency) : "Unknown",
     secondaryMetric: hasUsage
       ? `${formatCompactNumber(provider.currentMonthTokens)} tokens`
       : hasCreditData
-        ? `${formatCurrency(provider.creditBalanceAmount ?? 0)} credits left`
+        ? `${formatCurrency(provider.creditBalanceAmount ?? 0, currency)} credits left`
         : (provider.planName ?? provider.authType.replaceAll("_", " ")),
-    last24hMetric: hasUsage ? `24h ${formatCurrency(provider.last24hSpend)}` : "24h no records",
-    last7dMetric: hasUsage ? `7d ${formatCurrency(provider.last7dSpend)}` : "7d no records",
+    last24hMetric: hasUsage ? `24h ${formatCurrency(provider.last24hSpend, currency)}` : "24h no records",
+    last7dMetric: hasUsage ? `7d ${formatCurrency(provider.last7dSpend, currency)}` : "7d no records",
     statusBadge: provider.hasCredentials || isManual ? "Ready" : "No key",
     status: provider.hasCredentials || isManual ? "healthy" : "warning",
     confidence: hasUsage ? (isManual ? "manual" : "provider_reported") : hasCreditData ? "exact" : "unknown",
@@ -67,8 +67,8 @@ export function useDashboardData() {
   }, [auth.user?.id]);
 
   const providerRows = useMemo(
-    () => data?.providers.map(providerAccountToUsageRow) ?? [],
-    [data?.providers]
+    () => data?.providers.map((provider) => providerAccountToUsageRow(provider, data.profile?.preferredCurrency ?? data.summary.currency ?? "USD")) ?? [],
+    [data?.providers, data?.profile?.preferredCurrency, data?.summary.currency]
   );
 
   return {

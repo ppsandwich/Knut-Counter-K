@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ensureUserProfile, exportAccountData, getUserProfile, updateUserSettings, upsertUserProfile } from "@knut/db";
+import { normaliseCurrencyCode } from "@knut/shared";
 import { requireUser } from "../../apiUtils/auth";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -26,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "PATCH" || req.query.action === "settings") {
       const input = {
         timezone: String(req.body?.timezone ?? "UTC"),
-        preferredCurrency: String(req.body?.preferredCurrency ?? "USD"),
+        preferredCurrency: normaliseCurrencyCode(String(req.body?.preferredCurrency ?? "USD")),
         monthlyAiBudget: req.body?.monthlyAiBudget == null ? null : Number(req.body.monthlyAiBudget)
       };
 
@@ -44,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       id: user.id,
       email: user.email,
       timezone: String(req.body?.timezone ?? "UTC"),
-      preferredCurrency: String(req.body?.preferredCurrency ?? "USD"),
+      preferredCurrency: normaliseCurrencyCode(String(req.body?.preferredCurrency ?? "USD")),
       monthlyAiBudget: req.body?.monthlyAiBudget == null ? null : Number(req.body.monthlyAiBudget)
     });
 

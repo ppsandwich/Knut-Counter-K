@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { normaliseCurrencyCode, popularCurrencies } from "@knut/shared";
 import { BackButton } from "../components/BackButton";
 import { useAuthSession } from "../hooks/useAuthSession";
-import { clearAlerts, exportAccountData, saveAccountSettings } from "../lib/accountApi";
+import { clearAlerts, exportAccountData, saveAccountSettings, syncAccountProfile } from "../lib/accountApi";
 
 export default function AccountScreen() {
   const auth = useAuthSession();
@@ -15,6 +16,28 @@ export default function AccountScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [clearingAlerts, setClearingAlerts] = useState(false);
+  const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!auth.user) return;
+
+    syncAccountProfile()
+      .then((result) => {
+        if (!mounted) return;
+        const profile = result.profile;
+        if (!profile) return;
+        setPreferredCurrency(normaliseCurrencyCode(profile.preferredCurrency));
+        setTimezone(profile.timezone ?? "Australia/Melbourne");
+        setMonthlyAiBudget(profile.monthlyAiBudget == null ? "" : String(profile.monthlyAiBudget));
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
+  }, [auth.user?.id]);
 
   async function signIn() {
     const result = await auth.signInWithEmail(email.trim(), password);
@@ -141,7 +164,33 @@ export default function AccountScreen() {
 
         <View style={styles.card}>
           <Text style={styles.label}>Account settings</Text>
-          <TextInput onChangeText={setPreferredCurrency} style={styles.input} value={preferredCurrency} />
+          <Pressable onPress={() => setCurrencyMenuOpen((value) => !value)} style={styles.select}>
+            <View style={styles.selectTextBlock}>
+              <Text style={styles.selectLabel}>Preferred currency</Text>
+              <Text style={styles.selectValue}>{popularCurrencies.find((currency) => currency.code === preferredCurrency)?.name ?? "United States dollar"} · {preferredCurrency}</Text>
+            </View>
+            <Text style={styles.selectAction}>{currencyMenuOpen ? "Close" : "Choose"}</Text>
+          </Pressable>
+          {currencyMenuOpen ? (
+            <ScrollView nestedScrollEnabled style={styles.currencyMenu}>
+              {popularCurrencies.map((currency) => {
+                const selected = currency.code === preferredCurrency;
+                return (
+                  <Pressable
+                    key={currency.code}
+                    onPress={() => {
+                      setPreferredCurrency(currency.code);
+                      setCurrencyMenuOpen(false);
+                    }}
+                    style={[styles.currencyOption, selected && styles.currencyOptionSelected]}
+                  >
+                    <Text style={styles.currencyName}>{currency.name}</Text>
+                    <Text style={styles.currencyCode}>{currency.code}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
           <TextInput onChangeText={setMonthlyAiBudget} keyboardType="decimal-pad" style={styles.input} value={monthlyAiBudget} />
           <TextInput onChangeText={setTimezone} style={styles.input} value={timezone} />
           <Pressable disabled={!auth.user} onPress={saveSettings} style={({ pressed }) => [styles.primaryButton, !auth.user && styles.disabled, pressed && styles.pressed]}>
@@ -187,6 +236,16 @@ const styles = StyleSheet.create({
   body: { color: "#a1a1aa", fontSize: 14, lineHeight: 20 },
   row: { color: "#e4e4e7", fontSize: 14, fontWeight: "700", lineHeight: 20 },
   input: { color: "#f4f4f5", backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, minHeight: 44, fontSize: 16 },
+  select: { minHeight: 56, backgroundColor: "#09090b", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  selectTextBlock: { flex: 1, minWidth: 0 },
+  selectLabel: { color: "#8b8b91", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  selectValue: { color: "#f4f4f5", fontSize: 15, fontWeight: "900", marginTop: 3 },
+  selectAction: { color: "#86efac", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  currencyMenu: { maxHeight: 320, borderColor: "#29292d", borderWidth: 1, borderRadius: 7, overflow: "hidden" },
+  currencyOption: { minHeight: 42, backgroundColor: "#09090b", borderBottomColor: "#1f1f23", borderBottomWidth: 1, paddingHorizontal: 12, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  currencyOptionSelected: { backgroundColor: "#102016" },
+  currencyName: { color: "#f4f4f5", fontSize: 14, fontWeight: "800", flex: 1 },
+  currencyCode: { color: "#86efac", fontSize: 12, fontWeight: "900" },
   actions: { flexDirection: "row", gap: 10 },
   primaryButton: { flex: 1, minHeight: 44, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "#22c55e" },
   primaryButtonText: { color: "#041006", fontSize: 15, fontWeight: "900" },

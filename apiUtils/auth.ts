@@ -56,3 +56,14 @@ export async function requireUser(req: AuthRequest): Promise<AuthenticatedUser> 
     email: data.email
   };
 }
+
+export async function getOptionalUser(req: AuthRequest): Promise<AuthenticatedUser | null> {
+  const token = getBearerToken(req);
+  if (!token) return null;
+
+  try {
+    return await requireUser(req);
+  } catch {
+    return null;
+  }
+}

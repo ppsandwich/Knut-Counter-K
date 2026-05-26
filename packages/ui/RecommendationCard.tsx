@@ -22,6 +22,10 @@ function meta(recommendation: DashboardRecommendation) {
   return `${recommendation.label ?? "Balanced"} · intelligence ${recommendation.intelligenceScore}/100${benchmark}`;
 }
 
+function estimatedCostCurrency(recommendation: DashboardRecommendation) {
+  return "estimatedCostCurrency" in recommendation ? recommendation.estimatedCostCurrency ?? "USD" : "USD";
+}
+
 export function RecommendationCard({ recommendation, loading, error }: { recommendation: DashboardRecommendation; loading?: boolean; error?: string | null }) {
   const metaText = meta(recommendation);
 
@@ -33,7 +37,7 @@ export function RecommendationCard({ recommendation, loading, error }: { recomme
       </View>
       <Text style={styles.title}>{providerName(recommendation)} · {modelName(recommendation)}</Text>
       <Text style={styles.reason}>{loading ? "Looking at your providers, prices, and cap pressure..." : error ?? recommendation.reason}</Text>
-      <Text style={styles.cost}>{formatCurrency(recommendation.estimatedCostUsd)} estimated</Text>
+      <Text style={styles.cost}>{formatCurrency(recommendation.estimatedCostUsd, estimatedCostCurrency(recommendation))} estimated</Text>
       {metaText ? <Text style={styles.meta}>{metaText}</Text> : null}
       <Text style={styles.attribution}>Benchmarks from Artificial Analysis</Text>
     </View>

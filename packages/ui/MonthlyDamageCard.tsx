@@ -4,13 +4,14 @@ import { colors } from "./theme";
 
 export function MonthlyDamageCard({ summary }: { summary: DashboardSummary }) {
   const progress = summary.monthlyBudget > 0 ? Math.min(summary.monthlySpend / summary.monthlyBudget, 1) : 0;
+  const currency = summary.currency ?? "USD";
 
   return (
     <View style={styles.card}>
       <Text style={styles.label}>This month's AI usage</Text>
       <View style={styles.moneyRow}>
-        <Text style={styles.amount}>{formatCurrency(summary.monthlySpend)}</Text>
-        <Text style={styles.projected}>{formatCurrency(summary.projectedSpend)} projected</Text>
+        <Text style={styles.amount}>{formatCurrency(summary.monthlySpend, currency)}</Text>
+        <Text style={styles.projected}>{formatCurrency(summary.projectedSpend, currency)} projected</Text>
       </View>
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />

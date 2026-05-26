@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { RecommendationBundle, RecommendationResult } from "@knut/shared";
+import { formatCurrency, type RecommendationBundle, type RecommendationResult } from "@knut/shared";
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { recommendProvider } from "../../lib/accountApi";
@@ -125,8 +125,8 @@ export default function CompareScreen() {
   );
 }
 
-function formatCost(value: number) {
-  return `~$${value.toFixed(value > 0.01 ? 2 : 5)}`;
+function formatCost(value: number, currency = "USD") {
+  return `~${formatCurrency(value, currency)}`;
 }
 
 function formatTokenBasis(value: number) {
@@ -232,7 +232,7 @@ function RecommendationCard({ item, tone, suppressBelowAverageScore = false }: {
       <Text style={styles.provider}>{item.recommendedProvider}</Text>
       <Text style={styles.model}>{item.recommendedModel}</Text>
       <View style={styles.costRow}>
-        <Text style={styles.cost}>{formatCost(item.estimatedCostUsd)}</Text>
+        <Text style={styles.cost}>{formatCost(item.estimatedCostUsd, item.estimatedCostCurrency)}</Text>
         <Text style={styles.tokenBasis}>{formatTokenBasis(item.estimatedTokens)} tokens</Text>
       </View>
       {item.capWarning ? <Text style={styles.warning}>{item.capWarning}</Text> : null}

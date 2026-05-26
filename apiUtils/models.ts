@@ -1,4 +1,7 @@
 import type { PopularModel } from "@knut/shared";
+import { getUserProfile } from "@knut/db";
+import { getOptionalUser } from "./auth";
+import { convertPopularModelsPayload } from "./currency";
 
 type ApiRequest = {
   method?: string;
@@ -333,7 +336,11 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       })
     ]);
 
-    return res.status(200).json(payload);
+    const user = await getOptionalUser(req);
+    const profile = user ? await getUserProfile(user.id) : null;
+    const convertedPayload = await convertPopularModelsPayload(payload, profile?.preferredCurrency ?? "USD");
+
+    return res.status(200).json(convertedPayload);
   } catch (error) {
     return res.status(200).json(emptyModelsPayload(error instanceof Error ? error.message : "Model data refresh failed"));
   }

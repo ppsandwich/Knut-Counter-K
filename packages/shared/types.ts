@@ -37,6 +37,7 @@ export interface DashboardSummary {
   monthlyBudget: number;
   totalTokens: number;
   projectedSpend: number;
+  currency?: string;
   status: ProviderStatus;
   statusText: string;
 }

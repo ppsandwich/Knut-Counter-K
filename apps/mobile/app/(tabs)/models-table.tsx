@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PopularModel, PopularModelsPayload } from "@knut/shared";
+import { formatCurrency, type PopularModel, type PopularModelsPayload } from "@knut/shared";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthSession } from "../../hooks/useAuthSession";
@@ -26,10 +26,9 @@ const metricColumns: Array<{ key: Exclude<SortKey, "popularity">; label: string;
   { key: "price", label: "Price", higherIsBetter: true }
 ];
 
-function formatCost(value: number | null) {
+function formatCost(value: number | null, currency = "USD") {
   if (value == null) return "-";
-  if (value === 0) return "$0";
-  return `$${value.toFixed(value >= 10 ? 1 : value >= 1 ? 2 : 3)}`;
+  return formatCurrency(value, currency);
 }
 
 function formatAge(days: number | null) {
@@ -82,9 +81,9 @@ function valueForMetric(model: PopularModel, metric: Exclude<SortKey, "popularit
   return valueForSort(model, metric);
 }
 
-function formatMetric(model: PopularModel, metric: Exclude<SortKey, "popularity">) {
-  if (metric === "inputCost") return formatCost(model.inputCostPer1mUsd);
-  if (metric === "outputCost") return formatCost(model.outputCostPer1mUsd);
+function formatMetric(model: PopularModel, metric: Exclude<SortKey, "popularity">, currency = "USD") {
+  if (metric === "inputCost") return formatCost(model.inputCostPer1mUsd, currency);
+  if (metric === "outputCost") return formatCost(model.outputCostPer1mUsd, currency);
   if (metric === "intelligence") return formatScore(model.artificialAnalysisIntelligenceIndex);
   if (metric === "coding") return formatScore(model.artificialAnalysisCodingIndex);
   if (metric === "speed") return formatScore(model.speedScore);
@@ -175,6 +174,7 @@ export default function ModelsTableScreen() {
 
   const ranges = payload ? metricRangesFor(payload.models) : null;
   const visibleModels = payload ? sortedModels(payload.models, sortKey, sortDirection) : [];
+  const currency = payload?.currency ?? "USD";
 
   function changeSort(nextSortKey: SortKey) {
     if (nextSortKey === sortKey) {
@@ -217,7 +217,7 @@ export default function ModelsTableScreen() {
             {isLoading && !payload ? (
               <Text style={styles.loading}>Loading model rankings...</Text>
             ) : payload && ranges ? (
-              visibleModels.map((model) => <ModelGroup key={`${model.rank}:${model.modelId}`} model={model} ranges={ranges} />)
+              visibleModels.map((model) => <ModelGroup key={`${model.rank}:${model.modelId}`} model={model} ranges={ranges} currency={currency} />)
             ) : null}
           </View>
 
@@ -230,7 +230,7 @@ export default function ModelsTableScreen() {
   );
 }
 
-function ModelGroup({ model, ranges }: { model: PopularModel; ranges: MetricRanges }) {
+function ModelGroup({ model, ranges, currency }: { model: PopularModel; ranges: MetricRanges; currency: string }) {
   return (
     <View style={styles.group}>
       <View style={styles.modelInfoRow}>
@@ -245,7 +245,7 @@ function ModelGroup({ model, ranges }: { model: PopularModel; ranges: MetricRang
           return (
             <View key={column.key} style={styles.metricCell}>
               <Text style={[styles.metricValue, { color: colorForMetric(value, rangeForMetric(ranges, column.key), column.higherIsBetter) }]}>
-                {formatMetric(model, column.key)}
+                {formatMetric(model, column.key, currency)}
               </Text>
             </View>
           );

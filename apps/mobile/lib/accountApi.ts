@@ -266,9 +266,16 @@ export async function recommendProvider(input: RecommendationInput): Promise<Rec
 }
 
 export async function fetchPopularModels(refresh = false): Promise<PopularModelsPayload> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
   const response = await fetch(getApiUrl("/api/models"), {
     method: refresh ? "POST" : "GET",
-    headers: refresh ? await authHeaders() : { "Content-Type": "application/json" }
+    headers: token
+      ? {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      : { "Content-Type": "application/json" }
   });
 
   if (!response.ok) {

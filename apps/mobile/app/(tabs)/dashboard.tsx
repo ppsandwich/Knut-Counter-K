@@ -2,7 +2,7 @@ import { RefreshControl, Pressable, ScrollView, StyleSheet, Text, View } from "r
 import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, SyncStatusStrip } from "@knut/ui";
-import type { AccountAlert, DashboardModelPick } from "@knut/shared";
+import { formatCurrency, type AccountAlert, type DashboardModelPick } from "@knut/shared";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { fetchAlerts, syncProviders } from "../../lib/accountApi";
 
@@ -12,13 +12,13 @@ const emptySummary = {
   totalTokens: 0,
   projectedSpend: 0,
   status: "healthy" as const,
-  statusText: "Sign in to load your usage data."
+  statusText: "Sign in to load your usage data.",
+  currency: "USD"
 };
 
-function formatModelCost(value: number | null) {
+function formatModelCost(value: number | null, currency: string) {
   if (value == null) return "-";
-  if (value === 0) return "$0";
-  return `$${value.toFixed(value >= 10 ? 1 : value >= 1 ? 2 : 3)}`;
+  return formatCurrency(value, currency);
 }
 
 function formatModelScore(value: number | null) {
@@ -30,6 +30,7 @@ export default function DashboardScreen() {
   const providerRows = dashboard.providerRows;
   const signedIn = Boolean(dashboard.auth.user);
   const summary = dashboard.data?.summary ?? emptySummary;
+  const currency = dashboard.data?.profile?.preferredCurrency ?? summary.currency ?? "USD";
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<AccountAlert[]>([]);
@@ -84,13 +85,13 @@ export default function DashboardScreen() {
             <Pressable disabled={!signedIn || refreshing} onPress={refreshUsage} style={({ pressed }) => [styles.refreshButton, (!signedIn || refreshing) && styles.disabled, pressed && styles.pressed]}>
               <Text style={styles.refreshButtonText}>{refreshing ? "Refreshing" : "Refresh"}</Text>
             </Pressable>
-            <Text style={styles.currency}>USD</Text>
+            <Text style={styles.currency}>{currency}</Text>
           </View>
         </View>
         {refreshMessage ? <Text style={styles.refreshMessage}>{refreshMessage}</Text> : null}
 
         <MonthlyDamageCard summary={summary} />
-        <ModelPicksCard picks={dashboard.data?.modelPicks ?? null} loading={signedIn && dashboard.loading} />
+        <ModelPicksCard picks={dashboard.data?.modelPicks ?? null} loading={signedIn && dashboard.loading} currency={currency} />
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Providers</Text>
@@ -128,21 +129,21 @@ export default function DashboardScreen() {
   );
 }
 
-function ModelPicksCard({ picks, loading }: { picks: NonNullable<ReturnType<typeof useDashboardData>["data"]>["modelPicks"] | null; loading: boolean }) {
+function ModelPicksCard({ picks, loading, currency }: { picks: NonNullable<ReturnType<typeof useDashboardData>["data"]>["modelPicks"] | null; loading: boolean; currency: string }) {
   return (
     <View style={styles.modelPicksCard}>
-      <ModelPickStrip label="Smartest" pick={picks?.smartest ?? null} loading={loading} />
-      <ModelPickStrip label="Best value" pick={picks?.bestValue ?? null} loading={loading} />
-      <ModelPickStrip label="Cheapest" pick={picks?.cheapest ?? null} loading={loading} isLast />
+      <ModelPickStrip label="Smartest" pick={picks?.smartest ?? null} loading={loading} currency={currency} />
+      <ModelPickStrip label="Best value" pick={picks?.bestValue ?? null} loading={loading} currency={currency} />
+      <ModelPickStrip label="Cheapest" pick={picks?.cheapest ?? null} loading={loading} currency={currency} isLast />
     </View>
   );
 }
 
-function ModelPickStrip({ label, pick, loading, isLast }: { label: string; pick: DashboardModelPick | null; loading: boolean; isLast?: boolean }) {
+function ModelPickStrip({ label, pick, loading, currency, isLast }: { label: string; pick: DashboardModelPick | null; loading: boolean; currency: string; isLast?: boolean }) {
   const detail = loading
     ? "Loading model data..."
     : pick
-      ? `${pick.provider} / In ${formatModelCost(pick.inputCostPer1mUsd)} / Out ${formatModelCost(pick.outputCostPer1mUsd)} / Intel ${formatModelScore(pick.intelligenceScore)}`
+      ? `${pick.provider} / In ${formatModelCost(pick.inputCostPer1mUsd, currency)} / Out ${formatModelCost(pick.outputCostPer1mUsd, currency)} / Intel ${formatModelScore(pick.intelligenceScore)}`
       : "No priced benchmark model found.";
 
   return (
