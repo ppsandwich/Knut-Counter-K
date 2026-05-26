@@ -23,6 +23,13 @@ type ArtificialAnalysisModel = {
   token_efficiency?: number;
 };
 
+type IntelligenceIndexTokenCounts = {
+  inputTokens?: number;
+  answerTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+};
+
 export type ArtificialAnalysisBenchmark = {
   providerId: string;
   modelId: string;
@@ -196,6 +203,59 @@ function sourceModelIdFor(model: ArtificialAnalysisModel) {
   return model.slug ?? model.name ?? model.id;
 }
 
+function escapedJsonNumber(source: string, key: string) {
+  const match = source.match(new RegExp(`(?:\\\\?")${key}(?:\\\\?")\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`));
+  return match ? finiteNumber(match[1]) : undefined;
+}
+
+function latestEscapedJsonString(source: string, key: string) {
+  const matches = [...source.matchAll(new RegExp(`(?:\\\\?")${key}(?:\\\\?")\\s*:\\s*(?:\\\\?")([^"\\\\]+)(?:\\\\?")`, "g"))];
+  return matches.at(-1)?.[1];
+}
+
+function parseIntelligenceIndexTokenCounts(html: string) {
+  const tokenCountsBySlug = new Map<string, IntelligenceIndexTokenCounts>();
+  const tokenCountsPattern = /(?:\\?")intelligence_index_token_counts(?:\\?")\s*:\s*\{([^}]+)\}/g;
+
+  for (const match of html.matchAll(tokenCountsPattern)) {
+    const before = html.slice(Math.max(0, match.index - 8000), match.index);
+    const slug = latestEscapedJsonString(before, "slug");
+    const id = latestEscapedJsonString(before, "id");
+    if (!slug && !id) continue;
+
+    const countsSource = match[1];
+    const counts = {
+      inputTokens: escapedJsonNumber(countsSource, "input_tokens"),
+      answerTokens: escapedJsonNumber(countsSource, "answer_tokens"),
+      outputTokens: escapedJsonNumber(countsSource, "output_tokens"),
+      reasoningTokens: escapedJsonNumber(countsSource, "reasoning_tokens")
+    };
+
+    if (slug) tokenCountsBySlug.set(slug, counts);
+    if (id) tokenCountsBySlug.set(id, counts);
+  }
+
+  return tokenCountsBySlug;
+}
+
+async function fetchArtificialAnalysisPublicTokenCounts() {
+  try {
+    const response = await fetch("https://artificialanalysis.ai/models/gpt-5-5-non-reasoning", {
+      headers: {
+        "user-agent": "Knut Counter pricing refresh"
+      }
+    });
+
+    if (!response.ok) {
+      return new Map<string, IntelligenceIndexTokenCounts>();
+    }
+
+    return parseIntelligenceIndexTokenCounts(await response.text());
+  } catch {
+    return new Map<string, IntelligenceIndexTokenCounts>();
+  }
+}
+
 export async function fetchArtificialAnalysisPricingAndBenchmarks(
   apiKey = process.env.ARTIFICIAL_ANALYSIS_API_KEY,
   fetchedAt = new Date().toISOString()
@@ -216,6 +276,7 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
 
   const json = await response.json() as { data?: ArtificialAnalysisModel[] };
   const models = json.data ?? [];
+  const tokenCountsBySlug = await fetchArtificialAnalysisPublicTokenCounts();
 
   const prices: RawPrice[] = [];
   const benchmarks: ArtificialAnalysisBenchmark[] = [];
@@ -242,6 +303,8 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
 
     const evaluations = model.evaluations ?? {};
     const modelRecord = model as Record<string, unknown>;
+    const publicTokenCounts = (model.slug ? tokenCountsBySlug.get(model.slug) : undefined)
+      ?? (model.id ? tokenCountsBySlug.get(model.id) : undefined);
     const artificialAnalysisOutputTokensUsed = nestedNumber(
       modelRecord,
       "artificial_analysis_output_tokens_used",
@@ -256,7 +319,8 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
     )
       ?? findNumberByKey(model.evaluations, isTokenUseKey)
       ?? findNumberByKey(model.pricing, isTokenUseKey)
-      ?? findNumberByKey(modelRecord, isTokenUseKey);
+      ?? findNumberByKey(modelRecord, isTokenUseKey)
+      ?? publicTokenCounts?.outputTokens;
     const artificialAnalysisTokenEfficiency = nestedNumber(
       modelRecord,
       "artificial_analysis_token_efficiency",
@@ -274,6 +338,14 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
     const enrichedEvaluations = {
       ...evaluations,
       ...(artificialAnalysisOutputTokensUsed == null ? {} : { artificial_analysis_output_tokens_used: artificialAnalysisOutputTokensUsed }),
+      ...(publicTokenCounts == null ? {} : {
+        intelligence_index_token_counts: {
+          input_tokens: publicTokenCounts.inputTokens,
+          answer_tokens: publicTokenCounts.answerTokens,
+          output_tokens: publicTokenCounts.outputTokens,
+          reasoning_tokens: publicTokenCounts.reasoningTokens
+        }
+      }),
       ...(artificialAnalysisTokenEfficiency == null ? {} : { artificial_analysis_token_efficiency: artificialAnalysisTokenEfficiency })
     };
 

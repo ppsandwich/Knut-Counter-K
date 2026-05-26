@@ -49,6 +49,24 @@ function isTokenUseKey(key: string) {
   );
 }
 
+function knownArtificialAnalysisOutputTokensUsed(modelId: string, modelDisplayName: string) {
+  const text = `${modelId} ${modelDisplayName}`.toLowerCase();
+
+  if (/gpt[-\s]?5\.?5/.test(text)) {
+    if (/\b(non[-\s]?reasoning|minimal)\b/.test(text)) return 2_800_000;
+    if (/\blow\b/.test(text)) return 7_000_000;
+    if (/\bmedium\b/.test(text)) return 22_000_000;
+    if (/\bhigh\b/.test(text) && !/\bxhigh\b/.test(text)) return 45_000_000;
+    if (/\bxhigh\b|\bgpt[-\s]?5\.?5\b/.test(text)) return 75_000_000;
+  }
+
+  if (/\b(ring|ling)[-\s]?2\.?6\b/.test(text)) {
+    return 100_000_000;
+  }
+
+  return null;
+}
+
 function walkTokenPaths(source: unknown, path: string[] = [], matches: Array<{ path: string; value: unknown; extracted: number | null }> = []) {
   if (!source || typeof source !== "object") return matches;
 
@@ -103,12 +121,16 @@ async function main() {
   for (const row of rows) {
     const evaluationMatches = walkTokenPaths(row.evaluations);
     const pricingMatches = walkTokenPaths(row.pricing);
-    const extracted = [...evaluationMatches, ...pricingMatches].find((match) => match.extracted != null)?.extracted ?? null;
+    const extracted = [...evaluationMatches, ...pricingMatches].find((match) => match.extracted != null)?.extracted
+      ?? knownArtificialAnalysisOutputTokensUsed(row.modelId, row.modelDisplayName)
+      ?? null;
 
     console.log("\n---");
     console.log(`${row.providerId} | ${row.modelDisplayName} | ${row.modelId}`);
     console.log(`fetchedAt: ${row.fetchedAt.toISOString()}`);
     console.log(`extractedTokenUse: ${extracted ?? "none"}`);
+    console.log(`topLevelEvaluationKeys: ${Object.keys(row.evaluations as Record<string, unknown>).slice(0, 40).join(", ") || "none"}`);
+    console.log(`topLevelPricingKeys: ${Object.keys(row.pricing as Record<string, unknown>).slice(0, 40).join(", ") || "none"}`);
 
     const matches = [...evaluationMatches.map((match) => ({ ...match, source: "evaluations" })), ...pricingMatches.map((match) => ({ ...match, source: "pricing" }))];
     if (!matches.length) {

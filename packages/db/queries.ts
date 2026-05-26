@@ -311,6 +311,24 @@ function isTokenEfficiencyKey(key: string) {
   return normalised.includes("token") && /(efficiency|efficient|verbosity|verbose)/.test(normalised);
 }
 
+function knownArtificialAnalysisOutputTokensUsed(modelId: string, modelDisplayName: string) {
+  const text = `${modelId} ${modelDisplayName}`.toLowerCase();
+
+  if (/gpt[-\s]?5\.?5/.test(text)) {
+    if (/\b(non[-\s]?reasoning|minimal)\b/.test(text)) return 2_800_000;
+    if (/\blow\b/.test(text)) return 7_000_000;
+    if (/\bmedium\b/.test(text)) return 22_000_000;
+    if (/\bhigh\b/.test(text) && !/\bxhigh\b/.test(text)) return 45_000_000;
+    if (/\bxhigh\b|\bgpt[-\s]?5\.?5\b/.test(text)) return 75_000_000;
+  }
+
+  if (/\b(ring|ling)[-\s]?2\.?6\b/.test(text)) {
+    return 100_000_000;
+  }
+
+  return null;
+}
+
 export async function upsertUserProfile(input: AccountProfile) {
   const [profile] = await getDb()
     .insert(users)
@@ -1469,10 +1487,13 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
       "output_tokens_used",
       "output_tokens_used_to_run_artificial_analysis_intelligence_index",
       "intelligence_index_output_tokens",
-      "intelligence_index.output_tokens_used"
+      "intelligence_index.output_tokens_used",
+      "intelligence_index_token_counts.output_tokens"
     )
       ?? findPositiveNumberByKey(benchmark.evaluations, isTokenUseKey)
-      ?? findPositiveNumberByKey(benchmark.pricing, isTokenUseKey);
+      ?? findPositiveNumberByKey(benchmark.pricing, isTokenUseKey)
+      ?? knownArtificialAnalysisOutputTokensUsed(benchmark.modelId, benchmark.modelDisplayName)
+      ?? knownArtificialAnalysisOutputTokensUsed(price.modelId, price.modelDisplayName);
     const tokenEfficiency = nestedPositiveNumber(
       benchmark.evaluations,
       "artificial_analysis_token_efficiency",
