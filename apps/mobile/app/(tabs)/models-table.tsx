@@ -231,6 +231,11 @@ export default function ModelsTableScreen() {
                 <Text style={styles.refreshText}>{isRefreshing ? "Refreshing..." : "Refresh model data"}</Text>
               </Pressable>
             ) : null}
+            {sortKey !== "popularity" || sortDirection !== "desc" ? (
+              <Pressable onPress={() => { setSortKey("popularity"); setSortDirection("desc"); }} style={styles.resetSortButton}>
+                <Text style={styles.resetSortText}>Reset sort</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -298,6 +303,8 @@ const styles = StyleSheet.create({
   subtitle: { color: "#a1a1aa", fontSize: 12, fontWeight: "800", marginTop: 2, textTransform: "uppercase" },
   refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12 },
   refreshText: { color: "#050506", fontSize: 12, fontWeight: "900" },
+  resetSortButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, paddingHorizontal: 12 },
+  resetSortText: { color: "#a1a1aa", fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.6 },
   lastUpdated: { color: "#8b8b91", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   sourceToggle: { width: 86, flexDirection: "row", backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 6, padding: 2 },
