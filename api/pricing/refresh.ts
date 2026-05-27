@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { refreshModelData } from "../../apiUtils/pricingRefresh";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -12,6 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: "Unauthorized pricing refresh." });
     }
 
+    const { refreshModelData } = await import("../../apiUtils/pricingRefresh");
     const result = await refreshModelData();
 
     return res.status(200).json({
