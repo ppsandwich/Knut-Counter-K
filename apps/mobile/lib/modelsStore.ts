@@ -5,7 +5,6 @@
  */
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { PopularModelsPayload } from "@knut/shared";
 import { fetchPopularModels } from "./accountApi";
@@ -32,65 +31,74 @@ type ModelsState = {
   clear: () => void;
 };
 
-export const useModelsStore = create<ModelsState>()(
-  persist(
-    (set, get) => ({
+export const useModelsStore = create<ModelsState>()((set, get) => ({
+  dataBySource: { aa: null, blm: null },
+  lastFetchedAtBySource: { aa: null, blm: null },
+  isRefreshing: false,
+  error: null,
+
+  loadModels: async (source: BenchmarkSource) => {
+    const state = get();
+    
+    // If we have cached data, use it
+    if (state.dataBySource[source]) {
+      return;
+    }
+
+    // Try loading from AsyncStorage first
+    try {
+      const cached = await AsyncStorage.getItem(`${STORAGE_KEY}-${source}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        set({
+          dataBySource: { ...get().dataBySource, [source]: parsed.data },
+          lastFetchedAtBySource: { ...get().lastFetchedAtBySource, [source]: parsed.lastFetchedAt },
+        });
+        return;
+      }
+    } catch {
+      // Ignore cache errors
+    }
+
+    // Otherwise fetch fresh data
+    await get().refresh(source);
+  },
+
+  refresh: async (source: BenchmarkSource) => {
+    const state = get();
+    if (state.isRefreshing) return;
+
+    set({ isRefreshing: true, error: null });
+
+    try {
+      const payload = await fetchPopularModels(false, source);
+      const lastFetchedAt = new Date().toISOString();
+      
+      // Save to cache
+      await AsyncStorage.setItem(`${STORAGE_KEY}-${source}`, JSON.stringify({ data: payload, lastFetchedAt }));
+      
+      set({
+        dataBySource: { ...state.dataBySource, [source]: payload },
+        lastFetchedAtBySource: { ...state.lastFetchedAtBySource, [source]: lastFetchedAt },
+        isRefreshing: false,
+        error: null,
+      });
+    } catch (err) {
+      set({
+        isRefreshing: false,
+        error: err instanceof Error ? err.message : "Model data could not load.",
+      });
+    }
+  },
+
+  clear: async () => {
+    await AsyncStorage.removeItem(`${STORAGE_KEY}-aa`);
+    await AsyncStorage.removeItem(`${STORAGE_KEY}-blm`);
+    set({
       dataBySource: { aa: null, blm: null },
       lastFetchedAtBySource: { aa: null, blm: null },
       isRefreshing: false,
       error: null,
-
-      loadModels: async (source: BenchmarkSource) => {
-        const state = get();
-        
-        // If we have cached data, use it
-        if (state.dataBySource[source]) {
-          return;
-        }
-
-        // Otherwise fetch fresh data
-        await get().refresh(source);
-      },
-
-      refresh: async (source: BenchmarkSource) => {
-        const state = get();
-        if (state.isRefreshing) return;
-
-        set({ isRefreshing: true, error: null });
-
-        try {
-          const payload = await fetchPopularModels(false, source);
-          set({
-            dataBySource: { ...state.dataBySource, [source]: payload },
-            lastFetchedAtBySource: { ...state.lastFetchedAtBySource, [source]: new Date().toISOString() },
-            isRefreshing: false,
-            error: null,
-          });
-        } catch (err) {
-          set({
-            isRefreshing: false,
-            error: err instanceof Error ? err.message : "Model data could not load.",
-          });
-        }
-      },
-
-      clear: () => {
-        set({
-          dataBySource: { aa: null, blm: null },
-          lastFetchedAtBySource: { aa: null, blm: null },
-          isRefreshing: false,
-          error: null,
-        });
-      },
-    }),
-    {
-      name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
-      // Only persist data and timestamps
-      partialize: (state) => ({
-        dataBySource: state.dataBySource,
-        lastFetchedAtBySource: state.lastFetchedAtBySource,
-      }),
-    }
-  )
-);
+    });
+  },
+}));

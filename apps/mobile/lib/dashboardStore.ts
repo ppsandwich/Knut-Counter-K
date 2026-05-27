@@ -6,7 +6,6 @@
  */
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { DashboardPayload } from "@knut/shared";
 import { fetchDashboard } from "./accountApi";
@@ -24,68 +23,68 @@ type DashboardState = {
   error: string | null;
 
   /** Load from cache (called on mount) */
-  loadFromCache: () => void;
+  loadFromCache: () => Promise<void>;
   /** Fetch fresh data from API and update cache */
   refresh: () => Promise<void>;
   /** Clear cache (on logout) */
   clear: () => void;
 };
 
-export const useDashboardStore = create<DashboardState>()(
-  persist(
-    (set, get) => ({
+export const useDashboardStore = create<DashboardState>()((set, get) => ({
+  data: null,
+  lastFetchedAt: null,
+  isRefreshing: false,
+  error: null,
+
+  loadFromCache: async () => {
+    try {
+      const cached = await AsyncStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        set({ data: parsed.data, lastFetchedAt: parsed.lastFetchedAt });
+      }
+    } catch {
+      // Ignore cache errors
+    }
+  },
+
+  refresh: async () => {
+    const state = get();
+    if (state.isRefreshing) return;
+
+    set({ isRefreshing: true, error: null });
+
+    try {
+      const payload = await fetchDashboard();
+      const lastFetchedAt = new Date().toISOString();
+      
+      // Save to cache
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ data: payload, lastFetchedAt }));
+      
+      set({
+        data: payload,
+        lastFetchedAt,
+        isRefreshing: false,
+        error: null,
+      });
+    } catch (err) {
+      set({
+        isRefreshing: false,
+        error: err instanceof Error ? err.message : "Dashboard could not load.",
+      });
+    }
+  },
+
+  clear: async () => {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    set({
       data: null,
       lastFetchedAt: null,
       isRefreshing: false,
       error: null,
-
-      loadFromCache: () => {
-        // Data is automatically loaded by Zustand persist middleware
-        // This is a no-op but kept for API compatibility
-      },
-
-      refresh: async () => {
-        const state = get();
-        if (state.isRefreshing) return;
-
-        set({ isRefreshing: true, error: null });
-
-        try {
-          const payload = await fetchDashboard();
-          set({
-            data: payload,
-            lastFetchedAt: new Date().toISOString(),
-            isRefreshing: false,
-            error: null,
-          });
-        } catch (err) {
-          set({
-            isRefreshing: false,
-            error: err instanceof Error ? err.message : "Dashboard could not load.",
-          });
-        }
-      },
-
-      clear: () => {
-        set({
-          data: null,
-          lastFetchedAt: null,
-          isRefreshing: false,
-          error: null,
-        });
-      },
-    }),
-    {
-      name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
-      // Only persist data and timestamp, not loading states
-      partialize: (state) => ({
-        data: state.data,
-        lastFetchedAt: state.lastFetchedAt,
-      }),
-    }
-  )
-);
+    });
+  },
+}));
 
 /**
  * Check if cached data is stale (older than 5 minutes)

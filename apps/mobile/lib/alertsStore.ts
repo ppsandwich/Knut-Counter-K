@@ -5,7 +5,6 @@
  */
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AccountAlert } from "@knut/shared";
 import { fetchAlerts, evaluateAlerts } from "./accountApi";
@@ -34,82 +33,91 @@ type AlertsState = {
   clear: () => void;
 };
 
-export const useAlertsStore = create<AlertsState>()(
-  persist(
-    (set, get) => ({
+export const useAlertsStore = create<AlertsState>()((set, get) => ({
+  alerts: [],
+  lastFetchedAt: null,
+  isRefreshing: false,
+  isEvaluating: false,
+  message: null,
+  error: null,
+
+  loadAlerts: async () => {
+    const state = get();
+    if (state.isRefreshing) return;
+
+    // Try loading from cache first
+    try {
+      const cached = await AsyncStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        set({ alerts: parsed.alerts, lastFetchedAt: parsed.lastFetchedAt });
+      }
+    } catch {
+      // Ignore cache errors
+    }
+
+    set({ isRefreshing: true, error: null });
+
+    try {
+      const alerts = await fetchAlerts();
+      const lastFetchedAt = new Date().toISOString();
+      
+      // Save to cache
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ alerts, lastFetchedAt }));
+      
+      set({
+        alerts,
+        lastFetchedAt,
+        isRefreshing: false,
+        error: null,
+      });
+    } catch (err) {
+      set({
+        isRefreshing: false,
+        error: err instanceof Error ? err.message : "Could not load alerts.",
+      });
+    }
+  },
+
+  evaluate: async () => {
+    const state = get();
+    if (state.isEvaluating) return;
+
+    set({ isEvaluating: true, error: null, message: null });
+
+    try {
+      const result = await evaluateAlerts();
+      const lastFetchedAt = new Date().toISOString();
+      
+      // Save to cache
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ alerts: result.alerts, lastFetchedAt }));
+      
+      set({
+        alerts: result.alerts,
+        lastFetchedAt,
+        isEvaluating: false,
+        message: result.created
+          ? `${result.created} new alert${result.created === 1 ? "" : "s"} created.`
+          : "No new alerts. Suspiciously peaceful.",
+        error: null,
+      });
+    } catch (err) {
+      set({
+        isEvaluating: false,
+        error: err instanceof Error ? err.message : "Could not evaluate alerts.",
+      });
+    }
+  },
+
+  clear: async () => {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    set({
       alerts: [],
       lastFetchedAt: null,
       isRefreshing: false,
       isEvaluating: false,
       message: null,
       error: null,
-
-      loadAlerts: async () => {
-        const state = get();
-        if (state.isRefreshing) return;
-
-        set({ isRefreshing: true, error: null });
-
-        try {
-          const alerts = await fetchAlerts();
-          set({
-            alerts,
-            lastFetchedAt: new Date().toISOString(),
-            isRefreshing: false,
-            error: null,
-          });
-        } catch (err) {
-          set({
-            isRefreshing: false,
-            error: err instanceof Error ? err.message : "Could not load alerts.",
-          });
-        }
-      },
-
-      evaluate: async () => {
-        const state = get();
-        if (state.isEvaluating) return;
-
-        set({ isEvaluating: true, error: null, message: null });
-
-        try {
-          const result = await evaluateAlerts();
-          set({
-            alerts: result.alerts,
-            lastFetchedAt: new Date().toISOString(),
-            isEvaluating: false,
-            message: result.created
-              ? `${result.created} new alert${result.created === 1 ? "" : "s"} created.`
-              : "No new alerts. Suspiciously peaceful.",
-            error: null,
-          });
-        } catch (err) {
-          set({
-            isEvaluating: false,
-            error: err instanceof Error ? err.message : "Could not evaluate alerts.",
-          });
-        }
-      },
-
-      clear: () => {
-        set({
-          alerts: [],
-          lastFetchedAt: null,
-          isRefreshing: false,
-          isEvaluating: false,
-          message: null,
-          error: null,
-        });
-      },
-    }),
-    {
-      name: STORAGE_KEY,
-      storage: createJSONStorage(() => AsyncStorage),
-      // Only persist alerts and timestamp
-      partialize: (state) => ({
-        alerts: state.alerts,
-        lastFetchedAt: state.lastFetchedAt,
-      }),
-    }
-  )
-);
+    });
+  },
+}));
