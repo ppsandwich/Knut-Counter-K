@@ -61,7 +61,7 @@ impl ApiClient {
 
     /// Start device code authentication flow
     pub async fn start_device_auth(&self) -> anyhow::Result<DeviceCodeResponse> {
-        let url = format!("{}/api/companion/device-code", self.base_url);
+        let url = format!("{}/api/companion?action=device-code", self.base_url);
         let resp = self.client.post(&url).send().await?;
         
         if !resp.status().is_success() {
@@ -73,7 +73,7 @@ impl ApiClient {
 
     /// Poll for device code completion
     pub async fn poll_device_auth(&self, device_code: &str) -> anyhow::Result<Option<TokenResponse>> {
-        let url = format!("{}/api/companion/device-code", self.base_url);
+        let url = format!("{}/api/companion?action=device-code", self.base_url);
         let resp = self.client
             .post(&url)
             .json(&serde_json::json!({ "device_code": device_code }))
@@ -94,7 +94,7 @@ impl ApiClient {
         auth_token: &str,
         payload: &CompanionSyncPayload,
     ) -> anyhow::Result<()> {
-        let url = format!("{}/api/companion/sync", self.base_url);
+        let url = format!("{}/api/companion?action=sync", self.base_url);
         let resp = self.client
             .post(&url)
             .header("Authorization", format!("Bearer {}", auth_token))

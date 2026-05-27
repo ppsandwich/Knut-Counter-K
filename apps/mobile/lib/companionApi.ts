@@ -11,7 +11,7 @@ const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL || "";
  * Authorize a device code from the companion app
  */
 export async function authorizeDeviceCode(userCode: string, userId: string): Promise<boolean> {
-  const response = await fetch(`${API_BASE}/api/companion/authorize`, {
+  const response = await fetch(`${API_BASE}/api/companion?action=authorize`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_code: userCode, user_id: userId }),
@@ -34,7 +34,7 @@ export async function getCompanionStatus(): Promise<{
   lastSync: string | null;
   devices: Array<{ id: string; name: string; lastSeen: string }>;
 }> {
-  const response = await fetch(`${API_BASE}/api/companion/status`, {
+  const response = await fetch(`${API_BASE}/api/companion?action=status`, {
     method: "GET",
   });
 
@@ -49,7 +49,7 @@ export async function getCompanionStatus(): Promise<{
  * Revoke companion access
  */
 export async function revokeCompanionAccess(): Promise<boolean> {
-  const response = await fetch(`${API_BASE}/api/companion/revoke`, {
+  const response = await fetch(`${API_BASE}/api/companion?action=revoke`, {
     method: "POST",
   });
 

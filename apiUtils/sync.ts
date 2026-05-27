@@ -1,8 +1,7 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { markProviderAccountsSynced } from "@knut/db";
-import { requireUser } from "../../apiUtils/auth";
+import { requireUser } from "./auth";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handleSyncRequest(req: any, res: any) {
   try {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
