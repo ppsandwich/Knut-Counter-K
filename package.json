@@ -13,7 +13,9 @@
     "web": "pnpm --filter @knut/mobile web",
     "typecheck": "pnpm -r typecheck",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "companion:dev": "cd companion && pnpm tauri dev",
+    "companion:build": "cd companion && pnpm tauri build"
   },
   "dependencies": {
     "@knut/db": "workspace:*",
