@@ -6,6 +6,7 @@ mod sync;
 use api::ApiClient;
 use config::Config;
 use providers::claude::ClaudeExtractor;
+use providers::codex::CodexExtractor;
 use sync::{SyncEngine, SyncResult};
 use std::sync::Arc;
 use tauri::State;
@@ -136,7 +137,8 @@ pub fn run() {
     
     // Register providers
     sync_engine.add_provider(Box::new(ClaudeExtractor::new()));
-    // TODO: Add more providers (Codex, Cursor, etc.)
+    sync_engine.add_provider(Box::new(CodexExtractor::new()));
+    // TODO: Add more providers (Cursor, Copilot, etc.)
     
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
