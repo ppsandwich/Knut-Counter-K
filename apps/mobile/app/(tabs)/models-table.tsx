@@ -218,6 +218,11 @@ export default function ModelsTableScreen() {
           </View>
           <View style={styles.headerActions}>
             <Text style={styles.lastUpdated}>{formatLastUpdated(payload?.refreshedAt)}</Text>
+            {sortKey !== "popularity" || sortDirection !== "desc" ? (
+              <Pressable onPress={() => { setSortKey("popularity"); setSortDirection("desc"); }} style={styles.resetSortButton}>
+                <Text style={styles.resetSortText}>Reset sort</Text>
+              </Pressable>
+            ) : null}
             <View style={styles.sourceToggle}>
               <Pressable onPress={() => changeBenchmarkSource("aa")} style={[styles.sourceOption, benchmarkSource === "aa" && styles.sourceOptionActive]}>
                 <Text style={[styles.sourceOptionText, benchmarkSource === "aa" && styles.sourceOptionTextActive]}>AA</Text>
@@ -229,11 +234,6 @@ export default function ModelsTableScreen() {
             {auth.session ? (
               <Pressable disabled={isRefreshing} onPress={() => load(true)} style={[styles.refreshButton, isRefreshing && styles.disabled]}>
                 <Text style={styles.refreshText}>{isRefreshing ? "Refreshing..." : "Refresh model data"}</Text>
-              </Pressable>
-            ) : null}
-            {sortKey !== "popularity" || sortDirection !== "desc" ? (
-              <Pressable onPress={() => { setSortKey("popularity"); setSortDirection("desc"); }} style={styles.resetSortButton}>
-                <Text style={styles.resetSortText}>Reset sort</Text>
               </Pressable>
             ) : null}
           </View>
