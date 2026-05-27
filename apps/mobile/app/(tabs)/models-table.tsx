@@ -206,20 +206,21 @@ export default function ModelsTableScreen() {
             <Text style={styles.title}>Models</Text>
             <Text style={styles.subtitle}>Scores from {sourceName}</Text>
           </View>
-          {auth.session ? (
-            <Pressable disabled={isRefreshing} onPress={() => load(true)} style={[styles.refreshButton, isRefreshing && styles.disabled]}>
-              <Text style={styles.refreshText}>{isRefreshing ? "Refreshing..." : "Refresh model data"}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <View style={styles.sourceToggle}>
-          <Pressable onPress={() => changeBenchmarkSource("aa")} style={[styles.sourceOption, benchmarkSource === "aa" && styles.sourceOptionActive]}>
-            <Text style={[styles.sourceOptionText, benchmarkSource === "aa" && styles.sourceOptionTextActive]}>AA</Text>
-          </Pressable>
-          <Pressable onPress={() => changeBenchmarkSource("blm")} style={[styles.sourceOption, benchmarkSource === "blm" && styles.sourceOptionActive]}>
-            <Text style={[styles.sourceOptionText, benchmarkSource === "blm" && styles.sourceOptionTextActive]}>BLM</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            <View style={styles.sourceToggle}>
+              <Pressable onPress={() => changeBenchmarkSource("aa")} style={[styles.sourceOption, benchmarkSource === "aa" && styles.sourceOptionActive]}>
+                <Text style={[styles.sourceOptionText, benchmarkSource === "aa" && styles.sourceOptionTextActive]}>AA</Text>
+              </Pressable>
+              <Pressable onPress={() => changeBenchmarkSource("blm")} style={[styles.sourceOption, benchmarkSource === "blm" && styles.sourceOptionActive]}>
+                <Text style={[styles.sourceOptionText, benchmarkSource === "blm" && styles.sourceOptionTextActive]}>BLM</Text>
+              </Pressable>
+            </View>
+            {auth.session ? (
+              <Pressable disabled={isRefreshing} onPress={() => load(true)} style={[styles.refreshButton, isRefreshing && styles.disabled]}>
+                <Text style={styles.refreshText}>{isRefreshing ? "Refreshing..." : "Refresh model data"}</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {error ? (
@@ -281,15 +282,16 @@ const styles = StyleSheet.create({
   content: { flex: 1, padding: 16 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
   headerText: { flex: 1, minWidth: 0 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800" },
   subtitle: { color: "#a1a1aa", fontSize: 12, fontWeight: "800", marginTop: 2, textTransform: "uppercase" },
   refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12 },
   refreshText: { color: "#050506", fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.6 },
-  sourceToggle: { flexDirection: "row", backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 7, padding: 3, marginBottom: 12 },
-  sourceOption: { flex: 1, minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: 5 },
+  sourceToggle: { width: 86, flexDirection: "row", backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 6, padding: 2 },
+  sourceOption: { flex: 1, minHeight: 26, alignItems: "center", justifyContent: "center", borderRadius: 4 },
   sourceOptionActive: { backgroundColor: "#22c55e" },
-  sourceOptionText: { color: "#8b8b91", fontSize: 12, fontWeight: "900" },
+  sourceOptionText: { color: "#8b8b91", fontSize: 10, fontWeight: "900" },
   sourceOptionTextActive: { color: "#041006" },
   stickyTableHeader: { borderColor: "#29292d", borderWidth: 1, borderBottomWidth: 0, borderTopLeftRadius: 8, borderTopRightRadius: 8, overflow: "hidden", backgroundColor: "#09090b", zIndex: 10, elevation: 10 },
   tableScroll: { flex: 1 },
