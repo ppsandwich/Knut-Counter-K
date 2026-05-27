@@ -1,7 +1,6 @@
 import postgres from "postgres";
 import { getOptionalUser } from "./auth";
 import { convertPopularModelsPayload } from "./currency";
-import { refreshModelData } from "./pricingRefresh";
 
 type ApiRequest = {
   method?: string;
@@ -336,6 +335,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       if (!user) {
         return res.status(401).json({ error: "Sign in to refresh model data." });
       }
+      const { refreshModelData } = await import("./pricingRefresh");
       await refreshModelData();
     }
 
