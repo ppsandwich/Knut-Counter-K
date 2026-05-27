@@ -1254,6 +1254,7 @@ export async function insertPricingSnapshots(snapshots: NormalisedPrice[]) {
       cachedInputPricePer1mTokensUsd: snapshot.cachedInputPricePer1mTokensUsd == null ? null : String(snapshot.cachedInputPricePer1mTokensUsd),
       reasoningPricePer1mTokensUsd: snapshot.reasoningPricePer1mTokensUsd == null ? null : String(snapshot.reasoningPricePer1mTokensUsd),
       contextWindow: snapshot.contextWindow ?? null,
+      weeklyTokens: snapshot.weeklyTokens == null ? null : String(snapshot.weeklyTokens),
       sourceName: snapshot.sourceName,
       sourceConfidence: snapshot.sourceConfidence,
       sourcePriority: snapshot.sourcePriority,

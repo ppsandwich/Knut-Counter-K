@@ -9,6 +9,7 @@ export type RawPrice = {
   cachedInputPricePer1mTokensUsd?: number;
   reasoningPricePer1mTokensUsd?: number;
   contextWindow?: number;
+  weeklyTokens?: number;
   sourceName: string;
   sourcePriority: number;
   sourceConfidence?: "official" | "public_catalogue" | "inferred" | "manual_override" | "unknown";
@@ -23,6 +24,7 @@ export type NormalisedPrice = {
   cachedInputPricePer1mTokensUsd?: number;
   reasoningPricePer1mTokensUsd?: number;
   contextWindow?: number;
+  weeklyTokens?: number;
   sourceName: string;
   sourceConfidence: "official" | "public_catalogue" | "inferred" | "manual_override" | "unknown";
   sourcePriority: number;
@@ -65,6 +67,7 @@ export function normalisePricing(raw: RawPrice[], fetchedAt = new Date().toISOSt
       cachedInputPricePer1mTokensUsd: toFiniteNumber(item.cachedInputPricePer1mTokensUsd),
       reasoningPricePer1mTokensUsd: toFiniteNumber(item.reasoningPricePer1mTokensUsd),
       contextWindow: toPositiveInteger(item.contextWindow),
+      weeklyTokens: toFiniteNumber(item.weeklyTokens),
       sourceName: item.sourceName,
       sourceConfidence: item.sourceConfidence ?? "public_catalogue",
       sourcePriority: item.sourcePriority,

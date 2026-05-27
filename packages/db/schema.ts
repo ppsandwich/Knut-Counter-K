@@ -106,6 +106,7 @@ export const pricingSnapshots = pgTable("pricing_snapshots", {
   audioPriceUnit: text("audio_price_unit"),
   audioPriceUsd: decimal("audio_price_usd"),
   contextWindow: integer("context_window"),
+  weeklyTokens: decimal("weekly_tokens"),
   sourceName: text("source_name").notNull(),
   sourceConfidence: text("source_confidence").notNull(),
   sourcePriority: integer("source_priority").notNull(),

@@ -26,20 +26,13 @@ type ModelRow = {
   source_model_slug: string | null;
   input_price_per_1m_tokens_usd: string | null;
   output_price_per_1m_tokens_usd: string | null;
+  weekly_tokens: string | null;
   artificial_analysis_intelligence_index: string | null;
   artificial_analysis_coding_index: string | null;
   median_output_tokens_per_second: string | null;
   model_creator_name: string | null;
   evaluations: Record<string, unknown> | null;
   pricing: Record<string, unknown> | null;
-};
-
-type PriceRow = {
-  provider_id: string;
-  model_id: string;
-  model_display_name: string;
-  input_price_per_1m_tokens_usd: string | null;
-  output_price_per_1m_tokens_usd: string | null;
 };
 
 type ModelSource = "aa" | "blm";
@@ -271,19 +264,21 @@ async function latestStoredModelFetchedAt() {
 
 async function loadModelsFromSnapshots() {
   const rows = await getSql()<ModelRow[]>`
-    with latest_prices as (
-      select distinct on (provider_id, model_id)
+    with latest_openrouter_prices as (
+      select distinct on (model_id)
         provider_id,
         model_id,
         model_display_name,
         input_price_per_1m_tokens_usd,
         output_price_per_1m_tokens_usd,
+        weekly_tokens,
         source_priority,
         fetched_at
       from pricing_snapshots
-      where input_price_per_1m_tokens_usd is not null
-        or output_price_per_1m_tokens_usd is not null
-      order by provider_id, model_id, source_priority asc, fetched_at desc
+      where provider_id = 'openrouter'
+        and (input_price_per_1m_tokens_usd is not null
+          or output_price_per_1m_tokens_usd is not null)
+      order by model_id, fetched_at desc
     ),
     latest_benchmarks as (
       select distinct on (provider_id, model_id)
@@ -307,6 +302,7 @@ async function loadModelsFromSnapshots() {
       p.model_display_name,
       p.input_price_per_1m_tokens_usd,
       p.output_price_per_1m_tokens_usd,
+      p.weekly_tokens,
       b.artificial_analysis_intelligence_index,
       b.artificial_analysis_coding_index,
       b.median_output_tokens_per_second,
@@ -314,14 +310,16 @@ async function loadModelsFromSnapshots() {
       b.source_model_slug,
       b.evaluations,
       b.pricing
-    from latest_prices p
+    from latest_openrouter_prices p
     left join latest_benchmarks b
       on b.model_id = p.model_id
       or lower(b.model_display_name) = lower(p.model_display_name)
+      or lower(p.model_id) like '%' || lower(b.model_id) || '%'
     order by
+      p.weekly_tokens desc nulls last,
       b.artificial_analysis_intelligence_index desc nulls last,
-      (coalesce(p.input_price_per_1m_tokens_usd, 0) + coalesce(p.output_price_per_1m_tokens_usd, 0)) asc
-    limit 50
+      p.model_id asc
+    limit 100
   `;
 
   const candidates = rows.map((row) => {
@@ -331,6 +329,7 @@ async function loadModelsFromSnapshots() {
       row,
       inputCost,
       outputCost,
+      weeklyTokens: numberOrNull(row.weekly_tokens) ?? 0,
       combinedCost: (inputCost ?? 0) + (outputCost ?? 0),
       speed: numberOrNull(row.median_output_tokens_per_second)
     };
@@ -346,8 +345,8 @@ async function loadModelsFromSnapshots() {
     rank: index + 1,
     modelId: candidate.row.model_id,
     modelName: candidate.row.model_display_name,
-    provider: candidate.row.model_creator_name ?? providerName(candidate.row.provider_id),
-    weeklyTokens: 0,
+    provider: candidate.row.model_creator_name ?? providerName(candidate.row.model_id.includes("/") ? candidate.row.model_id.split("/")[0] : candidate.row.provider_id),
+    weeklyTokens: candidate.weeklyTokens,
     inputCostPer1mUsd: candidate.inputCost,
     outputCostPer1mUsd: candidate.outputCost,
     ageDays: modelAgeDays({
@@ -364,43 +363,26 @@ async function loadModelsFromSnapshots() {
   }));
 }
 
-async function latestAaPricesByModelKey() {
-  const rows = await getSql()<PriceRow[]>`
-    select distinct on (provider_id, model_id)
-      provider_id,
-      model_id,
-      model_display_name,
-      input_price_per_1m_tokens_usd,
-      output_price_per_1m_tokens_usd
-    from pricing_snapshots
-    where input_price_per_1m_tokens_usd is not null
-      or output_price_per_1m_tokens_usd is not null
-    order by provider_id, model_id, source_priority asc, fetched_at desc
-  `;
-  const prices = new Map<string, PriceRow>();
-
+async function loadBenchLmModels() {
+  const [baseModels, payload] = await Promise.all([
+    loadModelsFromSnapshots(),
+    fetchJsonWithTimeout<BenchLmPayload>("https://benchlm.ai/api/data/leaderboard?limit=200")
+  ]);
+  const rows = payload.models ?? [];
+  const benchLmByModelKey = new Map<string, BenchLmModel>();
   for (const row of rows) {
-    for (const key of modelKeys(row.model_id, row.model_display_name)) {
-      if (!prices.has(key)) prices.set(key, row);
+    for (const key of modelKeys(row.model)) {
+      if (!benchLmByModelKey.has(key)) benchLmByModelKey.set(key, row);
     }
   }
 
-  return prices;
-}
-
-async function loadBenchLmModels() {
-  const [payload, pricesByModelKey] = await Promise.all([
-    fetchJsonWithTimeout<BenchLmPayload>("https://benchlm.ai/api/data/leaderboard?limit=50"),
-    latestAaPricesByModelKey()
-  ]);
-  const rows = payload.models ?? [];
-  const candidates = rows.map((row, index) => {
-    const price = modelKeys(row.model).map((key) => pricesByModelKey.get(key)).find(Boolean);
-    const inputCost = numberOrNull(price?.input_price_per_1m_tokens_usd);
-    const outputCost = numberOrNull(price?.output_price_per_1m_tokens_usd);
+  const candidates = baseModels.map((model) => {
+    const row = modelKeys(model.modelId, model.modelName).map((key) => benchLmByModelKey.get(key)).find(Boolean);
+    const inputCost = model.inputCostPer1mUsd;
+    const outputCost = model.outputCostPer1mUsd;
     return {
       row,
-      rank: row.rank ?? index + 1,
+      model,
       inputCost,
       outputCost,
       combinedCost: (inputCost ?? 0) + (outputCost ?? 0)
@@ -411,20 +393,20 @@ async function loadBenchLmModels() {
   const maxCost = costs.length ? Math.max(...costs) : 0;
 
   return candidates.map((candidate) => ({
-    rank: candidate.rank,
-    modelId: candidate.row.model ?? `benchlm-${candidate.rank}`,
-    modelName: candidate.row.model ?? "Unknown model",
-    provider: candidate.row.creator ?? "Unknown",
-    weeklyTokens: 0,
+    rank: candidate.model.rank,
+    modelId: candidate.model.modelId,
+    modelName: candidate.model.modelName,
+    provider: candidate.row?.creator ?? candidate.model.provider,
+    weeklyTokens: candidate.model.weeklyTokens,
     inputCostPer1mUsd: candidate.inputCost,
     outputCostPer1mUsd: candidate.outputCost,
     ageDays: modelAgeDays({
-      modelId: candidate.row.model,
-      modelName: candidate.row.model,
+      modelId: candidate.model.modelId,
+      modelName: candidate.model.modelName,
       metadata: [candidate.row]
     }),
-    artificialAnalysisIntelligenceIndex: numberOrNull(candidate.row.overallScore),
-    artificialAnalysisCodingIndex: numberOrNull(candidate.row.categoryScores?.coding),
+    artificialAnalysisIntelligenceIndex: numberOrNull(candidate.row?.overallScore),
+    artificialAnalysisCodingIndex: numberOrNull(candidate.row?.categoryScores?.coding),
     artificialAnalysisAgenticIndex: null,
     speedScore: null,
     priceScore: scoreFromRange(candidate.combinedCost, minCost, maxCost, true)
@@ -454,9 +436,10 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       models,
       refreshedAt,
       sources: benchmarkSource === "blm"
-        ? ["BenchLM leaderboard", "Artificial Analysis pricing snapshots"]
+        ? ["OpenRouter weekly usage", "BenchLM leaderboard", "OpenRouter pricing snapshots"]
         : [
-            "Pricing snapshots",
+            "OpenRouter weekly usage",
+            "OpenRouter pricing snapshots",
             "Artificial Analysis benchmark snapshots"
           ],
       benchmarkSource

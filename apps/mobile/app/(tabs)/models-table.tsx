@@ -202,7 +202,7 @@ export default function ModelsTableScreen() {
     if (nextSource === benchmarkSource) return;
     setPayload(null);
     setBenchmarkSource(nextSource);
-    setSortKey(nextSource === "blm" ? "intelligence" : "popularity");
+    setSortKey("popularity");
     setSortDirection("desc");
   }
 
@@ -214,7 +214,7 @@ export default function ModelsTableScreen() {
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>Models</Text>
-            <Text style={styles.subtitle}>Scores from {sourceName}</Text>
+            <Text style={styles.subtitle}>Top 100 by OpenRouter usage. Scores from {sourceName}</Text>
           </View>
           <View style={styles.headerActions}>
             <Text style={styles.lastUpdated}>{formatLastUpdated(payload?.refreshedAt)}</Text>
@@ -255,7 +255,7 @@ export default function ModelsTableScreen() {
           </View>
 
           <Text style={styles.footnote}>
-            Sources: {payload?.sources.join("; ") ?? sourceName}. Metric colors are normalized within this top-50 list.
+            Sources: {payload?.sources.join("; ") ?? sourceName}. Metric colors are normalized within this top-100 list.
           </Text>
         </ScrollView>
       </View>
