@@ -7,6 +7,13 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@knut/db':
+        specifier: workspace:*
+        version: link:packages/db
+      '@knut/pricing':
+        specifier: workspace:*
+        version: link:packages/pricing
     devDependencies:
       '@types/node':
         specifier: ^25.9.1

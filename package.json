@@ -13,6 +13,10 @@
     "web": "pnpm --filter @knut/mobile web",
     "typecheck": "pnpm -r typecheck"
   },
+  "dependencies": {
+    "@knut/db": "workspace:*",
+    "@knut/pricing": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^25.9.1",
     "@types/react": "^19.0.0",
