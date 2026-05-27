@@ -21,6 +21,7 @@ type ArtificialAnalysisModel = {
   artificial_analysis_output_tokens_used?: number;
   output_tokens_used?: number;
   token_efficiency?: number;
+  release_date?: string | null;
 };
 
 type IntelligenceIndexTokenCounts = {
@@ -60,6 +61,7 @@ export type ArtificialAnalysisBenchmark = {
   medianTimeToFirstAnswerTokenSeconds?: number;
   artificialAnalysisOutputTokensUsed?: number;
   artificialAnalysisTokenEfficiency?: number;
+  releaseDate?: string | null;
   sourceName: "Artificial Analysis";
   sourceConfidence: "public_catalogue";
   fetchedAt: string;
@@ -414,7 +416,8 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
           reasoning_tokens: publicTokenCounts.reasoningTokens
         }
       }),
-      ...(artificialAnalysisTokenEfficiency == null ? {} : { artificial_analysis_token_efficiency: artificialAnalysisTokenEfficiency })
+      ...(artificialAnalysisTokenEfficiency == null ? {} : { artificial_analysis_token_efficiency: artificialAnalysisTokenEfficiency }),
+      ...(model.release_date == null ? {} : { release_date: model.release_date })
     };
 
     benchmarks.push({
@@ -443,6 +446,7 @@ export async function fetchArtificialAnalysisPricingAndBenchmarks(
       medianTimeToFirstAnswerTokenSeconds: finiteNumber(model.median_time_to_first_answer_token),
       artificialAnalysisOutputTokensUsed,
       artificialAnalysisTokenEfficiency,
+      releaseDate: model.release_date ?? null,
       sourceName: "Artificial Analysis",
       sourceConfidence: "public_catalogue",
       fetchedAt

@@ -93,7 +93,14 @@ function numberOrNull(value: unknown) {
 
 function dateFromUnknown(value: unknown): Date | null {
   if (typeof value === "string" && value.trim()) {
-    const parsed = new Date(value);
+    const trimmed = value.trim();
+    const monthYear = trimmed.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(20\d{2})$/i);
+    const yearMonth = trimmed.match(/^(20\d{2})-(0[1-9]|1[0-2])$/);
+    const parsed = monthYear
+      ? new Date(`${monthYear[1]} 1 ${monthYear[2]}`)
+      : yearMonth
+        ? new Date(`${yearMonth[1]}-${yearMonth[2]}-01`)
+        : new Date(trimmed);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
