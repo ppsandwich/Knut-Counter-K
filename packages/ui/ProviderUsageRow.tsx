@@ -1,6 +1,6 @@
-import { forwardRef } from "react";
+import { forwardRef, useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
 import { confidenceLabels, type ProviderUsageSummary } from "@knut/shared";
 import { Sparkline } from "./Sparkline";
 import { StatusBadge } from "./StatusBadge";
@@ -14,13 +14,34 @@ const lineColors = {
   stale: colors.muted
 };
 
-export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummary; onPress?: () => void; index?: number }>(
-  function ProviderUsageRow({ provider, onPress, index = 0 }, ref) {
+export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummary; onPress?: () => void; index?: number; refreshing?: boolean }>(
+  function ProviderUsageRow({ provider, onPress, index = 0, refreshing = false }, ref) {
     const { style: animStyle } = useStaggeredAnimation(index, { staggerDelay: 60, baseDelay: 200 });
     const { style: pressStyle, onPressIn, onPressOut } = usePressScale(0.98);
 
+    // Subtle opacity pulse when refreshing
+    const refreshOpacity = useSharedValue(1);
+    const refreshStyle = useAnimatedStyle(() => ({
+      opacity: refreshOpacity.value,
+    }));
+
+    useEffect(() => {
+      if (refreshing) {
+        refreshOpacity.value = withRepeat(
+          withSequence(
+            withTiming(0.7, { duration: 500, easing: Easing.inOut(Easing.quad) }),
+            withTiming(1, { duration: 500, easing: Easing.inOut(Easing.quad) })
+          ),
+          -1,
+          true
+        );
+      } else {
+        refreshOpacity.value = withTiming(1, { duration: 200 });
+      }
+    }, [refreshing, refreshOpacity]);
+
     return (
-      <Animated.View style={[animStyle, pressStyle]}>
+      <Animated.View style={[animStyle, pressStyle, refreshStyle]}>
         <Pressable
           ref={ref}
           onPress={onPress}

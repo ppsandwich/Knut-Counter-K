@@ -1,19 +1,44 @@
+import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
 import { formatCompactNumber, formatCurrency, type DashboardSummary } from "@knut/shared";
 import { colors } from "./theme";
-import { useSlideUp, useProgressAnimation, useAnimatedNumber } from "./animations";
+import { useSlideUp, useProgressAnimation } from "./animations";
 
-export function MonthlyDamageCard({ summary }: { summary: DashboardSummary }) {
+export function MonthlyDamageCard({ summary, refreshing = false }: { summary: DashboardSummary; refreshing?: boolean }) {
   const progress = summary.monthlyBudget > 0 ? Math.min(summary.monthlySpend / summary.monthlyBudget, 1) : 0;
   const currency = summary.currency ?? "USD";
 
   const { style: cardStyle } = useSlideUp({ delay: 100, distance: 20 });
   const { style: progressStyle } = useProgressAnimation(progress, { delay: 500, duration: 800 });
 
+  // Subtle opacity pulse when refreshing
+  const refreshOpacity = useSharedValue(1);
+  const refreshStyle = useAnimatedStyle(() => ({
+    opacity: refreshOpacity.value,
+  }));
+
+  useEffect(() => {
+    if (refreshing) {
+      refreshOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.6, { duration: 600, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 600, easing: Easing.inOut(Easing.quad) })
+        ),
+        -1,
+        true
+      );
+    } else {
+      refreshOpacity.value = withTiming(1, { duration: 200 });
+    }
+  }, [refreshing, refreshOpacity]);
+
   return (
-    <Animated.View style={[styles.card, cardStyle]}>
-      <Text style={styles.label}>This month's AI usage</Text>
+    <Animated.View style={[styles.card, cardStyle, refreshStyle]}>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>This month's AI usage</Text>
+        {refreshing ? <Text style={styles.syncing}>syncing</Text> : null}
+      </View>
       <View style={styles.moneyRow}>
         <Text style={styles.amount}>{formatCurrency(summary.monthlySpend, currency)}</Text>
         <Text style={styles.projected}>{formatCurrency(summary.projectedSpend, currency)} projected</Text>
@@ -31,7 +56,9 @@ export function MonthlyDamageCard({ summary }: { summary: DashboardSummary }) {
 
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.panelAlt, borderColor: colors.border, borderWidth: 1, borderRadius: 8, padding: 14 },
+  labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   label: { color: colors.muted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  syncing: { color: colors.green, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   moneyRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 8 },
   amount: { color: colors.text, fontSize: 38, fontWeight: "900" },
   projected: { color: colors.muted, fontSize: 12, fontWeight: "800", paddingBottom: 7 },

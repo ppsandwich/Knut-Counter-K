@@ -101,7 +101,7 @@ export default function DashboardScreen() {
         </FadeInView>
         {refreshMessage ? <SlideUpView delay={50}><Text style={styles.refreshMessage}>{refreshMessage}</Text></SlideUpView> : null}
 
-        <MonthlyDamageCard summary={summary} />
+        <MonthlyDamageCard summary={summary} refreshing={dashboard.loading} />
         <ModelPicksCard picks={dashboard.data?.modelPicks ?? null} loading={signedIn && dashboard.loading} currency={currency} />
 
         <SlideUpView delay={200}>
@@ -117,11 +117,7 @@ export default function DashboardScreen() {
               <Text style={styles.emptyBody}>Your API keys, manual plans, budgets, and imports will follow your account.</Text>
             </View>
           </AnimatedCard>
-        ) : dashboard.loading ? (
-          <AnimatedCard index={3}>
-            <LoadingCard />
-          </AnimatedCard>
-        ) : dashboard.error ? (
+        ) : dashboard.error && !dashboard.data ? (
           <AnimatedCard index={3}>
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>Dashboard could not load.</Text>
@@ -130,7 +126,7 @@ export default function DashboardScreen() {
           </AnimatedCard>
         ) : providerRows.length ? (
           providerRows.map((provider, index) => (
-            <ProviderUsageRow key={provider.providerId} provider={provider} index={index} />
+            <ProviderUsageRow key={provider.providerId} provider={provider} index={index} refreshing={dashboard.loading} />
           ))
         ) : (
           <AnimatedCard index={3}>
