@@ -30,61 +30,76 @@ type DashboardState = {
   clear: () => void;
 };
 
-export const useDashboardStore = create<DashboardState>()((set, get) => ({
-  data: null,
-  lastFetchedAt: null,
-  isRefreshing: false,
-  error: null,
-
-  loadFromCache: async () => {
-    try {
-      const cached = await AsyncStorage.getItem(STORAGE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        set({ data: parsed.data, lastFetchedAt: parsed.lastFetchedAt });
-      }
-    } catch {
-      // Ignore cache errors
+// Eagerly load cache on module import
+const cachedDataPromise = AsyncStorage.getItem(STORAGE_KEY)
+  .then(cached => {
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return { data: parsed.data, lastFetchedAt: parsed.lastFetchedAt };
     }
-  },
+    return null;
+  })
+  .catch(() => null);
 
-  refresh: async () => {
-    const state = get();
-    if (state.isRefreshing) return;
+export const useDashboardStore = create<DashboardState>()((set, get) => {
+  // Try to set cached data immediately when store is first used
+  cachedDataPromise.then(cached => {
+    if (cached && !get().data) {
+      set(cached);
+    }
+  });
 
-    set({ isRefreshing: true, error: null });
+  return {
+    data: null,
+    lastFetchedAt: null,
+    isRefreshing: false,
+    error: null,
 
-    try {
-      const payload = await fetchDashboard();
-      const lastFetchedAt = new Date().toISOString();
-      
-      // Save to cache
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ data: payload, lastFetchedAt }));
-      
+    loadFromCache: async () => {
+      const cached = await cachedDataPromise;
+      if (cached && !get().data) {
+        set(cached);
+      }
+    },
+
+    refresh: async () => {
+      const state = get();
+      if (state.isRefreshing) return;
+
+      set({ isRefreshing: true, error: null });
+
+      try {
+        const payload = await fetchDashboard();
+        const lastFetchedAt = new Date().toISOString();
+        
+        // Save to cache
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ data: payload, lastFetchedAt }));
+        
+        set({
+          data: payload,
+          lastFetchedAt,
+          isRefreshing: false,
+          error: null,
+        });
+      } catch (err) {
+        set({
+          isRefreshing: false,
+          error: err instanceof Error ? err.message : "Dashboard could not load.",
+        });
+      }
+    },
+
+    clear: async () => {
+      await AsyncStorage.removeItem(STORAGE_KEY);
       set({
-        data: payload,
-        lastFetchedAt,
+        data: null,
+        lastFetchedAt: null,
         isRefreshing: false,
         error: null,
       });
-    } catch (err) {
-      set({
-        isRefreshing: false,
-        error: err instanceof Error ? err.message : "Dashboard could not load.",
-      });
-    }
-  },
-
-  clear: async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    set({
-      data: null,
-      lastFetchedAt: null,
-      isRefreshing: false,
-      error: null,
-    });
-  },
-}));
+    },
+  };
+});
 
 /**
  * Check if cached data is stale (older than 5 minutes)

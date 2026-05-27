@@ -32,7 +32,6 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
 export function useDashboardData() {
   const auth = useAuthSession();
   const store = useDashboardStore();
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!auth.user) {
@@ -40,10 +39,12 @@ export function useDashboardData() {
       return;
     }
 
-    // If cache is empty or stale, refresh in background
+    // Load cached data first
+    store.loadFromCache();
+
+    // If cache is empty or stale, refresh in background (non-blocking)
     if (!store.data || isCacheStale(store.lastFetchedAt)) {
-      setLoading(true);
-      store.refresh().finally(() => setLoading(false));
+      store.refresh();
     }
   }, [auth.user?.id]);
 
@@ -57,11 +58,8 @@ export function useDashboardData() {
     data: store.data,
     providerRows,
     error: store.error,
-    loading: loading || store.isRefreshing,
-    refresh: async () => {
-      setLoading(true);
-      await store.refresh();
-      setLoading(false);
-    }
+    // Only show loading when there's no cached data at all
+    loading: !store.data && store.isRefreshing,
+    refresh: store.refresh
   };
 }

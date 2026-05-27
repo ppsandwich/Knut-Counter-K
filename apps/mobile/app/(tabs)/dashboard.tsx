@@ -89,11 +89,11 @@ export default function DashboardScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Knut Counter</Text>
-              <Text style={styles.subtitle}>Today</Text>
+              <Text style={styles.subtitle}>Today{dashboard.loading ? " · syncing..." : ""}</Text>
             </View>
             <View style={styles.headerActions}>
               <Pressable disabled={!signedIn || refreshing} onPress={refreshUsage} style={({ pressed }) => [styles.refreshButton, (!signedIn || refreshing) && styles.disabled, pressed && styles.pressed]}>
-                <Text style={styles.refreshButtonText}>{refreshing ? "Refreshing" : "Refresh"}</Text>
+                <Text style={styles.refreshButtonText}>{refreshing ? "Syncing..." : "Refresh"}</Text>
               </Pressable>
               <Text style={styles.currency}>{currency}</Text>
             </View>
