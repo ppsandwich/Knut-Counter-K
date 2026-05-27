@@ -31,6 +31,14 @@ type ModelRow = {
   model_creator_name: string | null;
 };
 
+type PriceRow = {
+  provider_id: string;
+  model_id: string;
+  model_display_name: string;
+  input_price_per_1m_tokens_usd: string | null;
+  output_price_per_1m_tokens_usd: string | null;
+};
+
 type ModelSource = "aa" | "blm";
 type BenchLmModel = {
   rank?: number;
@@ -94,6 +102,26 @@ function providerName(providerId: string) {
     .split(/[-_]/)
     .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : part)
     .join(" ");
+}
+
+function modelKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^~/, "")
+    .replace(/:.+$/, "")
+    .replace(/^(openai|anthropic|google|x-ai|xai|deepseek|mistralai|mistral|cohere|groq|perplexity|openrouter|qwen|qwenlm)[/:_-]+/, "")
+    .replace(/(?:^|[-_])20\d{6,8}$/, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function modelMetricKey(value: string) {
+  return modelKey(value)
+    .replace(/(?:nonreasoning|reasoning|thinking|adaptive|max|xhigh|high|medium|low|minimal|preview|fast|free)$/g, "")
+    .replace(/(?:nonreasoning|reasoning|thinking|adaptive|max|xhigh|high|medium|low|minimal|preview|fast|free)/g, "");
+}
+
+function modelKeys(...values: Array<string | null | undefined>) {
+  return [...new Set(values.flatMap((value) => value ? [modelKey(value), modelMetricKey(value)] : []).filter(Boolean))];
 }
 
 function sourceFromRequest(req: ApiRequest): ModelSource {
@@ -217,12 +245,40 @@ async function loadModelsFromSnapshots() {
   }));
 }
 
+async function latestAaPricesByModelKey() {
+  const rows = await getSql()<PriceRow[]>`
+    select distinct on (provider_id, model_id)
+      provider_id,
+      model_id,
+      model_display_name,
+      input_price_per_1m_tokens_usd,
+      output_price_per_1m_tokens_usd
+    from pricing_snapshots
+    where input_price_per_1m_tokens_usd is not null
+      or output_price_per_1m_tokens_usd is not null
+    order by provider_id, model_id, source_priority asc, fetched_at desc
+  `;
+  const prices = new Map<string, PriceRow>();
+
+  for (const row of rows) {
+    for (const key of modelKeys(row.model_id, row.model_display_name)) {
+      if (!prices.has(key)) prices.set(key, row);
+    }
+  }
+
+  return prices;
+}
+
 async function loadBenchLmModels() {
-  const payload = await fetchJsonWithTimeout<BenchLmPayload>("https://benchlm.ai/api/data/leaderboard?limit=50");
+  const [payload, pricesByModelKey] = await Promise.all([
+    fetchJsonWithTimeout<BenchLmPayload>("https://benchlm.ai/api/data/leaderboard?limit=50"),
+    latestAaPricesByModelKey()
+  ]);
   const rows = payload.models ?? [];
   const candidates = rows.map((row, index) => {
-    const inputCost = numberOrNull(row.inputPrice);
-    const outputCost = numberOrNull(row.outputPrice);
+    const price = modelKeys(row.model).map((key) => pricesByModelKey.get(key)).find(Boolean);
+    const inputCost = numberOrNull(price?.input_price_per_1m_tokens_usd);
+    const outputCost = numberOrNull(price?.output_price_per_1m_tokens_usd);
     return {
       row,
       rank: row.rank ?? index + 1,
@@ -268,7 +324,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       models,
       refreshedAt: new Date().toISOString(),
       sources: benchmarkSource === "blm"
-        ? ["BenchLM leaderboard"]
+        ? ["BenchLM leaderboard", "Artificial Analysis pricing snapshots"]
         : [
             "Pricing snapshots",
             "Artificial Analysis benchmark snapshots"
