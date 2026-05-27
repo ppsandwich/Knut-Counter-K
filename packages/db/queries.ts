@@ -1342,6 +1342,7 @@ export async function getDashboardModelPicks(): Promise<DashboardModelPicks> {
         fetchedAt: pricingSnapshots.fetchedAt
       })
       .from(pricingSnapshots)
+      .where(eq(pricingSnapshots.providerId, "openrouter"))
       .orderBy(asc(pricingSnapshots.sourcePriority), desc(pricingSnapshots.fetchedAt))
       .limit(10_000),
     getDb()
