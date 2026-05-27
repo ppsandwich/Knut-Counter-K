@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@knut/db": "workspace:*",
-    "@knut/pricing": "workspace:*"
+    "@knut/pricing": "workspace:*",
+    "react-native-gesture-handler": "^2.31.2",
+    "react-native-reanimated": "^4.3.1"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

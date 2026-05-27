@@ -1,7 +1,8 @@
 import { RefreshControl, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, Sparkline, SyncStatusStrip } from "@knut/ui";
+import Animated from "react-native-reanimated";
+import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, Sparkline, SyncStatusStrip, FadeInView, SlideUpView, AnimatedCard, usePulse } from "@knut/ui";
 import { formatCurrency, type AccountAlert, type DashboardModelPick, type PriceIndexSummary } from "@knut/shared";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { fetchAlerts, syncProviders } from "../../lib/accountApi";
@@ -84,50 +85,60 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshUsage} tintColor="#22c55e" />}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Knut Counter</Text>
-            <Text style={styles.subtitle}>Today</Text>
+        <FadeInView delay={0}>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>Knut Counter</Text>
+              <Text style={styles.subtitle}>Today</Text>
+            </View>
+            <View style={styles.headerActions}>
+              <Pressable disabled={!signedIn || refreshing} onPress={refreshUsage} style={({ pressed }) => [styles.refreshButton, (!signedIn || refreshing) && styles.disabled, pressed && styles.pressed]}>
+                <Text style={styles.refreshButtonText}>{refreshing ? "Refreshing" : "Refresh"}</Text>
+              </Pressable>
+              <Text style={styles.currency}>{currency}</Text>
+            </View>
           </View>
-          <View style={styles.headerActions}>
-            <Pressable disabled={!signedIn || refreshing} onPress={refreshUsage} style={({ pressed }) => [styles.refreshButton, (!signedIn || refreshing) && styles.disabled, pressed && styles.pressed]}>
-              <Text style={styles.refreshButtonText}>{refreshing ? "Refreshing" : "Refresh"}</Text>
-            </Pressable>
-            <Text style={styles.currency}>{currency}</Text>
-          </View>
-        </View>
-        {refreshMessage ? <Text style={styles.refreshMessage}>{refreshMessage}</Text> : null}
+        </FadeInView>
+        {refreshMessage ? <SlideUpView delay={50}><Text style={styles.refreshMessage}>{refreshMessage}</Text></SlideUpView> : null}
 
         <MonthlyDamageCard summary={summary} />
         <ModelPicksCard picks={dashboard.data?.modelPicks ?? null} loading={signedIn && dashboard.loading} currency={currency} />
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Providers</Text>
-          <Text style={styles.sectionMeta}>{providerRows.length ? "live accounts" : "setup"}</Text>
-        </View>
+        <SlideUpView delay={200}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Providers</Text>
+            <Text style={styles.sectionMeta}>{providerRows.length ? "live accounts" : "setup"}</Text>
+          </View>
+        </SlideUpView>
         {!signedIn ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Sign in to see your accounts.</Text>
-            <Text style={styles.emptyBody}>Your API keys, manual plans, budgets, and imports will follow your account.</Text>
-          </View>
+          <AnimatedCard index={3}>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>Sign in to see your accounts.</Text>
+              <Text style={styles.emptyBody}>Your API keys, manual plans, budgets, and imports will follow your account.</Text>
+            </View>
+          </AnimatedCard>
         ) : dashboard.loading ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Loading providers...</Text>
-          </View>
+          <AnimatedCard index={3}>
+            <LoadingCard />
+          </AnimatedCard>
         ) : dashboard.error ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Dashboard could not load.</Text>
-            <Text style={styles.emptyBody}>{dashboard.error}</Text>
-          </View>
+          <AnimatedCard index={3}>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>Dashboard could not load.</Text>
+              <Text style={styles.emptyBody}>{dashboard.error}</Text>
+            </View>
+          </AnimatedCard>
         ) : providerRows.length ? (
-          providerRows.map((provider) => (
-            <ProviderUsageRow key={provider.providerId} provider={provider} />
+          providerRows.map((provider, index) => (
+            <ProviderUsageRow key={provider.providerId} provider={provider} index={index} />
           ))
         ) : (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No providers connected yet.</Text>
-            <Text style={styles.emptyBody}>Add a provider to start tracking where the tokens are escaping.</Text>
-          </View>
+          <AnimatedCard index={3}>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No providers connected yet.</Text>
+              <Text style={styles.emptyBody}>Add a provider to start tracking where the tokens are escaping.</Text>
+            </View>
+          </AnimatedCard>
         )}
 
         <SyncStatusStrip status={signedIn ? `${providerRows.length} provider accounts loaded.` : "Sign in to sync account data."} />
@@ -155,13 +166,25 @@ function ModelPickStrip({ label, pick, loading, currency, isLast }: { label: str
       ? `${pick.provider} / In ${formatModelCost(pick.inputCostPer1mUsd, currency)} / Out ${formatModelCost(pick.outputCostPer1mUsd, currency)} / Intel ${formatModelScore(pick.intelligenceScore)}`
       : "No priced benchmark model found.";
 
+  const { style: loadingStyle } = usePulse({ minOpacity: 0.4, maxOpacity: 1, duration: 1200 });
+
   return (
     <View style={[styles.modelPickStrip, isLast && styles.modelPickStripLast]}>
       <Text style={styles.modelPickLabel}>{label}</Text>
       <View style={styles.modelPickBody}>
-        <Text style={styles.modelPickName} numberOfLines={1}>{pick?.modelName ?? (loading ? "Checking models" : "Unavailable")}</Text>
-        <Text style={styles.modelPickDetail} numberOfLines={1}>{detail}</Text>
+        <Animated.Text style={[styles.modelPickName, loading && loadingStyle]} numberOfLines={1}>{pick?.modelName ?? (loading ? "Checking models" : "Unavailable")}</Animated.Text>
+        <Animated.Text style={[styles.modelPickDetail, loading && loadingStyle]} numberOfLines={1}>{detail}</Animated.Text>
       </View>
+    </View>
+  );
+}
+
+function LoadingCard() {
+  const { style: loadingStyle } = usePulse({ minOpacity: 0.3, maxOpacity: 0.7, duration: 1500 });
+
+  return (
+    <View style={styles.emptyCard}>
+      <Animated.Text style={[styles.emptyTitle, loadingStyle]}>Loading providers...</Animated.Text>
     </View>
   );
 }

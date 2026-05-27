@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { AccountAlert } from "@knut/shared";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated from "react-native-reanimated";
+import { FadeInView, SlideUpView, AnimatedCard, usePulse } from "@knut/ui";
 import { evaluateAlerts, fetchAlerts } from "../../lib/accountApi";
 
 export default function AlertsScreen() {
@@ -44,36 +46,56 @@ export default function AlertsScreen() {
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Alerts</Text>
-          <Pressable disabled={isEvaluating} onPress={runEvaluation} style={[styles.button, isEvaluating && styles.buttonDisabled]}>
-            <Text style={styles.buttonText}>{isEvaluating ? "Checking..." : "Run check"}</Text>
-          </Pressable>
-        </View>
-        {message ? <Text style={styles.message}>{message}</Text> : null}
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorTitle}>Alert check tripped.</Text>
-            <Text style={styles.errorText}>{error}</Text>
+        <FadeInView delay={0}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Alerts</Text>
+            <Pressable disabled={isEvaluating} onPress={runEvaluation} style={[styles.button, isEvaluating && styles.buttonDisabled]}>
+              <Text style={styles.buttonText}>{isEvaluating ? "Checking..." : "Run check"}</Text>
+            </Pressable>
           </View>
+        </FadeInView>
+        {message ? <SlideUpView delay={100}><Text style={styles.message}>{message}</Text></SlideUpView> : null}
+        {error ? (
+          <AnimatedCard index={1}>
+            <View style={styles.errorBox}>
+              <Text style={styles.errorTitle}>Alert check tripped.</Text>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          </AnimatedCard>
         ) : null}
         {!isLoading && !alerts.length ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Everything looks boring. Excellent.</Text>
-            <Text style={styles.body}>No active alerts yet. Run a check after adding usage, budgets, or synced provider data.</Text>
-          </View>
+          <AnimatedCard index={2}>
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>Everything looks boring. Excellent.</Text>
+              <Text style={styles.body}>No active alerts yet. Run a check after adding usage, budgets, or synced provider data.</Text>
+            </View>
+          </AnimatedCard>
         ) : null}
-        {isLoading ? <Text style={styles.loading}>Loading alerts...</Text> : null}
-        {alerts.map((alert) => (
-          <View key={alert.id} style={styles.alert}>
-            <Text style={[styles.severity, alert.severity === "danger" && styles.danger, alert.severity === "info" && styles.info]}>{alert.severity}</Text>
-            <Text style={styles.alertTitle}>{alert.title}</Text>
-            <Text style={styles.body}>{alert.body}</Text>
-            <Text style={styles.meta}>{new Date(alert.createdAt).toLocaleString()}</Text>
-          </View>
+        {isLoading ? (
+          <AnimatedCard index={2}>
+            <LoadingIndicator />
+          </AnimatedCard>
+        ) : null}
+        {alerts.map((alert, index) => (
+          <AnimatedCard key={alert.id} index={index + 2}>
+            <View style={styles.alert}>
+              <Text style={[styles.severity, alert.severity === "danger" && styles.danger, alert.severity === "info" && styles.info]}>{alert.severity}</Text>
+              <Text style={styles.alertTitle}>{alert.title}</Text>
+              <Text style={styles.body}>{alert.body}</Text>
+              <Text style={styles.meta}>{new Date(alert.createdAt).toLocaleString()}</Text>
+            </View>
+          </AnimatedCard>
         ))}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function LoadingIndicator() {
+  const { style: loadingStyle } = usePulse({ minOpacity: 0.3, maxOpacity: 0.7, duration: 1500 });
+
+  return (
+    <Animated.Text style={[styles.loading, loadingStyle]}>Loading alerts...</Animated.Text>
   );
 }
 

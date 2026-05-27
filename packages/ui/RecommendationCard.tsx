@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { confidenceLabels, formatCurrency, type Recommendation, type RecommendationResult } from "@knut/shared";
 import { colors } from "./theme";
+import { useSlideUp, usePulse } from "./animations";
 
 type DashboardRecommendation = Recommendation | RecommendationResult;
 
@@ -29,18 +31,21 @@ function estimatedCostCurrency(recommendation: DashboardRecommendation) {
 export function RecommendationCard({ recommendation, loading, error }: { recommendation: DashboardRecommendation; loading?: boolean; error?: string | null }) {
   const metaText = meta(recommendation);
 
+  const { style: cardStyle } = useSlideUp({ delay: 300, distance: 15 });
+  const { style: loadingStyle } = usePulse({ minOpacity: 0.4, maxOpacity: 1, duration: 1200 });
+
   return (
-    <View style={styles.card}>
+    <Animated.View style={[styles.card, cardStyle]}>
       <View style={styles.row}>
         <Text style={styles.label}>Next best move</Text>
-        <Text style={styles.confidence}>{loading ? "Checking" : confidence(recommendation)}</Text>
+        <Animated.Text style={[styles.confidence, loading && loadingStyle]}>{loading ? "Checking" : confidence(recommendation)}</Animated.Text>
       </View>
       <Text style={styles.title}>{providerName(recommendation)} · {modelName(recommendation)}</Text>
-      <Text style={styles.reason}>{loading ? "Looking at your providers, prices, and cap pressure..." : error ?? recommendation.reason}</Text>
+      <Animated.Text style={[styles.reason, loading && loadingStyle]}>{loading ? "Looking at your providers, prices, and cap pressure..." : error ?? recommendation.reason}</Animated.Text>
       <Text style={styles.cost}>{formatCurrency(recommendation.estimatedCostUsd, estimatedCostCurrency(recommendation))} estimated</Text>
       {metaText ? <Text style={styles.meta}>{metaText}</Text> : null}
       <Text style={styles.attribution}>Benchmarks from Artificial Analysis</Text>
-    </View>
+    </Animated.View>
   );
 }
 

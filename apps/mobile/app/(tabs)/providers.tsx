@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ProviderUsageRow } from "@knut/ui";
+import Animated from "react-native-reanimated";
+import { ProviderUsageRow, FadeInView, SlideUpView, AnimatedCard, usePulse } from "@knut/ui";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { syncProviders } from "../../lib/accountApi";
 import { blurActiveElement } from "../../lib/focus";
@@ -39,46 +40,66 @@ export default function ProvidersScreen() {
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Providers</Text>
-          <Link href="/add-provider" style={styles.add}>Add</Link>
-        </View>
-        <Text style={styles.subtitle}>Connected accounts and manual plans, kept separate so the numbers do not tell fibs.</Text>
-        {message ? <Text style={styles.message}>{message}</Text> : null}
+        <FadeInView delay={0}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Providers</Text>
+            <Link href="/add-provider" style={styles.add}>Add</Link>
+          </View>
+        </FadeInView>
+        <SlideUpView delay={100}>
+          <Text style={styles.subtitle}>Connected accounts and manual plans, kept separate so the numbers do not tell fibs.</Text>
+        </SlideUpView>
+        {message ? <SlideUpView delay={150}><Text style={styles.message}>{message}</Text></SlideUpView> : null}
         {!signedIn ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Sign in first.</Text>
-            <Text style={styles.emptyBody}>Provider accounts are attached to your Knut Counter account.</Text>
-          </View>
+          <AnimatedCard index={2}>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>Sign in first.</Text>
+              <Text style={styles.emptyBody}>Provider accounts are attached to your Knut Counter account.</Text>
+            </View>
+          </AnimatedCard>
         ) : dashboard.loading ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Loading providers...</Text>
-          </View>
+          <AnimatedCard index={2}>
+            <LoadingCard />
+          </AnimatedCard>
         ) : dashboard.error ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Providers could not load.</Text>
-            <Text style={styles.emptyBody}>{dashboard.error}</Text>
-          </View>
+          <AnimatedCard index={2}>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>Providers could not load.</Text>
+              <Text style={styles.emptyBody}>{dashboard.error}</Text>
+            </View>
+          </AnimatedCard>
         ) : providerRows.length ? (
-          providerRows.map((provider) => {
+          providerRows.map((provider, index) => {
             const isRefreshing = refreshingProviderId === provider.providerId;
             return (
-              <View key={provider.providerId} style={styles.providerItem}>
-                <ProviderUsageRow provider={provider} onPress={() => openProvider(provider.providerId)} />
+              <Animated.View key={provider.providerId} style={styles.providerItem}>
+                <ProviderUsageRow provider={provider} onPress={() => openProvider(provider.providerId)} index={index} />
                 <Pressable disabled={Boolean(refreshingProviderId)} onPress={() => refreshProvider(provider.providerId)} style={({ pressed }) => [styles.refreshButton, refreshingProviderId !== null && styles.disabled, pressed && styles.pressed]}>
                   <Text style={styles.refreshButtonText}>{isRefreshing ? "Refreshing..." : "Refresh provider"}</Text>
                 </Pressable>
-              </View>
+              </Animated.View>
             );
           })
         ) : (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No providers connected yet.</Text>
-            <Text style={styles.emptyBody}>Tap Add to attach an API key or create a manual plan.</Text>
-          </View>
+          <AnimatedCard index={2}>
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>No providers connected yet.</Text>
+              <Text style={styles.emptyBody}>Tap Add to attach an API key or create a manual plan.</Text>
+            </View>
+          </AnimatedCard>
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function LoadingCard() {
+  const { style: loadingStyle } = usePulse({ minOpacity: 0.3, maxOpacity: 0.7, duration: 1500 });
+
+  return (
+    <View style={styles.emptyCard}>
+      <Animated.Text style={[styles.emptyTitle, loadingStyle]}>Loading providers...</Animated.Text>
+    </View>
   );
 }
 

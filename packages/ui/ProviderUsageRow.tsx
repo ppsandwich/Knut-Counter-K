@@ -1,9 +1,11 @@
 import { forwardRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { confidenceLabels, type ProviderUsageSummary } from "@knut/shared";
 import { Sparkline } from "./Sparkline";
 import { StatusBadge } from "./StatusBadge";
 import { colors } from "./theme";
+import { useStaggeredAnimation, usePressScale } from "./animations";
 
 const lineColors = {
   healthy: colors.green,
@@ -12,25 +14,36 @@ const lineColors = {
   stale: colors.muted
 };
 
-export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummary; onPress?: () => void }>(
-  function ProviderUsageRow({ provider, onPress }, ref) {
+export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummary; onPress?: () => void; index?: number }>(
+  function ProviderUsageRow({ provider, onPress, index = 0 }, ref) {
+    const { style: animStyle } = useStaggeredAnimation(index, { staggerDelay: 60, baseDelay: 200 });
+    const { style: pressStyle, onPressIn, onPressOut } = usePressScale(0.98);
+
     return (
-      <Pressable ref={ref} onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-        <View style={styles.left}>
-          <Text style={styles.name} numberOfLines={1}>{provider.providerName}</Text>
-          <Text style={styles.account} numberOfLines={1}>{provider.accountDisplayName}</Text>
-          <Text style={styles.confidence} numberOfLines={1}>{confidenceLabels[provider.confidence]}</Text>
-        </View>
-        <View style={styles.spark}>
-          <Sparkline values={provider.sparklineData} color={lineColors[provider.status]} />
-          <Text style={styles.windowMetrics} numberOfLines={1}>{provider.last24hMetric ?? "24h --"} · {provider.last7dMetric ?? "7d --"}</Text>
-        </View>
-        <View style={styles.right}>
-          <Text style={styles.metric} numberOfLines={1}>{provider.primaryMetric}</Text>
-          <StatusBadge label={provider.statusBadge} status={provider.status} />
-          <Text style={styles.reset} numberOfLines={1}>{provider.resetCountdown}</Text>
-        </View>
-      </Pressable>
+      <Animated.View style={[animStyle, pressStyle]}>
+        <Pressable
+          ref={ref}
+          onPress={onPress}
+          onPressIn={onPressIn}
+          onPressOut={onPressOut}
+          style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        >
+          <View style={styles.left}>
+            <Text style={styles.name} numberOfLines={1}>{provider.providerName}</Text>
+            <Text style={styles.account} numberOfLines={1}>{provider.accountDisplayName}</Text>
+            <Text style={styles.confidence} numberOfLines={1}>{confidenceLabels[provider.confidence]}</Text>
+          </View>
+          <View style={styles.spark}>
+            <Sparkline values={provider.sparklineData} color={lineColors[provider.status]} />
+            <Text style={styles.windowMetrics} numberOfLines={1}>{provider.last24hMetric ?? "24h --"} · {provider.last7dMetric ?? "7d --"}</Text>
+          </View>
+          <View style={styles.right}>
+            <Text style={styles.metric} numberOfLines={1}>{provider.primaryMetric}</Text>
+            <StatusBadge label={provider.statusBadge} status={provider.status} />
+            <Text style={styles.reset} numberOfLines={1}>{provider.resetCountdown}</Text>
+          </View>
+        </Pressable>
+      </Animated.View>
     );
   }
 );

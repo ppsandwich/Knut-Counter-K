@@ -1,26 +1,31 @@
 import { StyleSheet, Text, View } from "react-native";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { formatCompactNumber, formatCurrency, type DashboardSummary } from "@knut/shared";
 import { colors } from "./theme";
+import { useSlideUp, useProgressAnimation, useAnimatedNumber } from "./animations";
 
 export function MonthlyDamageCard({ summary }: { summary: DashboardSummary }) {
   const progress = summary.monthlyBudget > 0 ? Math.min(summary.monthlySpend / summary.monthlyBudget, 1) : 0;
   const currency = summary.currency ?? "USD";
 
+  const { style: cardStyle } = useSlideUp({ delay: 100, distance: 20 });
+  const { style: progressStyle } = useProgressAnimation(progress, { delay: 500, duration: 800 });
+
   return (
-    <View style={styles.card}>
+    <Animated.View style={[styles.card, cardStyle]}>
       <Text style={styles.label}>This month's AI usage</Text>
       <View style={styles.moneyRow}>
         <Text style={styles.amount}>{formatCurrency(summary.monthlySpend, currency)}</Text>
         <Text style={styles.projected}>{formatCurrency(summary.projectedSpend, currency)} projected</Text>
       </View>
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        <Animated.View style={[styles.progressFill, progressStyle]} />
       </View>
       <View style={styles.footer}>
         <Text style={styles.status}>{summary.statusText}</Text>
         <Text style={styles.tokens}>{formatCompactNumber(summary.totalTokens)} tokens</Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
