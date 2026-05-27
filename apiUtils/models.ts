@@ -1,6 +1,7 @@
 import postgres from "postgres";
 import { getOptionalUser } from "./auth";
 import { convertPopularModelsPayload } from "./currency";
+import { refreshModelData } from "./pricingRefresh";
 
 type ApiRequest = {
   method?: string;
@@ -161,6 +162,21 @@ async function preferredCurrencyForUser(userId: string) {
   return row?.preferred_currency ?? "USD";
 }
 
+async function latestStoredModelFetchedAt() {
+  const [row] = await getSql()<{
+    refreshed_at: string | null;
+  }[]>`
+    select max(fetched_at) as refreshed_at
+    from (
+      select fetched_at from pricing_snapshots
+      union all
+      select fetched_at from model_benchmark_snapshots
+    ) model_fetches
+  `;
+
+  return row?.refreshed_at ? new Date(row.refreshed_at).toISOString() : new Date().toISOString();
+}
+
 async function loadModelsFromSnapshots() {
   const rows = await getSql()<ModelRow[]>`
     with latest_prices as (
@@ -315,14 +331,20 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
     }
 
     const benchmarkSource = sourceFromRequest(req);
-    const [models, user] = await Promise.all([
-      benchmarkSource === "blm" ? loadBenchLmModels() : loadModelsFromSnapshots(),
-      getOptionalUser(req)
-    ]);
+    const user = await getOptionalUser(req);
+    if (req.method === "POST") {
+      if (!user) {
+        return res.status(401).json({ error: "Sign in to refresh model data." });
+      }
+      await refreshModelData();
+    }
+
+    const models = benchmarkSource === "blm" ? await loadBenchLmModels() : await loadModelsFromSnapshots();
     const currency = user ? await preferredCurrencyForUser(user.id) : "USD";
+    const refreshedAt = await latestStoredModelFetchedAt();
     const payload = {
       models,
-      refreshedAt: new Date().toISOString(),
+      refreshedAt,
       sources: benchmarkSource === "blm"
         ? ["BenchLM leaderboard", "Artificial Analysis pricing snapshots"]
         : [

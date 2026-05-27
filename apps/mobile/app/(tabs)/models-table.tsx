@@ -51,6 +51,16 @@ function formatWeeklyTokens(value: number) {
   return value.toLocaleString();
 }
 
+function formatLastUpdated(value: string | undefined) {
+  if (!value) return "Last updated --/--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Last updated --/--";
+  return `Last updated ${new Intl.DateTimeFormat("en-AU", {
+    day: "2-digit",
+    month: "2-digit"
+  }).format(date)}`;
+}
+
 function rangeFor(models: PopularModel[], getValue: (model: PopularModel) => number | null) {
   const values = models.map(getValue).filter((value): value is number => value != null && Number.isFinite(value));
   if (!values.length) return null;
@@ -207,6 +217,7 @@ export default function ModelsTableScreen() {
             <Text style={styles.subtitle}>Scores from {sourceName}</Text>
           </View>
           <View style={styles.headerActions}>
+            <Text style={styles.lastUpdated}>{formatLastUpdated(payload?.refreshedAt)}</Text>
             <View style={styles.sourceToggle}>
               <Pressable onPress={() => changeBenchmarkSource("aa")} style={[styles.sourceOption, benchmarkSource === "aa" && styles.sourceOptionActive]}>
                 <Text style={[styles.sourceOptionText, benchmarkSource === "aa" && styles.sourceOptionTextActive]}>AA</Text>
@@ -288,6 +299,7 @@ const styles = StyleSheet.create({
   refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12 },
   refreshText: { color: "#050506", fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.6 },
+  lastUpdated: { color: "#8b8b91", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   sourceToggle: { width: 86, flexDirection: "row", backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 6, padding: 2 },
   sourceOption: { flex: 1, minHeight: 26, alignItems: "center", justifyContent: "center", borderRadius: 4 },
   sourceOptionActive: { backgroundColor: "#22c55e" },
