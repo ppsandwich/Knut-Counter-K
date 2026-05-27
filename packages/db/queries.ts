@@ -1,6 +1,6 @@
 import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
-import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, ne, or } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
@@ -1454,6 +1454,160 @@ export async function getDashboardModelPicks(): Promise<DashboardModelPicks> {
     smartest: smartest ? toPick(smartest) : null,
     bestValue: bestValue ? toPick(bestValue) : null,
     cheapest: cheapest ? toPick(cheapest) : null
+  };
+}
+
+export async function getOpenRouterPriceIndex(): Promise<PriceIndexSummary> {
+  const [rows, benchmarkRows] = await Promise.all([
+    getDb()
+      .select({
+        providerId: pricingSnapshots.providerId,
+        modelId: pricingSnapshots.modelId,
+        modelDisplayName: pricingSnapshots.modelDisplayName,
+        inputPricePer1mTokensUsd: pricingSnapshots.inputPricePer1mTokensUsd,
+        outputPricePer1mTokensUsd: pricingSnapshots.outputPricePer1mTokensUsd,
+        sourcePriority: pricingSnapshots.sourcePriority,
+        fetchedAt: pricingSnapshots.fetchedAt
+      })
+      .from(pricingSnapshots)
+      .where(eq(pricingSnapshots.providerId, "openrouter"))
+      .orderBy(desc(pricingSnapshots.fetchedAt))
+      .limit(25_000),
+    getDb()
+      .select({
+        providerId: modelBenchmarkSnapshots.providerId,
+        modelId: modelBenchmarkSnapshots.modelId,
+        modelDisplayName: modelBenchmarkSnapshots.modelDisplayName,
+        artificialAnalysisIntelligenceIndex: modelBenchmarkSnapshots.artificialAnalysisIntelligenceIndex,
+        fetchedAt: modelBenchmarkSnapshots.fetchedAt
+      })
+      .from(modelBenchmarkSnapshots)
+      .orderBy(desc(modelBenchmarkSnapshots.fetchedAt))
+      .limit(10_000)
+  ]);
+
+  const dayCount = 30;
+  const today = dayStart();
+  const days = Array.from({ length: dayCount }, (_, index) => {
+    const date = new Date(today.getTime() - (dayCount - 1 - index) * 86_400_000);
+    return date.toISOString().slice(0, 10);
+  });
+
+  type PriceRow = typeof rows[number];
+  type PricePoint = {
+    price: PriceRow;
+    combinedPrice: number;
+    fetchedAt: Date;
+  };
+  const latestByDayModel = new Map<string, PricePoint>();
+  const latestCurrentPrice = new Map<string, PricePoint>();
+  const latestBenchmarksByProviderModelKey = new Map<string, typeof benchmarkRows[number]>();
+  const latestBenchmarksByModelKey = new Map<string, typeof benchmarkRows[number]>();
+
+  for (const row of benchmarkRows) {
+    for (const modelKey of modelMatchKeys(row.modelId, row.modelDisplayName)) {
+      const providerKey = `${row.providerId}:${modelKey}`;
+      if (!latestBenchmarksByProviderModelKey.has(providerKey)) {
+        latestBenchmarksByProviderModelKey.set(providerKey, row);
+      }
+
+      if (!latestBenchmarksByModelKey.has(modelKey)) {
+        latestBenchmarksByModelKey.set(modelKey, row);
+      }
+    }
+  }
+
+  function benchmarkForPrice(price: PriceRow) {
+    const providerIds = aliasesForProvider(price.providerId);
+    const modelKeys = modelMatchKeys(price.modelId, price.modelDisplayName);
+
+    for (const providerId of providerIds) {
+      for (const modelKey of modelKeys) {
+        const benchmark = latestBenchmarksByProviderModelKey.get(`${providerId}:${modelKey}`);
+        if (benchmark) return benchmark;
+      }
+    }
+
+    for (const modelKey of modelKeys) {
+      const benchmark = latestBenchmarksByModelKey.get(modelKey);
+      if (benchmark) return benchmark;
+    }
+
+    return null;
+  }
+
+  for (const row of rows) {
+    const day = row.fetchedAt.toISOString().slice(0, 10);
+    if (!days.includes(day)) continue;
+
+    const inputCost = optionalNumberFromDecimal(row.inputPricePer1mTokensUsd) ?? 0;
+    const outputCost = optionalNumberFromDecimal(row.outputPricePer1mTokensUsd) ?? 0;
+    const combinedPrice = inputCost + outputCost;
+    if (combinedPrice <= 0) continue;
+
+    const key = `${day}:${row.modelId}`;
+    const existing = latestByDayModel.get(key);
+    if (!existing || row.fetchedAt > existing.fetchedAt) {
+      latestByDayModel.set(key, {
+        price: row,
+        combinedPrice,
+        fetchedAt: row.fetchedAt
+      });
+    }
+
+    const currentExisting = latestCurrentPrice.get(row.modelId);
+    if (!currentExisting || row.sourcePriority < currentExisting.price.sourcePriority || row.fetchedAt > currentExisting.fetchedAt) {
+      latestCurrentPrice.set(row.modelId, {
+        price: row,
+        combinedPrice,
+        fetchedAt: row.fetchedAt
+      });
+    }
+  }
+
+  const topModelIds = [...latestCurrentPrice.values()]
+    .map((point) => ({
+      ...point,
+      intelligenceScore: scaledBenchmarkScore(benchmarkForPrice(point.price)?.artificialAnalysisIntelligenceIndex)
+    }))
+    .filter((point) => point.intelligenceScore != null)
+    .sort((a, b) => (b.intelligenceScore ?? 0) - (a.intelligenceScore ?? 0) || a.combinedPrice - b.combinedPrice)
+    .slice(0, 10)
+    .map((point) => point.price.modelId);
+  const topModelIdSet = new Set(topModelIds);
+
+  const points = days.map((date) => {
+    const topModels = [...latestByDayModel.values()]
+      .filter((value) => topModelIdSet.has(value.price.modelId))
+      .filter((value) => value.fetchedAt.toISOString().slice(0, 10) === date)
+      .slice(0, 10);
+    const averageCombinedPriceUsd = topModels.length
+      ? topModels.reduce((total, model) => total + model.combinedPrice, 0) / topModels.length
+      : 0;
+
+    return {
+      date,
+      averageCombinedPriceUsd
+    };
+  });
+
+  const nonZeroPoints = points.filter((point) => point.averageCombinedPriceUsd > 0);
+  const currentWeek = nonZeroPoints.slice(-7);
+  const previousWeek = nonZeroPoints.slice(-14, -7);
+  const average = (values: typeof points) => values.length
+    ? values.reduce((total, point) => total + point.averageCombinedPriceUsd, 0) / values.length
+    : null;
+  const currentWeekAverageUsd = average(currentWeek);
+  const previousWeekAverageUsd = average(previousWeek);
+  const changePercent = currentWeekAverageUsd != null && previousWeekAverageUsd != null && previousWeekAverageUsd > 0
+    ? ((currentWeekAverageUsd - previousWeekAverageUsd) / previousWeekAverageUsd) * 100
+    : null;
+
+  return {
+    points,
+    currentWeekAverageUsd,
+    previousWeekAverageUsd,
+    changePercent
   };
 }
 

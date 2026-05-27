@@ -82,11 +82,25 @@ export type DashboardModelPicks = {
   cheapest: DashboardModelPick | null;
 };
 
+export type PriceIndexPoint = {
+  date: string;
+  averageCombinedPriceUsd: number;
+};
+
+export type PriceIndexSummary = {
+  points: PriceIndexPoint[];
+  currentWeekAverageUsd: number | null;
+  previousWeekAverageUsd: number | null;
+  changePercent: number | null;
+  currency?: string;
+};
+
 export type DashboardPayload = {
   profile: AccountProfile | null;
   summary: DashboardSummary;
   providers: AccountProviderSummary[];
   modelPicks: DashboardModelPicks;
+  priceIndex: PriceIndexSummary;
 };
 
 export type ProviderRegistryOption = {

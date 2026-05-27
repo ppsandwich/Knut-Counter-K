@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { ensureUserProfile, getDashboardModelPicks, getDashboardSummaryForUser, getUserProfile, listProviderAccountsForUser } from "@knut/db";
+import { ensureUserProfile, getDashboardModelPicks, getDashboardSummaryForUser, getOpenRouterPriceIndex, getUserProfile, listProviderAccountsForUser } from "@knut/db";
 import { requireUser } from "../apiUtils/auth";
 import { convertDashboardPayload } from "../apiUtils/currency";
 
@@ -14,13 +14,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await ensureUserProfile({ id: user.id, email: user.email });
 
     const profile = await getUserProfile(user.id);
-    const [providers, summary, modelPicks] = await Promise.all([
+    const [providers, summary, modelPicks, priceIndex] = await Promise.all([
       listProviderAccountsForUser(user.id),
       getDashboardSummaryForUser(user.id, profile),
       getDashboardModelPicks().catch(() => ({
         smartest: null,
         bestValue: null,
         cheapest: null
+      })),
+      getOpenRouterPriceIndex().catch(() => ({
+        points: [],
+        currentWeekAverageUsd: null,
+        previousWeekAverageUsd: null,
+        changePercent: null
       }))
     ]);
 
@@ -28,7 +34,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       profile,
       summary,
       providers,
-      modelPicks
+      modelPicks,
+      priceIndex
     }, profile?.preferredCurrency ?? "USD");
 
     return res.status(200).json({ ok: true, ...payload });

@@ -139,6 +139,13 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
       smartest: null,
       bestValue: null,
       cheapest: null
+    },
+    priceIndex: data.priceIndex ?? {
+      points: [],
+      currentWeekAverageUsd: null,
+      previousWeekAverageUsd: null,
+      changePercent: null,
+      currency: data.summary.currency
     }
   };
 }

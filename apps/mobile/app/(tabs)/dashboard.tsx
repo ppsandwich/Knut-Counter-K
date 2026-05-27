@@ -1,8 +1,8 @@
 import { RefreshControl, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, SyncStatusStrip } from "@knut/ui";
-import { formatCurrency, type AccountAlert, type DashboardModelPick } from "@knut/shared";
+import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, Sparkline, SyncStatusStrip } from "@knut/ui";
+import { formatCurrency, type AccountAlert, type DashboardModelPick, type PriceIndexSummary } from "@knut/shared";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { fetchAlerts, syncProviders } from "../../lib/accountApi";
 
@@ -13,6 +13,14 @@ const emptySummary = {
   projectedSpend: 0,
   status: "healthy" as const,
   statusText: "Sign in to load your usage data.",
+  currency: "USD"
+};
+
+const emptyPriceIndex: PriceIndexSummary = {
+  points: [],
+  currentWeekAverageUsd: null,
+  previousWeekAverageUsd: null,
+  changePercent: null,
   currency: "USD"
 };
 
@@ -124,6 +132,7 @@ export default function DashboardScreen() {
 
         <SyncStatusStrip status={signedIn ? `${providerRows.length} provider accounts loaded.` : "Sign in to sync account data."} />
         {alerts.length ? <AlertSummary alerts={alerts} /> : null}
+        <PriceIndexCard priceIndex={dashboard.data?.priceIndex ?? emptyPriceIndex} currency={currency} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -157,6 +166,37 @@ function ModelPickStrip({ label, pick, loading, currency, isLast }: { label: str
   );
 }
 
+function PriceIndexCard({ priceIndex, currency }: { priceIndex: PriceIndexSummary; currency: string }) {
+  const values = priceIndex.points.map((point) => point.averageCombinedPriceUsd).filter((value) => value > 0);
+  const current = priceIndex.currentWeekAverageUsd;
+  const previous = priceIndex.previousWeekAverageUsd;
+  const change = priceIndex.changePercent;
+  const changeText = change == null
+    ? "Not enough history yet"
+    : `${change >= 0 ? "+" : ""}${change.toFixed(1)}% vs previous week`;
+  const tone = change == null ? styles.priceIndexNeutral : change <= 0 ? styles.priceIndexGood : styles.priceIndexBad;
+  const previousText = previous == null ? "Previous week unavailable" : `Previous week ${formatCurrency(previous, currency)}`;
+
+  return (
+    <View style={styles.priceIndexCard}>
+      <View style={styles.priceIndexHeader}>
+        <View style={styles.priceIndexTextBlock}>
+          <Text style={styles.priceIndexLabel}>Price Index</Text>
+          <Text style={styles.priceIndexTitle}>{current == null ? "Unavailable" : formatCurrency(current, currency)}</Text>
+        </View>
+        <Sparkline values={values} color={change != null && change > 0 ? "#f59e0b" : "#22c55e"} />
+      </View>
+      <Text style={styles.priceIndexBody}>
+        Tracks the average combined input and output token price of the top 10 models on OpenRouter.
+      </Text>
+      <View style={styles.priceIndexSummaryRow}>
+        <Text style={[styles.priceIndexChange, tone]}>{changeText}</Text>
+        <Text style={styles.priceIndexPrevious}>{previousText}</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
   content: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28, gap: 10 },
@@ -182,5 +222,17 @@ const styles = StyleSheet.create({
   sectionMeta: { color: "#71717a", fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
   emptyCard: { backgroundColor: "#111113", borderColor: "#242428", borderWidth: 1, borderRadius: 8, padding: 14, gap: 6 },
   emptyTitle: { color: "#f4f4f5", fontSize: 16, fontWeight: "900" },
-  emptyBody: { color: "#a1a1aa", fontSize: 14, lineHeight: 20 }
+  emptyBody: { color: "#a1a1aa", fontSize: 14, lineHeight: 20 },
+  priceIndexCard: { backgroundColor: "#111113", borderColor: "#242428", borderWidth: 1, borderRadius: 8, padding: 14, gap: 10 },
+  priceIndexHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
+  priceIndexTextBlock: { flex: 1, minWidth: 0 },
+  priceIndexLabel: { color: "#a1a1aa", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  priceIndexTitle: { color: "#f4f4f5", fontSize: 24, fontWeight: "900", marginTop: 3 },
+  priceIndexBody: { color: "#a1a1aa", fontSize: 13, lineHeight: 18 },
+  priceIndexSummaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  priceIndexChange: { fontSize: 13, fontWeight: "900" },
+  priceIndexGood: { color: "#86efac" },
+  priceIndexBad: { color: "#fbbf24" },
+  priceIndexNeutral: { color: "#a1a1aa" },
+  priceIndexPrevious: { color: "#71717a", fontSize: 12, fontWeight: "800" }
 });

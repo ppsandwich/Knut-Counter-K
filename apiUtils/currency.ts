@@ -134,7 +134,17 @@ export async function convertDashboardPayload(payload: DashboardPayload, currenc
       currency: displayCurrency
     },
     providers: payload.providers.map((provider) => convertProvider(provider, rate)),
-    modelPicks: convertModelPicks(payload.modelPicks, rate)
+    modelPicks: convertModelPicks(payload.modelPicks, rate),
+    priceIndex: {
+      ...payload.priceIndex,
+      currency: displayCurrency,
+      points: payload.priceIndex.points.map((point) => ({
+        ...point,
+        averageCombinedPriceUsd: point.averageCombinedPriceUsd * rate
+      })),
+      currentWeekAverageUsd: convertAmount(payload.priceIndex.currentWeekAverageUsd, rate) ?? null,
+      previousWeekAverageUsd: convertAmount(payload.priceIndex.previousWeekAverageUsd, rate) ?? null
+    }
   };
 }
 
