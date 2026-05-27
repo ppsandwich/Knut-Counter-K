@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatCompactNumber, formatCurrency, type AccountProviderSummary, type DashboardPayload, type ProviderUsageSummary } from "@knut/shared";
-import { fetchDashboard } from "../lib/accountApi";
+import { useDashboardStore, isCacheStale } from "../lib/dashboardStore";
 import { useAuthSession } from "./useAuthSession";
 
 export function providerAccountToUsageRow(provider: AccountProviderSummary, currency = "USD"): ProviderUsageSummary {
@@ -31,56 +31,37 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
 
 export function useDashboardData() {
   const auth = useAuthSession();
-  const [data, setData] = useState<DashboardPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const store = useDashboardStore();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-
     if (!auth.user) {
-      setData(null);
-      setError(null);
-      setLoading(false);
+      store.clear();
       return;
     }
 
-    setLoading(true);
-    fetchDashboard()
-      .then((payload) => {
-        if (!mounted) return;
-        setData(payload);
-        setError(null);
-      })
-      .catch((nextError) => {
-        if (!mounted) return;
-        setError(nextError instanceof Error ? nextError.message : "Dashboard could not load.");
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
+    // If cache is empty or stale, refresh in background
+    if (!store.data || isCacheStale(store.lastFetchedAt)) {
+      setLoading(true);
+      store.refresh().finally(() => setLoading(false));
+    }
   }, [auth.user?.id]);
 
   const providerRows = useMemo(
-    () => data?.providers.map((provider) => providerAccountToUsageRow(provider, data.profile?.preferredCurrency ?? data.summary.currency ?? "USD")) ?? [],
-    [data?.providers, data?.profile?.preferredCurrency, data?.summary.currency]
+    () => store.data?.providers.map((provider) => providerAccountToUsageRow(provider, store.data?.profile?.preferredCurrency ?? store.data?.summary.currency ?? "USD")) ?? [],
+    [store.data?.providers, store.data?.profile?.preferredCurrency, store.data?.summary.currency]
   );
 
   return {
     auth,
-    data,
+    data: store.data,
     providerRows,
-    error,
-    loading,
+    error: store.error,
+    loading: loading || store.isRefreshing,
     refresh: async () => {
-      const payload = await fetchDashboard();
-      setData(payload);
-      setError(null);
+      setLoading(true);
+      await store.refresh();
+      setLoading(false);
     }
   };
 }

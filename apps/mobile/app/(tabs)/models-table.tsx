@@ -3,7 +3,7 @@ import { formatCurrency, type PopularModel, type PopularModelsPayload } from "@k
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthSession } from "../../hooks/useAuthSession";
-import { fetchPopularModels } from "../../lib/accountApi";
+import { useModelsStore } from "../../lib/modelsStore";
 
 type MetricRange = { min: number; max: number };
 type MetricRanges = {
@@ -154,35 +154,24 @@ function MetricHeader({ sortKey, sortDirection, onChangeSort }: { sortKey: SortK
 
 export default function ModelsTableScreen() {
   const auth = useAuthSession();
-  const [payload, setPayload] = useState<PopularModelsPayload | null>(null);
+  const modelsStore = useModelsStore();
   const [benchmarkSource, setBenchmarkSource] = useState<BenchmarkSource>("aa");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("popularity");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  async function load(refresh = false) {
-    if (refresh) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
-    setError(null);
-
-    try {
-      setPayload(await fetchPopularModels(refresh, benchmarkSource));
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Model data could not load.");
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }
+  const payload = modelsStore.dataBySource[benchmarkSource];
+  const isLoading = !payload && modelsStore.isRefreshing;
+  const isRefreshing = modelsStore.isRefreshing;
+  const error = modelsStore.error;
 
   useEffect(() => {
-    void load(false);
-  }, [benchmarkSource]);
+    if (!auth.user) {
+      modelsStore.clear();
+      return;
+    }
+    // Load from cache or fetch fresh data
+    void modelsStore.loadModels(benchmarkSource);
+  }, [auth.user?.id, benchmarkSource]);
 
   const ranges = payload ? metricRangesFor(payload.models) : null;
   const visibleModels = payload ? sortedModels(payload.models, sortKey, sortDirection) : [];
@@ -200,7 +189,6 @@ export default function ModelsTableScreen() {
 
   function changeBenchmarkSource(nextSource: BenchmarkSource) {
     if (nextSource === benchmarkSource) return;
-    setPayload(null);
     setBenchmarkSource(nextSource);
     setSortKey("popularity");
     setSortDirection("desc");
@@ -232,7 +220,7 @@ export default function ModelsTableScreen() {
               </Pressable>
             </View>
             {auth.session ? (
-              <Pressable disabled={isRefreshing} onPress={() => load(true)} style={[styles.refreshButton, isRefreshing && styles.disabled]}>
+              <Pressable disabled={isRefreshing} onPress={() => modelsStore.refresh(benchmarkSource)} style={[styles.refreshButton, isRefreshing && styles.disabled]}>
                 <Text style={styles.refreshText}>{isRefreshing ? "Refreshing..." : "Refresh model data"}</Text>
               </Pressable>
             ) : null}

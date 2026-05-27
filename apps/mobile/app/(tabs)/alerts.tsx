@@ -1,47 +1,26 @@
-import { useEffect, useState } from "react";
-import type { AccountAlert } from "@knut/shared";
+import { useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
 import { FadeInView, SlideUpView, AnimatedCard, usePulse } from "@knut/ui";
-import { evaluateAlerts, fetchAlerts } from "../../lib/accountApi";
+import { useAlertsStore } from "../../lib/alertsStore";
+import { useAuthSession } from "../../hooks/useAuthSession";
 
 export default function AlertsScreen() {
-  const [alerts, setAlerts] = useState<AccountAlert[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isEvaluating, setIsEvaluating] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function loadAlerts() {
-    setError(null);
-    try {
-      setAlerts(await fetchAlerts());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load alerts.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function runEvaluation() {
-    setIsEvaluating(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await evaluateAlerts();
-      setAlerts(result.alerts);
-      setMessage(result.created ? `${result.created} new alert${result.created === 1 ? "" : "s"} created.` : "No new alerts. Suspiciously peaceful.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not evaluate alerts.");
-    } finally {
-      setIsEvaluating(false);
-    }
-  }
+  const auth = useAuthSession();
+  const alertsStore = useAlertsStore();
+  const { alerts, isRefreshing, isEvaluating, message, error } = alertsStore;
 
   useEffect(() => {
-    void loadAlerts();
-  }, []);
+    if (!auth.user) {
+      alertsStore.clear();
+      return;
+    }
+    // Load from cache or fetch fresh
+    if (alerts.length === 0) {
+      void alertsStore.loadAlerts();
+    }
+  }, [auth.user?.id]);
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
@@ -49,7 +28,7 @@ export default function AlertsScreen() {
         <FadeInView delay={0}>
           <View style={styles.header}>
             <Text style={styles.title}>Alerts</Text>
-            <Pressable disabled={isEvaluating} onPress={runEvaluation} style={[styles.button, isEvaluating && styles.buttonDisabled]}>
+            <Pressable disabled={isEvaluating} onPress={() => alertsStore.evaluate()} style={[styles.button, isEvaluating && styles.buttonDisabled]}>
               <Text style={styles.buttonText}>{isEvaluating ? "Checking..." : "Run check"}</Text>
             </Pressable>
           </View>
@@ -63,7 +42,7 @@ export default function AlertsScreen() {
             </View>
           </AnimatedCard>
         ) : null}
-        {!isLoading && !alerts.length ? (
+        {!isRefreshing && !alerts.length ? (
           <AnimatedCard index={2}>
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>Everything looks boring. Excellent.</Text>
@@ -71,7 +50,7 @@ export default function AlertsScreen() {
             </View>
           </AnimatedCard>
         ) : null}
-        {isLoading ? (
+        {isRefreshing && !alerts.length ? (
           <AnimatedCard index={2}>
             <LoadingIndicator />
           </AnimatedCard>

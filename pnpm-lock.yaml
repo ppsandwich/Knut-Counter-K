@@ -14,6 +14,9 @@ importers:
       '@knut/pricing':
         specifier: workspace:*
         version: link:packages/pricing
+      '@react-native-async-storage/async-storage':
+        specifier: ^3.1.0
+        version: 3.1.0(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.0.0))(react@19.0.0)
       react-native-gesture-handler:
         specifier: ^2.31.2
         version: 2.31.2(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.0.0))(react@19.0.0)
@@ -1541,6 +1544,12 @@ packages:
       '@types/react':
         optional: true
 
+  '@react-native-async-storage/async-storage@3.1.0':
+    resolution: {integrity: sha512-ENwbn3kj/dOapdR3GVgfX5x9f9/rxHnsqol1bUkt26lrv0aAq6UoXnTlv7y2dT7RH0AShh9B1+KAPDVjJXnk0w==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
   '@react-native/assets-registry@0.79.6':
     resolution: {integrity: sha512-UVSP1224PWg0X+mRlZNftV5xQwZGfawhivuW8fGgxNK9MS/U84xZ+16lkqcPh1ank6MOt239lIWHQ1S33CHgqA==}
     engines: {node: '>=18'}
@@ -2736,6 +2745,9 @@ packages:
   iceberg-js@0.8.1:
     resolution: {integrity: sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA==}
     engines: {node: '>=20.0.0'}
+
+  idb@8.0.3:
+    resolution: {integrity: sha512-LtwtVyVYO5BqRvcsKuB2iUMnHwPVByPCXFXOpuU96IZPPoPN6xjOGxZQ74pgSVVLQWtUOYgyeL4GE98BY5D3wg==}
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -5505,6 +5517,12 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.15
 
+  '@react-native-async-storage/async-storage@3.1.0(react-native@0.79.6(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.0.0))(react@19.0.0)':
+    dependencies:
+      idb: 8.0.3
+      react: 19.0.0
+      react-native: 0.79.6(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.0.0)
+
   '@react-native/assets-registry@0.79.6': {}
 
   '@react-native/babel-plugin-codegen@0.79.6(@babel/core@7.29.0)':
@@ -6888,6 +6906,8 @@ snapshots:
   hyphenate-style-name@1.1.0: {}
 
   iceberg-js@0.8.1: {}
+
+  idb@8.0.3: {}
 
   ieee754@1.2.1: {}
 
