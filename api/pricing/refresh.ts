@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: "Unauthorized pricing refresh." });
     }
 
-    const { refreshModelData } = await import("../../apiUtils/pricingRefresh");
+    const { refreshModelData } = await import("../../apiUtils/pricingRefresh.js");
     const result = await refreshModelData();
 
     return res.status(200).json({

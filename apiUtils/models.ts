@@ -335,7 +335,7 @@ export async function handleModelsRequest(req: ApiRequest, res: ApiResponse) {
       if (!user) {
         return res.status(401).json({ error: "Sign in to refresh model data." });
       }
-      const { refreshModelData } = await import("./pricingRefresh");
+      const { refreshModelData } = await import("./pricingRefresh.js");
       await refreshModelData();
     }
 
