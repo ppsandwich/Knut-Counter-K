@@ -262,78 +262,157 @@ async function latestStoredModelFetchedAt() {
   return row?.refreshed_at ? new Date(row.refreshed_at).toISOString() : new Date().toISOString();
 }
 
+function normaliseModelMatchKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^~/, "")
+    .replace(/:.+$/, "")
+    .replace(/^(openai|anthropic|google|x-ai|xai|deepseek|mistralai|mistral|cohere|groq|perplexity|openrouter|qwen|qwenlm)[/:_-]+/, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function modelMatchKeys(modelId: string, modelDisplayName: string) {
+  const keys = [
+    normaliseModelMatchKey(modelId),
+    normaliseModelMatchKey(modelDisplayName)
+  ];
+  const [, modelIdWithoutProvider] = modelId.replace(/^~/, "").split("/");
+  if (modelIdWithoutProvider) {
+    keys.push(normaliseModelMatchKey(modelIdWithoutProvider));
+  }
+
+  return [...new Set(keys.filter(Boolean))];
+}
+
 async function loadModelsFromSnapshots() {
-  const rows = await getSql()<ModelRow[]>`
-    with latest_openrouter_prices as (
-      select distinct on (model_id)
-        provider_id,
-        model_id,
-        model_display_name,
-        input_price_per_1m_tokens_usd,
-        output_price_per_1m_tokens_usd,
-        weekly_tokens,
-        source_priority,
-        fetched_at
-      from pricing_snapshots
-      where provider_id = 'openrouter'
-        and (input_price_per_1m_tokens_usd is not null
-          or output_price_per_1m_tokens_usd is not null)
-      order by model_id, fetched_at desc
-    ),
-    latest_benchmarks as (
-      select distinct on (provider_id, model_id)
-        provider_id,
-        model_id,
-        model_display_name,
-        source_model_slug,
-        model_creator_name,
-        evaluations,
-        pricing,
-        artificial_analysis_intelligence_index,
-        artificial_analysis_coding_index,
-        median_output_tokens_per_second,
-        fetched_at
-      from model_benchmark_snapshots
-      order by provider_id, model_id, fetched_at desc
-    )
-    select
-      p.provider_id,
-      p.model_id,
-      p.model_display_name,
-      p.input_price_per_1m_tokens_usd,
-      p.output_price_per_1m_tokens_usd,
-      p.weekly_tokens,
-      b.artificial_analysis_intelligence_index,
-      b.artificial_analysis_coding_index,
-      b.median_output_tokens_per_second,
-      b.model_creator_name,
-      b.source_model_slug,
-      b.evaluations,
-      b.pricing
-    from latest_openrouter_prices p
-    left join latest_benchmarks b
-      on b.model_id = p.model_id
-      or lower(b.model_display_name) = lower(p.model_display_name)
-      or lower(p.model_id) like '%' || lower(b.model_id) || '%'
-    order by
-      p.weekly_tokens desc nulls last,
-      b.artificial_analysis_intelligence_index desc nulls last,
-      p.model_id asc
+  // Fetch top models by weekly tokens from OpenRouter
+  const priceRows = await getSql()<{
+    provider_id: string;
+    model_id: string;
+    model_display_name: string;
+    input_price_per_1m_tokens_usd: string | null;
+    output_price_per_1m_tokens_usd: string | null;
+    weekly_tokens: string | null;
+    source_model_slug: string | null;
+    evaluations: Record<string, unknown> | null;
+    pricing: Record<string, unknown> | null;
+  }[]>`
+    select distinct on (model_id)
+      provider_id,
+      model_id,
+      model_display_name,
+      input_price_per_1m_tokens_usd,
+      output_price_per_1m_tokens_usd,
+      weekly_tokens,
+      null as source_model_slug,
+      null as evaluations,
+      null as pricing
+    from pricing_snapshots
+    where provider_id = 'openrouter'
+      and (input_price_per_1m_tokens_usd is not null
+        or output_price_per_1m_tokens_usd is not null)
+    order by model_id, fetched_at desc
     limit 100
   `;
 
-  const candidates = rows.map((row) => {
-    const inputCost = numberOrNull(row.input_price_per_1m_tokens_usd);
-    const outputCost = numberOrNull(row.output_price_per_1m_tokens_usd);
+  // Fetch all benchmarks
+  const benchmarkRows = await getSql()<{
+    provider_id: string;
+    model_id: string;
+    model_display_name: string;
+    source_model_slug: string | null;
+    model_creator_name: string | null;
+    evaluations: Record<string, unknown> | null;
+    pricing: Record<string, unknown> | null;
+    artificial_analysis_intelligence_index: string | null;
+    artificial_analysis_coding_index: string | null;
+    median_output_tokens_per_second: string | null;
+    fetched_at: string;
+  }[]>`
+    select distinct on (provider_id, model_id)
+      provider_id,
+      model_id,
+      model_display_name,
+      source_model_slug,
+      model_creator_name,
+      evaluations,
+      pricing,
+      artificial_analysis_intelligence_index,
+      artificial_analysis_coding_index,
+      median_output_tokens_per_second,
+      fetched_at
+    from model_benchmark_snapshots
+    order by provider_id, model_id, fetched_at desc
+  `;
+
+  // Build benchmark lookup maps using normalized keys
+  const benchmarksByProviderModelKey = new Map<string, typeof benchmarkRows[number]>();
+  const benchmarksByModelKey = new Map<string, typeof benchmarkRows[number]>();
+  
+  for (const row of benchmarkRows) {
+    for (const key of modelMatchKeys(row.model_id, row.model_display_name)) {
+      const providerKey = `${row.provider_id}:${key}`;
+      if (!benchmarksByProviderModelKey.has(providerKey)) {
+        benchmarksByProviderModelKey.set(providerKey, row);
+      }
+      if (!benchmarksByModelKey.has(key)) {
+        benchmarksByModelKey.set(key, row);
+      }
+    }
+  }
+
+  // Match benchmarks to prices
+  function benchmarkForPrice(price: typeof priceRows[number]) {
+    const modelKeys = modelMatchKeys(price.model_id, price.model_display_name);
+    
+    // Try to match by provider + normalized key
+    for (const key of modelKeys) {
+      const benchmark = benchmarksByProviderModelKey.get(`${price.provider_id}:${key}`);
+      if (benchmark) return benchmark;
+    }
+    
+    // Fall back to matching by normalized key only
+    for (const key of modelKeys) {
+      const benchmark = benchmarksByModelKey.get(key);
+      if (benchmark) return benchmark;
+    }
+    
+    return null;
+  }
+
+  // Build rows with matched benchmarks
+  const rows = priceRows.map((price) => {
+    const benchmark = benchmarkForPrice(price);
     return {
-      row,
-      inputCost,
-      outputCost,
-      weeklyTokens: numberOrNull(row.weekly_tokens) ?? 0,
-      combinedCost: (inputCost ?? 0) + (outputCost ?? 0),
-      speed: numberOrNull(row.median_output_tokens_per_second)
+      ...price,
+      artificial_analysis_intelligence_index: benchmark?.artificial_analysis_intelligence_index ?? null,
+      artificial_analysis_coding_index: benchmark?.artificial_analysis_coding_index ?? null,
+      median_output_tokens_per_second: benchmark?.median_output_tokens_per_second ?? null,
+      model_creator_name: benchmark?.model_creator_name ?? null,
+      source_model_slug: benchmark?.source_model_slug ?? null,
+      evaluations: benchmark?.evaluations ?? price.evaluations,
+      pricing: benchmark?.pricing ?? price.pricing
     };
   });
+
+  // Sort by weekly tokens, then intelligence
+  rows.sort((a, b) => {
+    const aTokens = numberOrNull(a.weekly_tokens) ?? 0;
+    const bTokens = numberOrNull(b.weekly_tokens) ?? 0;
+    if (aTokens !== bTokens) return bTokens - aTokens;
+    const aIntel = numberOrNull(a.artificial_analysis_intelligence_index) ?? 0;
+    const bIntel = numberOrNull(b.artificial_analysis_intelligence_index) ?? 0;
+    return bIntel - aIntel;
+  });
+
+  const candidates = rows.map((row, index) => ({
+    row,
+    inputCost: numberOrNull(row.input_price_per_1m_tokens_usd),
+    outputCost: numberOrNull(row.output_price_per_1m_tokens_usd),
+    weeklyTokens: numberOrNull(row.weekly_tokens) ?? 0,
+    combinedCost: (numberOrNull(row.input_price_per_1m_tokens_usd) ?? 0) + (numberOrNull(row.output_price_per_1m_tokens_usd) ?? 0),
+    speed: numberOrNull(row.median_output_tokens_per_second)
+  }));
   const costs = candidates.map((candidate) => candidate.combinedCost).filter((value) => value > 0);
   const speeds = candidates.map((candidate) => candidate.speed).filter((value): value is number => value != null && value > 0);
   const minCost = costs.length ? Math.min(...costs) : 0;
