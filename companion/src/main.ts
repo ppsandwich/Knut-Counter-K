@@ -190,6 +190,7 @@ function getProviderIcon(id: string): string {
     google_gemini_api: '🔵',
     github_copilot: '⚫',
     cursor: '🟡',
+    antigravity: '🟣',
   };
   return icons[id] || '⚪';
 }

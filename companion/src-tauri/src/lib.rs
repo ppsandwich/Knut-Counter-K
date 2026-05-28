@@ -5,6 +5,7 @@ mod sync;
 
 use api::ApiClient;
 use config::Config;
+use providers::antigravity::AntigravityExtractor;
 use providers::claude::ClaudeExtractor;
 use providers::codex::CodexExtractor;
 use sync::{SyncEngine, SyncResult};
@@ -138,7 +139,7 @@ pub fn run() {
     // Register providers
     sync_engine.add_provider(Box::new(ClaudeExtractor::new()));
     sync_engine.add_provider(Box::new(CodexExtractor::new()));
-    // TODO: Add more providers (Cursor, Copilot, etc.)
+    sync_engine.add_provider(Box::new(AntigravityExtractor::new()));
     
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())

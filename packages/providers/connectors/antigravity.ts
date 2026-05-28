@@ -2,6 +2,7 @@ import type { ProviderConnector } from "../types";
 
 const CLOUDCODE_BASE = "https://cloudcode-pa.googleapis.com";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
 
 type StoredTokens = {
   access_token: string;
@@ -48,17 +49,16 @@ function encodeTokens(tokens: StoredTokens): string {
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<{ access_token: string; expires_at: number }> {
-  const clientId = process.env.GOOGLE_CLOUDCODE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLOUDCODE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error("GOOGLE_CLOUDCODE_CLIENT_ID and GOOGLE_CLOUDCODE_CLIENT_SECRET environment variables are required.");
+  if (!clientSecret) {
+    throw new Error("GOOGLE_CLOUDCODE_CLIENT_SECRET environment variable is required.");
   }
 
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: clientId,
+      client_id: CLIENT_ID,
       client_secret: clientSecret,
       refresh_token: refreshToken,
       grant_type: "refresh_token"

@@ -284,7 +284,7 @@ function ModelGroup({ model, ranges, currency }: { model: PopularModel; ranges: 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
   content: { flex: 1, padding: 16 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  header: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
   headerText: { flex: 1, minWidth: 0 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800" },
