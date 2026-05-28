@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatCurrency, type PopularModel, type PopularModelsPayload } from "@knut/shared";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthSession } from "../../hooks/useAuthSession";
 import { useModelsStore } from "../../lib/modelsStore";
@@ -195,15 +195,15 @@ export default function ModelsTableScreen() {
   }
 
   const sourceName = benchmarkSource === "blm" ? "BenchLM" : "Artificial Analysis";
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 600;
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Models</Text>
-            <Text style={styles.subtitle}>Top 100 by OpenRouter usage. Scores from {sourceName}</Text>
-          </View>
+        <View style={isNarrow ? styles.headerStacked : styles.headerRow}>
+          <Text style={styles.title}>Models</Text>
+          <Text style={styles.subtitle}>Top 100 by OpenRouter usage. Scores from {sourceName}</Text>
           <View style={styles.headerActions}>
             <Text style={styles.lastUpdated}>{formatLastUpdated(payload?.refreshedAt)}</Text>
             {sortKey !== "popularity" || sortDirection !== "desc" ? (
@@ -284,9 +284,9 @@ function ModelGroup({ model, ranges, currency }: { model: PopularModel; ranges: 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
   content: { flex: 1, padding: 16 },
-  header: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
-  headerText: { flex: 1, minWidth: 0 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  headerStacked: { marginBottom: 12 },
+  headerActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800" },
   subtitle: { color: "#a1a1aa", fontSize: 12, fontWeight: "800", marginTop: 2, textTransform: "uppercase" },
   refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12 },
