@@ -151,7 +151,7 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
 }
 
 export async function syncProviders(providerAccountId?: string): Promise<{ ok: boolean; synced: number; message: string }> {
-  const response = await fetch(getApiUrl("/api/providers/sync"), {
+  const response = await fetch(getApiUrl("/api/providers?action=sync"), {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify({ providerAccountId })
@@ -165,7 +165,7 @@ export async function syncProviders(providerAccountId?: string): Promise<{ ok: b
 }
 
 export async function fetchProviderRegistry(): Promise<ProviderRegistryOption[]> {
-  const response = await fetch(getApiUrl("/api/providers/registry"), {
+  const response = await fetch(getApiUrl("/api/providers?action=registry"), {
     method: "GET",
     headers: await authHeaders()
   });
