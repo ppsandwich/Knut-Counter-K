@@ -89,7 +89,16 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
     sparklineData: hasTokenQuota || hasModelQuotas ? [] : provider.sparklineData,
     modelMetrics,
     usedPercent,
-    resetProgress
+    resetProgress,
+    tokenQuotaUsed: provider.tokenQuotaUsed,
+    tokenQuotaCap: provider.tokenQuotaCap,
+    resetDaysLeft: hasTokenQuota
+      ? provider.tokenQuotaResetAt
+        ? Math.max(0, Math.ceil((new Date(provider.tokenQuotaResetAt).getTime() - Date.now()) / 86_400_000))
+        : provider.resetRule
+          ? (() => { const m = provider.resetRule.match(/(\d+)d/); return m ? parseInt(m[1], 10) : null; })()
+          : null
+      : null
   };
 }
 

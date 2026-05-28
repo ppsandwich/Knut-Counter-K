@@ -1,7 +1,7 @@
 import { forwardRef, useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
-import { confidenceLabels, type ProviderUsageSummary } from "@knut/shared";
+import { confidenceLabels, formatCompactNumber, type ProviderUsageSummary } from "@knut/shared";
 import { Sparkline } from "./Sparkline";
 import { StatusBadge } from "./StatusBadge";
 import { colors } from "./theme";
@@ -88,6 +88,11 @@ export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummar
               <View style={styles.bars}>
                 <HorizontalBar percent={provider.usedPercent!} color={getUsageColor(provider.usedPercent!)} />
                 <HorizontalBar percent={provider.resetProgress ?? 0} color={colors.blue} trackColor="rgba(56,189,248,0.12)" />
+                {provider.tokenQuotaUsed != null && provider.tokenQuotaCap != null && (
+                  <Text style={styles.quotaText} numberOfLines={1}>
+                    {formatCompactNumber(provider.tokenQuotaUsed)} of {formatCompactNumber(provider.tokenQuotaCap)} tokens{provider.resetDaysLeft != null ? `, resets in ${provider.resetDaysLeft} days` : ""}
+                  </Text>
+                )}
               </View>
               <View style={styles.right}>
                 <Text style={styles.metric} numberOfLines={1}>{provider.usedPercent!.toFixed(1)}%</Text>
@@ -133,8 +138,8 @@ const styles = StyleSheet.create({
     gap: 10
   },
   rowSubscription: {
-    minHeight: 72,
-    maxHeight: 88,
+    minHeight: 82,
+    maxHeight: 100,
     gap: 12
   },
   pressed: { opacity: 0.78 },
@@ -157,6 +162,12 @@ const styles = StyleSheet.create({
   barFill: {
     height: "100%",
     borderRadius: 5
+  },
+  quotaText: {
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2
   },
   modelGrid: { flexDirection: "row", flexWrap: "wrap", gap: 2, justifyContent: "center", alignItems: "center" },
   modelItem: { alignItems: "center", minWidth: 32 },

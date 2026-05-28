@@ -33,6 +33,9 @@ export interface ProviderUsageSummary {
   modelMetrics?: ModelMetric[];
   usedPercent?: number | null;
   resetProgress?: number | null;
+  tokenQuotaUsed?: number | null;
+  tokenQuotaCap?: number | null;
+  resetDaysLeft?: number | null;
 }
 
 export type ModelMetric = {
