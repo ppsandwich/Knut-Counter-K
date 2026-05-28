@@ -330,7 +330,7 @@ export async function clearAlerts(): Promise<{ ok: boolean; cleared: number; ale
   return response.json() as Promise<{ ok: boolean; cleared: number; alerts: AccountAlert[] }>;
 }
 
-export async function exchangeAntigravityCode(code: string): Promise<{ ok: boolean }> {
+export async function exchangeAntigravityCode(code: string): Promise<{ ok: boolean; accountId?: string; created?: boolean }> {
   const response = await fetch(getApiUrl("/api/antigravity/callback"), {
     method: "POST",
     headers: await authHeaders(),
@@ -338,8 +338,9 @@ export async function exchangeAntigravityCode(code: string): Promise<{ ok: boole
   });
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    const text = await response.text();
+    throw new Error(text);
   }
 
-  return response.json() as Promise<{ ok: boolean }>;
+  return response.json() as Promise<{ ok: boolean; accountId?: string; created?: boolean }>;
 }

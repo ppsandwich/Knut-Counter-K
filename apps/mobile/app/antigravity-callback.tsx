@@ -34,13 +34,15 @@ export default function AntigravityCallbackScreen() {
     }
 
     exchangeAntigravityCode(code)
-      .then(async () => {
+      .then(async (result) => {
+        console.log("Antigravity OAuth result:", result);
         setStatus("success");
-        setMessage("Antigravity connected successfully.");
+        setMessage(`Antigravity connected. Account ID: ${result.accountId ?? "unknown"}`);
         await dashboard.refresh();
         setTimeout(() => router.replace("/providers"), 500);
       })
       .catch((err) => {
+        console.error("Antigravity OAuth error:", err);
         setStatus("error");
         setMessage(err instanceof Error ? err.message : "Failed to connect Antigravity.");
       });
