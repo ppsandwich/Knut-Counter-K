@@ -90,7 +90,8 @@ export const chatgptPlusConnector: ProviderConnector = {
         capUnit: "percent",
         usedAmount: secondary_window.used_percent,
         confidence: "provider_reported" as const,
-        resetAt: secondaryResetAt
+        resetAt: secondaryResetAt,
+        resetCadence: "7d"
       }
     ];
   }

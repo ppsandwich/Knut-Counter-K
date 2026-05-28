@@ -685,7 +685,7 @@ async function upsertUsageCapsForAccount(userId: string, providerAccountId: stri
       capUnit: cap.capUnit,
       usedAmount: String(cap.usedAmount),
       resetAt: cap.resetAt ? new Date(cap.resetAt) : null,
-      resetCadence: null,
+      resetCadence: cap.resetCadence ?? null,
       confidence: cap.confidence,
       updatedAt: new Date()
     };
@@ -993,6 +993,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
       capUnit: usageCaps.capUnit,
       usedAmount: usageCaps.usedAmount,
       resetAt: usageCaps.resetAt,
+      resetCadence: usageCaps.resetCadence,
       confidence: usageCaps.confidence
     })
     .from(usageCaps)
@@ -1008,14 +1009,15 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     return acc;
   }, {});
 
-  const tokenQuotaByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; capUnit: string; confidence: string; resetAt: string | null }>>((acc, cap) => {
+  const tokenQuotaByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; capUnit: string; confidence: string; resetAt: string | null; resetCadence: string | null }>>((acc, cap) => {
     if (cap.capType !== "token_quota") return acc;
     acc[cap.providerAccountId] = {
       capAmount: numberFromDecimal(cap.capAmount),
       usedAmount: numberFromDecimal(cap.usedAmount),
       capUnit: cap.capUnit,
       confidence: cap.confidence,
-      resetAt: cap.resetAt?.toISOString() ?? null
+      resetAt: cap.resetAt?.toISOString() ?? null,
+      resetCadence: cap.resetCadence ?? null
     };
     return acc;
   }, {});
@@ -1061,6 +1063,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
         tokenQuotaUnit: tokenQuota?.capUnit ?? null,
         tokenQuotaConfidence: tokenQuota?.confidence ?? null,
         tokenQuotaResetAt: tokenQuota?.resetAt ?? null,
+        tokenQuotaResetCadence: tokenQuota?.resetCadence ?? null,
         modelQuotas: modelQuotasByAccount[row.id] ?? []
       };
     })(),

@@ -52,6 +52,7 @@ export type UsageCap = {
   usedAmount: number;
   confidence: DataConfidence;
   resetAt?: string;
+  resetCadence?: string;
 };
 
 export type ProviderBalance = {

@@ -23,7 +23,8 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
     if (provider.tokenQuotaResetAt) {
       const resetAt = new Date(provider.tokenQuotaResetAt);
       const daysLeft = Math.max(0, (resetAt.getTime() - Date.now()) / 86_400_000);
-      const totalDays = 30;
+      const cadenceMatch = provider.tokenQuotaResetCadence?.match(/(\d+)d/);
+      const totalDays = cadenceMatch ? parseInt(cadenceMatch[1], 10) : 30;
       resetProgress = Math.min(100, Math.max(0, Math.round((1 - daysLeft / totalDays) * 100)));
     } else if (provider.resetRule) {
       const match = provider.resetRule.match(/(\d+)d/);

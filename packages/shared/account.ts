@@ -71,6 +71,7 @@ export type AccountProviderSummary = {
   tokenQuotaUnit: string | null;
   tokenQuotaConfidence: string | null;
   tokenQuotaResetAt: string | null;
+  tokenQuotaResetCadence: string | null;
   modelQuotas: ModelQuotaInfo[];
 };
 
