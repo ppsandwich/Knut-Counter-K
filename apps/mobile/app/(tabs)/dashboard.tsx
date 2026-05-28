@@ -102,14 +102,7 @@ export default function DashboardScreen() {
         {refreshMessage ? <SlideUpView delay={50}><Text style={styles.refreshMessage}>{refreshMessage}</Text></SlideUpView> : null}
 
         <MonthlyDamageCard summary={summary} refreshing={dashboard.loading} />
-        <ModelPicksCard picks={dashboard.data?.modelPicks ?? null} loading={signedIn && dashboard.loading} currency={currency} />
 
-        <SlideUpView delay={200}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Providers</Text>
-            <Text style={styles.sectionMeta}>{providerRows.length ? "live accounts" : "setup"}</Text>
-          </View>
-        </SlideUpView>
         {!signedIn ? (
           <AnimatedCard index={3}>
             <View style={styles.emptyCard}>
@@ -137,6 +130,7 @@ export default function DashboardScreen() {
           </AnimatedCard>
         )}
 
+        <ModelPicksCard picks={dashboard.data?.modelPicks ?? null} loading={signedIn && dashboard.loading} currency={currency} />
         <SyncStatusStrip status={signedIn ? `${providerRows.length} provider accounts loaded.` : "Sign in to sync account data."} />
         {alerts.length ? <AlertSummary alerts={alerts} /> : null}
         <PriceIndexCard priceIndex={dashboard.data?.priceIndex ?? emptyPriceIndex} currency={currency} />
@@ -236,9 +230,6 @@ const styles = StyleSheet.create({
   modelPickBody: { flex: 1, minWidth: 0 },
   modelPickName: { color: "#f4f4f5", fontSize: 14, fontWeight: "900" },
   modelPickDetail: { color: "#a1a1aa", fontSize: 11, fontWeight: "800", marginTop: 2 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
-  sectionTitle: { color: "#f4f4f5", fontSize: 20, fontWeight: "800" },
-  sectionMeta: { color: "#71717a", fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
   emptyCard: { backgroundColor: "#111113", borderColor: "#242428", borderWidth: 1, borderRadius: 8, padding: 14, gap: 6 },
   emptyTitle: { color: "#f4f4f5", fontSize: 16, fontWeight: "900" },
   emptyBody: { color: "#a1a1aa", fontSize: 14, lineHeight: 20 },
