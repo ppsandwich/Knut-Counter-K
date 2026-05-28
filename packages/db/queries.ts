@@ -954,6 +954,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
       capLabel: usageCaps.capLabel,
       capAmount: usageCaps.capAmount,
       usedAmount: usageCaps.usedAmount,
+      resetAt: usageCaps.resetAt,
       confidence: usageCaps.confidence
     })
     .from(usageCaps)
@@ -969,12 +970,13 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     return acc;
   }, {});
 
-  const tokenQuotaByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; confidence: string }>>((acc, cap) => {
+  const tokenQuotaByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; confidence: string; resetAt: string | null }>>((acc, cap) => {
     if (cap.capType !== "token_quota") return acc;
     acc[cap.providerAccountId] = {
       capAmount: numberFromDecimal(cap.capAmount),
       usedAmount: numberFromDecimal(cap.usedAmount),
-      confidence: cap.confidence
+      confidence: cap.confidence,
+      resetAt: cap.resetAt?.toISOString() ?? null
     };
     return acc;
   }, {});
@@ -1018,6 +1020,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
         tokenQuotaCap: tokenQuota?.capAmount ?? null,
         tokenQuotaUsed: tokenQuota?.usedAmount ?? null,
         tokenQuotaConfidence: tokenQuota?.confidence ?? null,
+        tokenQuotaResetAt: tokenQuota?.resetAt ?? null,
         modelQuotas: modelQuotasByAccount[row.id] ?? []
       };
     })(),

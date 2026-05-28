@@ -31,6 +31,8 @@ export interface ProviderUsageSummary {
   lastSyncedAt: string;
   sparklineData: number[];
   modelMetrics?: ModelMetric[];
+  usedPercent?: number | null;
+  resetProgress?: number | null;
 }
 
 export type ModelMetric = {

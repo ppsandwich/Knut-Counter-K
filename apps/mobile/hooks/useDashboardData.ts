@@ -14,6 +14,27 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
     ? Math.round((1 - provider.tokenQuotaUsed! / provider.tokenQuotaCap!) * 10000) / 100
     : null;
 
+  const usedPercent = hasTokenQuota && provider.tokenQuotaCap! > 0
+    ? Math.min(100, Math.round((provider.tokenQuotaUsed! / provider.tokenQuotaCap!) * 10000) / 100)
+    : null;
+
+  let resetProgress: number | null = null;
+  if (hasTokenQuota) {
+    if (provider.tokenQuotaResetAt) {
+      const resetAt = new Date(provider.tokenQuotaResetAt);
+      const daysLeft = Math.max(0, (resetAt.getTime() - Date.now()) / 86_400_000);
+      const totalDays = 30;
+      resetProgress = Math.min(100, Math.max(0, Math.round((1 - daysLeft / totalDays) * 100)));
+    } else if (provider.resetRule) {
+      const match = provider.resetRule.match(/(\d+)d/);
+      if (match) {
+        const daysLeft = parseInt(match[1], 10);
+        const totalDays = 30;
+        resetProgress = Math.min(100, Math.max(0, Math.round(((totalDays - daysLeft) / totalDays) * 100)));
+      }
+    }
+  }
+
   const modelMetrics = hasModelQuotas
     ? provider.modelQuotas!.map((q) => ({
         label: q.label.length > 20 ? q.label.slice(0, 18) + "…" : q.label,
@@ -66,7 +87,9 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
     resetCountdown: provider.resetRule ?? "no reset",
     lastSyncedAt: provider.lastSyncAt ?? "",
     sparklineData: hasTokenQuota || hasModelQuotas ? [] : provider.sparklineData,
-    modelMetrics
+    modelMetrics,
+    usedPercent,
+    resetProgress
   };
 }
 

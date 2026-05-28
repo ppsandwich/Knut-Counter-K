@@ -25,7 +25,9 @@ const providers: ProviderUsageSummary[] = [
     confidence: "estimated",
     resetCountdown: "2d left",
     lastSyncedAt: "2026-05-24T07:20:00+10:00",
-    sparklineData: [4, 5, 7, 6, 8, 11, 13, 15, 16, 19, 22, 25]
+    sparklineData: [4, 5, 7, 6, 8, 11, 13, 15, 16, 19, 22, 25],
+    usedPercent: 82,
+    resetProgress: 93
   },
   {
     providerId: "google_gemini_api",
@@ -64,7 +66,9 @@ const providers: ProviderUsageSummary[] = [
     confidence: "manual",
     resetCountdown: "18d left",
     lastSyncedAt: "2026-05-21T08:00:00+10:00",
-    sparklineData: [4, 4, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7]
+    sparklineData: [4, 4, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7],
+    usedPercent: 43,
+    resetProgress: 40
   }
 ];
 
