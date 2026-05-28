@@ -882,9 +882,10 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
         continue;
       }
 
+      const oauthTokens = decryptCredential(account.encryptedCredentials);
       const caps = await antigravityConnector.fetchCaps?.({
         providerAccountId: account.id,
-        credentials: { apiKey: account.encryptedCredentials }
+        credentials: { apiKey: oauthTokens }
       });
       capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
       messages.push(`${account.displayName} refreshed Antigravity quota.`);
