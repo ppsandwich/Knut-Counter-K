@@ -92,6 +92,7 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
     resetProgress,
     tokenQuotaUsed: provider.tokenQuotaUsed,
     tokenQuotaCap: provider.tokenQuotaCap,
+    hideQuotaText: provider.tokenQuotaUnit != null && provider.tokenQuotaUnit !== "tokens",
     resetDaysLeft: hasTokenQuota
       ? provider.tokenQuotaResetAt
         ? Math.max(0, Math.ceil((new Date(provider.tokenQuotaResetAt).getTime() - Date.now()) / 86_400_000))

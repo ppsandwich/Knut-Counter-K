@@ -36,6 +36,7 @@ export interface ProviderUsageSummary {
   tokenQuotaUsed?: number | null;
   tokenQuotaCap?: number | null;
   resetDaysLeft?: number | null;
+  hideQuotaText?: boolean;
 }
 
 export type ModelMetric = {

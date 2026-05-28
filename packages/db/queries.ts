@@ -966,6 +966,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
       capType: usageCaps.capType,
       capLabel: usageCaps.capLabel,
       capAmount: usageCaps.capAmount,
+      capUnit: usageCaps.capUnit,
       usedAmount: usageCaps.usedAmount,
       resetAt: usageCaps.resetAt,
       confidence: usageCaps.confidence
@@ -983,11 +984,12 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     return acc;
   }, {});
 
-  const tokenQuotaByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; confidence: string; resetAt: string | null }>>((acc, cap) => {
+  const tokenQuotaByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; capUnit: string; confidence: string; resetAt: string | null }>>((acc, cap) => {
     if (cap.capType !== "token_quota") return acc;
     acc[cap.providerAccountId] = {
       capAmount: numberFromDecimal(cap.capAmount),
       usedAmount: numberFromDecimal(cap.usedAmount),
+      capUnit: cap.capUnit,
       confidence: cap.confidence,
       resetAt: cap.resetAt?.toISOString() ?? null
     };
@@ -1032,6 +1034,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
         creditConfidence: credit?.confidence ?? null,
         tokenQuotaCap: tokenQuota?.capAmount ?? null,
         tokenQuotaUsed: tokenQuota?.usedAmount ?? null,
+        tokenQuotaUnit: tokenQuota?.capUnit ?? null,
         tokenQuotaConfidence: tokenQuota?.confidence ?? null,
         tokenQuotaResetAt: tokenQuota?.resetAt ?? null,
         modelQuotas: modelQuotasByAccount[row.id] ?? []

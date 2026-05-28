@@ -67,6 +67,7 @@ export type AccountProviderSummary = {
   creditConfidence: string | null;
   tokenQuotaCap: number | null;
   tokenQuotaUsed: number | null;
+  tokenQuotaUnit: string | null;
   tokenQuotaConfidence: string | null;
   tokenQuotaResetAt: string | null;
   modelQuotas: ModelQuotaInfo[];
