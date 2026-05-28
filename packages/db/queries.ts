@@ -1,7 +1,7 @@
 import { anthropicConnector, antigravityConnector, chatgptPlusConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
-import { and, asc, desc, eq, gte, inArray, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, ne, or, sql } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
 import { alerts, importJobs, modelBenchmarkSnapshots, pricingSnapshots, providerAccounts, providerRegistry, usageCaps, usageRecords, users } from "./schema";
@@ -482,8 +482,16 @@ export async function exportAccountData(userId: string): Promise<AccountExportPa
 
 export async function createProviderAccount(userId: string, input: ProviderAccountInput) {
   const encryptedCredentials = input.apiKey ? encryptCredential(input.apiKey) : null;
+  const db = getDb();
 
-  const [account] = await getDb()
+  const maxOrder = await db
+    .select({ max: sql<number>`coalesce(max(${providerAccounts.displayOrder}), -1)` })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)));
+
+  const nextOrder = (maxOrder[0]?.max ?? -1) + 1;
+
+  const [account] = await db
     .insert(providerAccounts)
     .values({
       userId,
@@ -495,6 +503,7 @@ export async function createProviderAccount(userId: string, input: ProviderAccou
       billingCurrency: input.billingCurrency ?? null,
       monthlyBudget: input.monthlyBudget == null ? null : String(input.monthlyBudget),
       resetRule: input.resetRule ?? null,
+      displayOrder: nextOrder,
       syncStatus: "idle"
     })
     .returning({
@@ -1116,7 +1125,7 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
         ? "Budget is officially making noises."
         : budgetRatio >= 0.75
           ? "Spend is getting a little crispy."
-          : "Everything looks boring. Excellent."
+          : ""
       : "No usage records yet. The meter is waiting politely."
   };
 }
