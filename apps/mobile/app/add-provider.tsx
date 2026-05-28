@@ -154,8 +154,12 @@ export default function AddProviderScreen() {
             <Pressable
               disabled={!auth.user}
               onPress={() => {
-                const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLOUDCODE_CLIENT_ID ?? "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
-                const redirectUri = process.env.EXPO_PUBLIC_GOOGLE_CLOUDCODE_REDIRECT_URI ?? `${typeof window !== "undefined" ? window.location.origin : ""}/api/antigravity/callback`;
+                const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLOUDCODE_CLIENT_ID;
+                const redirectUri = process.env.EXPO_PUBLIC_GOOGLE_CLOUDCODE_REDIRECT_URI;
+                if (!clientId || !redirectUri) {
+                  alert("Google OAuth is not configured. Set EXPO_PUBLIC_GOOGLE_CLOUDCODE_CLIENT_ID and EXPO_PUBLIC_GOOGLE_CLOUDCODE_REDIRECT_URI.");
+                  return;
+                }
                 const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email")}&access_type=offline&prompt=consent`;
                 Linking.openURL(url);
               }}
