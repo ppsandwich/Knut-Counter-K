@@ -12,7 +12,8 @@ const providers: ProviderUsageSummary[] = [
     confidence: "api_captured",
     resetCountdown: "9d left",
     lastSyncedAt: "2026-05-24T08:05:00+10:00",
-    sparklineData: [7, 9, 8, 10, 12, 11, 15, 17, 16, 21, 20, 24]
+    sparklineData: [7, 9, 8, 10, 12, 11, 15, 17, 16, 21, 20, 24],
+    displayOrder: 0
   },
   {
     providerId: "anthropic_api",
@@ -27,7 +28,8 @@ const providers: ProviderUsageSummary[] = [
     lastSyncedAt: "2026-05-24T07:20:00+10:00",
     sparklineData: [4, 5, 7, 6, 8, 11, 13, 15, 16, 19, 22, 25],
     usedPercent: 82,
-    resetProgress: 93
+    resetProgress: 93,
+    displayOrder: 1
   },
   {
     providerId: "google_gemini_api",
@@ -40,7 +42,8 @@ const providers: ProviderUsageSummary[] = [
     confidence: "api_captured",
     resetCountdown: "15d left",
     lastSyncedAt: "2026-05-24T08:00:00+10:00",
-    sparklineData: [12, 9, 8, 8, 7, 8, 6, 7, 7, 6, 5, 6]
+    sparklineData: [12, 9, 8, 8, 7, 8, 6, 7, 7, 6, 5, 6],
+    displayOrder: 2
   },
   {
     providerId: "openrouter",
@@ -53,7 +56,8 @@ const providers: ProviderUsageSummary[] = [
     confidence: "exact",
     resetCountdown: "no reset",
     lastSyncedAt: "2026-05-24T08:04:00+10:00",
-    sparklineData: [2, 2, 3, 2, 4, 3, 5, 4, 6, 6, 5, 7]
+    sparklineData: [2, 2, 3, 2, 4, 3, 5, 4, 6, 6, 5, 7],
+    displayOrder: 3
   },
   {
     providerId: "xiaomimimo",
@@ -68,7 +72,8 @@ const providers: ProviderUsageSummary[] = [
     lastSyncedAt: "2026-05-21T08:00:00+10:00",
     sparklineData: [4, 4, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7],
     usedPercent: 43,
-    resetProgress: 40
+    resetProgress: 40,
+    displayOrder: 4
   }
 ];
 

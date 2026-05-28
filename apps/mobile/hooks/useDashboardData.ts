@@ -90,6 +90,7 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
     modelMetrics,
     usedPercent,
     resetProgress,
+    displayOrder: provider.displayOrder,
     tokenQuotaUsed: provider.tokenQuotaUsed,
     tokenQuotaCap: provider.tokenQuotaCap,
     hideQuotaText: provider.tokenQuotaUnit != null && provider.tokenQuotaUnit !== "tokens",

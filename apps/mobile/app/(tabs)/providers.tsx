@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
 import { ProviderUsageRow, FadeInView, SlideUpView, AnimatedCard, usePulse } from "@knut/ui";
 import { useDashboardData } from "../../hooks/useDashboardData";
-import { syncProviders } from "../../lib/accountApi";
+import { syncProviders, reorderProviders } from "../../lib/accountApi";
 import { blurActiveElement } from "../../lib/focus";
 
 export default function ProvidersScreen() {
@@ -15,6 +15,7 @@ export default function ProvidersScreen() {
   const signedIn = Boolean(dashboard.auth.user);
   const [refreshingProviderId, setRefreshingProviderId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   async function refreshProvider(providerAccountId: string) {
     if (refreshingProviderId) return;
@@ -33,8 +34,36 @@ export default function ProvidersScreen() {
   }
 
   function openProvider(providerAccountId: string) {
+    if (editing) return;
     blurActiveElement();
     router.push(`/provider/${providerAccountId}`);
+  }
+
+  async function moveProvider(index: number, direction: -1 | 1) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= providerRows.length) return;
+
+    const reordered = [...providerRows];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(newIndex, 0, moved);
+
+    const orderedIds = reordered.map((p) => p.providerId);
+    try {
+      await reorderProviders(orderedIds);
+      await dashboard.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Reorder failed.");
+    }
+  }
+
+  function toggleEdit() {
+    if (editing) {
+      setEditing(false);
+      setMessage(null);
+    } else {
+      setEditing(true);
+      setMessage("Drag or use arrows to reorder providers.");
+    }
   }
 
   return (
@@ -43,7 +72,14 @@ export default function ProvidersScreen() {
         <FadeInView delay={0}>
           <View style={styles.header}>
             <Text style={styles.title}>Providers</Text>
-            <Link href="/add-provider" style={styles.add}>Add</Link>
+            <View style={styles.headerActions}>
+              {providerRows.length > 1 && (
+                <Pressable onPress={toggleEdit} style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}>
+                  <Text style={styles.editButtonText}>{editing ? "Save" : "Edit"}</Text>
+                </Pressable>
+              )}
+              <Link href="/add-provider" style={styles.add}>Add</Link>
+            </View>
           </View>
         </FadeInView>
         <SlideUpView delay={100}>
@@ -73,10 +109,34 @@ export default function ProvidersScreen() {
             const isRefreshing = refreshingProviderId === provider.providerId;
             return (
               <Animated.View key={provider.providerId} style={styles.providerItem}>
-                <ProviderUsageRow provider={provider} onPress={() => openProvider(provider.providerId)} index={index} />
-                <Pressable disabled={Boolean(refreshingProviderId)} onPress={() => refreshProvider(provider.providerId)} style={({ pressed }) => [styles.refreshButton, refreshingProviderId !== null && styles.disabled, pressed && styles.pressed]}>
-                  <Text style={styles.refreshButtonText}>{isRefreshing ? "Refreshing..." : "Refresh provider"}</Text>
-                </Pressable>
+                <View style={styles.providerRow}>
+                  {editing && (
+                    <View style={styles.reorderControls}>
+                      <Pressable
+                        disabled={index === 0}
+                        onPress={() => moveProvider(index, -1)}
+                        style={({ pressed }) => [styles.arrowButton, index === 0 && styles.arrowDisabled, pressed && styles.pressed]}
+                      >
+                        <Text style={[styles.arrowText, index === 0 && styles.arrowTextDisabled]}>▲</Text>
+                      </Pressable>
+                      <Pressable
+                        disabled={index === providerRows.length - 1}
+                        onPress={() => moveProvider(index, 1)}
+                        style={({ pressed }) => [styles.arrowButton, index === providerRows.length - 1 && styles.arrowDisabled, pressed && styles.pressed]}
+                      >
+                        <Text style={[styles.arrowText, index === providerRows.length - 1 && styles.arrowTextDisabled]}>▼</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                  <View style={styles.providerCardWrapper}>
+                    <ProviderUsageRow provider={provider} onPress={() => openProvider(provider.providerId)} index={index} />
+                  </View>
+                </View>
+                {!editing && (
+                  <Pressable disabled={Boolean(refreshingProviderId)} onPress={() => refreshProvider(provider.providerId)} style={({ pressed }) => [styles.refreshButton, refreshingProviderId !== null && styles.disabled, pressed && styles.pressed]}>
+                    <Text style={styles.refreshButtonText}>{isRefreshing ? "Refreshing..." : "Refresh provider"}</Text>
+                  </Pressable>
+                )}
               </Animated.View>
             );
           })
@@ -107,11 +167,21 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
   content: { padding: 16, paddingBottom: 32, gap: 10 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800" },
   add: { color: "#22c55e", fontSize: 17, fontWeight: "800" },
+  editButton: { minHeight: 32, paddingHorizontal: 12, borderRadius: 6, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  editButtonText: { color: "#e4e4e7", fontSize: 14, fontWeight: "800" },
   subtitle: { color: "#8b8b91", fontSize: 14, lineHeight: 20, marginBottom: 6 },
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" },
   providerItem: { gap: 8 },
+  providerRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  providerCardWrapper: { flex: 1 },
+  reorderControls: { gap: 4, alignItems: "center", justifyContent: "center" },
+  arrowButton: { width: 28, height: 28, borderRadius: 6, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  arrowDisabled: { opacity: 0.3 },
+  arrowText: { color: "#e4e4e7", fontSize: 12, fontWeight: "900" },
+  arrowTextDisabled: { color: "#52525b" },
   refreshButton: { minHeight: 38, borderRadius: 7, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, alignItems: "center", justifyContent: "center" },
   refreshButtonText: { color: "#e4e4e7", fontSize: 13, fontWeight: "900" },
   disabled: { opacity: 0.45 },

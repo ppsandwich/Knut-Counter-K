@@ -50,6 +50,7 @@ export type AccountProviderSummary = {
   planName: string | null;
   monthlyBudget: number | null;
   resetRule: string | null;
+  displayOrder: number;
   syncStatus: string;
   lastSyncAt: string | null;
   hasCredentials: boolean;

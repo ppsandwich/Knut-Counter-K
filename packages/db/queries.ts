@@ -645,6 +645,19 @@ export async function softDeleteProviderAccount(userId: string, providerAccountI
   };
 }
 
+export async function reorderProviderAccounts(userId: string, orderedIds: string[]) {
+  const db = getDb();
+
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db
+      .update(providerAccounts)
+      .set({ displayOrder: i, updatedAt: new Date() })
+      .where(and(eq(providerAccounts.id, orderedIds[i]), eq(providerAccounts.userId, userId)));
+  }
+
+  return { updated: orderedIds.length };
+}
+
 async function upsertUsageCapsForAccount(userId: string, providerAccountId: string, caps: UsageCap[]) {
   let processed = 0;
 
@@ -915,13 +928,15 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
       planName: providerAccounts.planName,
       monthlyBudget: providerAccounts.monthlyBudget,
       resetRule: providerAccounts.resetRule,
+      displayOrder: providerAccounts.displayOrder,
       syncStatus: providerAccounts.syncStatus,
       lastSyncAt: providerAccounts.lastSyncAt,
       encryptedCredentials: providerAccounts.encryptedCredentials
     })
     .from(providerAccounts)
     .leftJoin(providerRegistry, eq(providerAccounts.providerId, providerRegistry.providerId))
-    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)));
+    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .orderBy(providerAccounts.displayOrder, providerAccounts.createdAt);
 
   const currentMonthUsage = await db
     .select({
@@ -1048,6 +1063,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     planName: row.planName,
     monthlyBudget: row.monthlyBudget == null ? null : Number(row.monthlyBudget),
     resetRule: row.resetRule,
+    displayOrder: row.displayOrder,
     syncStatus: row.syncStatus,
     lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
     hasCredentials: Boolean(row.encryptedCredentials)

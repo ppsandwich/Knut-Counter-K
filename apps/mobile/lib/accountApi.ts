@@ -91,6 +91,20 @@ export async function removeProviderCredentials(providerAccountId: string) {
   return response.json() as Promise<{ ok: boolean; providerAccountId: string; hasCredentials: boolean }>;
 }
 
+export async function reorderProviders(orderedIds: string[]) {
+  const response = await fetch(getApiUrl("/api/provider-accounts?action=reorder"), {
+    method: "PATCH",
+    headers: await authHeaders(),
+    body: JSON.stringify({ orderedIds })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean; updated: number }>;
+}
+
 export async function syncAccountProfile() {
   const response = await fetch(getApiUrl("/api/account/me"), {
     method: "GET",

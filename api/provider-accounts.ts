@@ -4,7 +4,8 @@ import {
   ensureUserProfile, 
   softDeleteProviderAccount, 
   updateProviderAccount,
-  deleteProviderCredentials
+  deleteProviderCredentials,
+  reorderProviderAccounts
 } from "@knut/db";
 import { requireUser } from "../apiUtils/auth";
 
@@ -74,7 +75,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true, ...result });
     }
 
-    return res.status(400).json({ error: "Invalid action. Use: create, update, delete, credentials" });
+    // PATCH /api/provider-accounts?action=reorder
+    if (req.method === "PATCH" && action === "reorder") {
+      const orderedIds = req.body?.orderedIds;
+      if (!Array.isArray(orderedIds)) {
+        return res.status(400).json({ error: "orderedIds array is required" });
+      }
+      const result = await reorderProviderAccounts(user.id, orderedIds.map(String));
+      return res.status(200).json({ ok: true, ...result });
+    }
+
+    return res.status(400).json({ error: "Invalid action. Use: create, update, delete, credentials, reorder" });
   } catch (error) {
     return res.status(401).json({ error: error instanceof Error ? error.message : "Unauthorized" });
   }
