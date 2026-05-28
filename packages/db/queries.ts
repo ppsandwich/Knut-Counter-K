@@ -897,14 +897,26 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
   const creditCaps = await db
     .select({
       providerAccountId: usageCaps.providerAccountId,
+      capType: usageCaps.capType,
       capAmount: usageCaps.capAmount,
       usedAmount: usageCaps.usedAmount,
       confidence: usageCaps.confidence
     })
     .from(usageCaps)
-    .where(eq(usageCaps.capType, "credit_balance"));
+    .where(or(eq(usageCaps.capType, "credit_balance"), eq(usageCaps.capType, "token_quota")));
 
   const creditByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; confidence: string }>>((acc, cap) => {
+    if (cap.capType !== "credit_balance") return acc;
+    acc[cap.providerAccountId] = {
+      capAmount: numberFromDecimal(cap.capAmount),
+      usedAmount: numberFromDecimal(cap.usedAmount),
+      confidence: cap.confidence
+    };
+    return acc;
+  }, {});
+
+  const tokenQuotaByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; confidence: string }>>((acc, cap) => {
+    if (cap.capType !== "token_quota") return acc;
     acc[cap.providerAccountId] = {
       capAmount: numberFromDecimal(cap.capAmount),
       usedAmount: numberFromDecimal(cap.usedAmount),
@@ -917,6 +929,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     ...(() => {
       const usage = usageByAccount[row.id] ?? { spend: 0, tokens: 0, records: 0, last24hSpend: 0, last24hTokens: 0, last7dSpend: 0, last7dTokens: 0, sparklineData: Array.from({ length: bucketCount }, () => 0) };
       const credit = creditByAccount[row.id] ?? null;
+      const tokenQuota = tokenQuotaByAccount[row.id] ?? null;
       return {
         currentMonthSpend: usage.spend,
         currentMonthTokens: usage.tokens,
@@ -929,7 +942,10 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
         creditCapAmount: credit?.capAmount ?? null,
         creditUsedAmount: credit?.usedAmount ?? null,
         creditBalanceAmount: credit ? Math.max(0, credit.capAmount - credit.usedAmount) : null,
-        creditConfidence: credit?.confidence ?? null
+        creditConfidence: credit?.confidence ?? null,
+        tokenQuotaCap: tokenQuota?.capAmount ?? null,
+        tokenQuotaUsed: tokenQuota?.usedAmount ?? null,
+        tokenQuotaConfidence: tokenQuota?.confidence ?? null
       };
     })(),
     id: row.id,

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { formatCompactNumber, formatCurrency, type AccountProviderSummary, type DashboardPayload, type ProviderUsageSummary } from "@knut/shared";
+import { formatCompactNumber, formatCurrency, type AccountProviderSummary, type DataConfidence, type DashboardPayload, type ProviderUsageSummary } from "@knut/shared";
 import { useDashboardStore, isCacheStale } from "../lib/dashboardStore";
 import { useAuthSession } from "./useAuthSession";
 
@@ -7,25 +7,52 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
   const isManual = provider.authType === "manual" || provider.authType === "csv_json_import";
   const hasUsage = provider.currentMonthRecords > 0;
   const hasCreditData = provider.creditUsedAmount != null && provider.creditBalanceAmount != null;
+  const hasTokenQuota = provider.tokenQuotaCap != null && provider.tokenQuotaUsed != null && provider.tokenQuotaCap > 0;
+
+  const tokenQuotaPercent = hasTokenQuota
+    ? Math.round((provider.tokenQuotaUsed! / provider.tokenQuotaCap!) * 10000) / 100
+    : null;
 
   return {
     providerId: provider.id,
     providerName: provider.providerName,
     accountDisplayName: provider.displayName,
-    primaryMetric: hasUsage ? formatCurrency(provider.currentMonthSpend, currency) : hasCreditData ? formatCurrency(provider.creditUsedAmount ?? 0, currency) : "Unknown",
-    secondaryMetric: hasUsage
-      ? `${formatCompactNumber(provider.currentMonthTokens)} tokens`
-      : hasCreditData
-        ? `${formatCurrency(provider.creditBalanceAmount ?? 0, currency)} credits left`
-        : (provider.planName ?? provider.authType.replaceAll("_", " ")),
-    last24hMetric: hasUsage ? `24h ${formatCurrency(provider.last24hSpend, currency)}` : "24h no records",
-    last7dMetric: hasUsage ? `7d ${formatCurrency(provider.last7dSpend, currency)}` : "7d no records",
+    primaryMetric: hasTokenQuota
+      ? `${tokenQuotaPercent}%`
+      : hasUsage
+        ? formatCurrency(provider.currentMonthSpend, currency)
+        : hasCreditData
+          ? formatCurrency(provider.creditUsedAmount ?? 0, currency)
+          : "Unknown",
+    secondaryMetric: hasTokenQuota
+      ? `${formatCompactNumber(provider.tokenQuotaUsed!)} / ${formatCompactNumber(provider.tokenQuotaCap!)} tokens`
+      : hasUsage
+        ? `${formatCompactNumber(provider.currentMonthTokens)} tokens`
+        : hasCreditData
+          ? `${formatCurrency(provider.creditBalanceAmount ?? 0, currency)} credits left`
+          : (provider.planName ?? provider.authType.replaceAll("_", " ")),
+    last24hMetric: hasTokenQuota
+      ? ""
+      : hasUsage
+        ? `24h ${formatCurrency(provider.last24hSpend, currency)}`
+        : "24h no records",
+    last7dMetric: hasTokenQuota
+      ? ""
+      : hasUsage
+        ? `7d ${formatCurrency(provider.last7dSpend, currency)}`
+        : "7d no records",
     statusBadge: provider.hasCredentials || isManual ? "Ready" : "No key",
     status: provider.hasCredentials || isManual ? "healthy" : "warning",
-    confidence: hasUsage ? (isManual ? "manual" : "provider_reported") : hasCreditData ? "exact" : "unknown",
+    confidence: hasTokenQuota
+      ? (provider.tokenQuotaConfidence as DataConfidence ?? "provider_reported")
+      : hasUsage
+        ? (isManual ? "manual" : "provider_reported")
+        : hasCreditData
+          ? "exact"
+          : "unknown",
     resetCountdown: provider.resetRule ?? "no reset",
     lastSyncedAt: provider.lastSyncAt ?? "",
-    sparklineData: provider.sparklineData
+    sparklineData: hasTokenQuota ? [] : provider.sparklineData
   };
 }
 

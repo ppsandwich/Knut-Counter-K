@@ -65,6 +65,9 @@ export type AccountProviderSummary = {
   creditUsedAmount: number | null;
   creditBalanceAmount: number | null;
   creditConfidence: string | null;
+  tokenQuotaCap: number | null;
+  tokenQuotaUsed: number | null;
+  tokenQuotaConfidence: string | null;
 };
 
 export type DashboardModelPick = {
