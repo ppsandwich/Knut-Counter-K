@@ -1103,6 +1103,10 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
       usedAmount: usageCaps.usedAmount
     })
     .from(usageCaps)
+    .innerJoin(providerAccounts, and(
+      eq(usageCaps.providerAccountId, providerAccounts.id),
+      eq(providerAccounts.isActive, true)
+    ))
     .where(and(eq(usageCaps.userId, userId), eq(usageCaps.capType, "credit_balance")));
   const creditSpendFallback = creditCaps.reduce((total, cap) => {
     if ((spendByAccount[cap.providerAccountId] ?? 0) > 0) return total;
@@ -1117,11 +1121,35 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
   const projectedSpend = records.length ? monthlySpend / dayOfMonth * daysInMonth : 0;
   const budgetRatio = monthlyBudget > 0 ? monthlySpend / monthlyBudget : 0;
 
+  const tokenQuotaCaps = await db
+    .select({
+      capAmount: usageCaps.capAmount,
+      usedAmount: usageCaps.usedAmount
+    })
+    .from(usageCaps)
+    .innerJoin(providerAccounts, and(
+      eq(usageCaps.providerAccountId, providerAccounts.id),
+      eq(providerAccounts.isActive, true)
+    ))
+    .where(and(eq(usageCaps.userId, userId), eq(usageCaps.capType, "token_quota")));
+
+  const subscriptionPercents = tokenQuotaCaps
+    .map((cap) => {
+      const capAmount = numberFromDecimal(cap.capAmount);
+      const usedAmount = numberFromDecimal(cap.usedAmount);
+      return capAmount > 0 ? Math.min(100, Math.round((usedAmount / capAmount) * 10000) / 100) : null;
+    })
+    .filter((p): p is number => p != null);
+  const subscriptionUsageAvg = subscriptionPercents.length
+    ? Math.round(subscriptionPercents.reduce((sum, p) => sum + p, 0) / subscriptionPercents.length)
+    : null;
+
   return {
     monthlySpend,
     monthlyBudget,
     totalTokens,
     projectedSpend,
+    subscriptionUsageAvg,
     status: budgetRatio >= 1 ? "danger" : budgetRatio >= 0.75 ? "warning" : "healthy",
     statusText: records.length
       ? budgetRatio >= 1

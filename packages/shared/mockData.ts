@@ -83,7 +83,8 @@ const summary: DashboardSummary = {
   totalTokens: 12_800_000,
   projectedSpend: 89.4,
   status: "warning",
-  statusText: "Claude is getting crispy."
+  statusText: "Claude is getting crispy.",
+  subscriptionUsageAvg: 62
 };
 
 const recommendation: Recommendation = {

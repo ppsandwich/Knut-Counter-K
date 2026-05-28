@@ -14,7 +14,8 @@ const emptySummary = {
   projectedSpend: 0,
   status: "healthy" as const,
   statusText: "Sign in to load your usage data.",
-  currency: "USD"
+  currency: "USD",
+  subscriptionUsageAvg: null
 };
 
 const emptyPriceIndex: PriceIndexSummary = {

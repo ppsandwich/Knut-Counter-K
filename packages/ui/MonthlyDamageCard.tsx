@@ -1,18 +1,34 @@
 import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
-import { formatCompactNumber, formatCurrency, type DashboardSummary } from "@knut/shared";
+import { formatCurrency, type DashboardSummary } from "@knut/shared";
 import { colors } from "./theme";
-import { useSlideUp, useProgressAnimation } from "./animations";
+import { useSlideUp } from "./animations";
+
+function HorizontalBar({ percent, color }: { percent: number; color: string }) {
+  const clamped = Math.min(100, Math.max(0, percent));
+  return (
+    <View style={styles.barTrack}>
+      <View style={[styles.barFill, { width: `${clamped}%`, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+function getUsageColor(percent: number): string {
+  if (percent >= 90) return colors.red;
+  if (percent >= 70) return colors.orange;
+  return colors.green;
+}
 
 export function MonthlyDamageCard({ summary, refreshing = false }: { summary: DashboardSummary; refreshing?: boolean }) {
-  const progress = summary.monthlyBudget > 0 ? Math.min(summary.monthlySpend / summary.monthlyBudget, 1) : 0;
   const currency = summary.currency ?? "USD";
+  const budgetPercent = summary.monthlyBudget > 0
+    ? Math.min(100, Math.round((summary.monthlySpend / summary.monthlyBudget) * 10000) / 100)
+    : null;
+  const subAvg = summary.subscriptionUsageAvg;
 
   const { style: cardStyle } = useSlideUp({ delay: 100, distance: 20 });
-  const { style: progressStyle } = useProgressAnimation(progress, { delay: 500, duration: 800 });
 
-  // Subtle opacity pulse when refreshing
   const refreshOpacity = useSharedValue(1);
   const refreshStyle = useAnimatedStyle(() => ({
     opacity: refreshOpacity.value,
@@ -33,6 +49,10 @@ export function MonthlyDamageCard({ summary, refreshing = false }: { summary: Da
     }
   }, [refreshing, refreshOpacity]);
 
+  const spendLabel = subAvg != null
+    ? `${formatCurrency(summary.monthlySpend, currency)} / ${subAvg}%`
+    : formatCurrency(summary.monthlySpend, currency);
+
   return (
     <Animated.View style={[styles.card, cardStyle, refreshStyle]}>
       <View style={styles.labelRow}>
@@ -40,16 +60,18 @@ export function MonthlyDamageCard({ summary, refreshing = false }: { summary: Da
         {refreshing ? <Text style={styles.syncing}>syncing</Text> : null}
       </View>
       <View style={styles.moneyRow}>
-        <Text style={styles.amount}>{formatCurrency(summary.monthlySpend, currency)}</Text>
+        <Text style={styles.amount}>{spendLabel}</Text>
         <Text style={styles.projected}>{formatCurrency(summary.projectedSpend, currency)} projected</Text>
       </View>
-      <View style={styles.progressTrack}>
-        <Animated.View style={[styles.progressFill, progressStyle]} />
+      <View style={styles.bars}>
+        {budgetPercent != null && (
+          <HorizontalBar percent={budgetPercent} color={getUsageColor(budgetPercent)} />
+        )}
+        {subAvg != null && (
+          <HorizontalBar percent={subAvg} color={getUsageColor(subAvg)} />
+        )}
       </View>
-      <View style={styles.footer}>
-        <Text style={styles.status}>{summary.statusText}</Text>
-        <Text style={styles.tokens}>{formatCompactNumber(summary.totalTokens)} tokens</Text>
-      </View>
+      {summary.statusText ? <Text style={styles.status}>{summary.statusText}</Text> : null}
     </Animated.View>
   );
 }
@@ -62,9 +84,8 @@ const styles = StyleSheet.create({
   moneyRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 8 },
   amount: { color: colors.text, fontSize: 38, fontWeight: "900" },
   projected: { color: colors.muted, fontSize: 12, fontWeight: "800", paddingBottom: 7 },
-  progressTrack: { height: 8, backgroundColor: "#27272a", borderRadius: 99, overflow: "hidden", marginTop: 12 },
-  progressFill: { height: "100%", backgroundColor: colors.orange, borderRadius: 99 },
-  footer: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 10 },
-  status: { color: colors.orange, fontSize: 13, fontWeight: "800", flex: 1 },
-  tokens: { color: colors.muted, fontSize: 13, fontWeight: "700" }
+  bars: { gap: 6, marginTop: 10 },
+  barTrack: { height: 10, backgroundColor: "#27272a", borderRadius: 5, overflow: "hidden" },
+  barFill: { height: "100%", borderRadius: 5 },
+  status: { color: colors.orange, fontSize: 13, fontWeight: "800", marginTop: 10 }
 });

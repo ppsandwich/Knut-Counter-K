@@ -54,6 +54,7 @@ export interface DashboardSummary {
   currency?: string;
   status: ProviderStatus;
   statusText: string;
+  subscriptionUsageAvg: number | null;
 }
 
 export interface Recommendation {
