@@ -3,12 +3,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthSession } from "../hooks/useAuthSession";
+import { useDashboardData } from "../hooks/useDashboardData";
 import { exchangeAntigravityCode } from "../lib/accountApi";
 
 export default function AntigravityCallbackScreen() {
   const { code, error } = useLocalSearchParams<{ code?: string; error?: string }>();
   const router = useRouter();
   const auth = useAuthSession();
+  const dashboard = useDashboardData();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("Connecting Antigravity...");
 
@@ -32,10 +34,11 @@ export default function AntigravityCallbackScreen() {
     }
 
     exchangeAntigravityCode(code)
-      .then(() => {
+      .then(async () => {
         setStatus("success");
         setMessage("Antigravity connected successfully.");
-        setTimeout(() => router.replace("/providers"), 1500);
+        await dashboard.refresh();
+        setTimeout(() => router.replace("/providers"), 500);
       })
       .catch((err) => {
         setStatus("error");
