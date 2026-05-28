@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,6 +8,39 @@ import { useDashboardData } from "../../hooks/useDashboardData";
 import { syncProviders, reorderProviders } from "../../lib/accountApi";
 import { blurActiveElement } from "../../lib/focus";
 
+function DropZone({ onDragOver, onDragLeave, onDrop, style, children }: {
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: () => void;
+  onDrop?: () => void;
+  style?: unknown;
+  children: ReactNode;
+}) {
+  const WebDropZone = View as any;
+  return (
+    <WebDropZone
+      style={style}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {children}
+    </WebDropZone>
+  );
+}
+
+function DragHandle({ onDragStart, children }: { onDragStart?: () => void; children: ReactNode }) {
+  const WebDraggable = View as any;
+  return (
+    <WebDraggable
+      draggable
+      onDragStart={onDragStart}
+      style={styles.dragHandle}
+    >
+      {children}
+    </WebDraggable>
+  );
+}
+
 export default function ProvidersScreen() {
   const dashboard = useDashboardData();
   const router = useRouter();
@@ -16,6 +49,8 @@ export default function ProvidersScreen() {
   const [refreshingProviderId, setRefreshingProviderId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragFromIndex = useRef<number | null>(null);
 
   async function refreshProvider(providerAccountId: string) {
     if (refreshingProviderId) return;
@@ -39,13 +74,30 @@ export default function ProvidersScreen() {
     router.push(`/provider/${providerAccountId}`);
   }
 
-  async function moveProvider(index: number, direction: -1 | 1) {
-    const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= providerRows.length) return;
+  function onDragStart(index: number) {
+    dragFromIndex.current = index;
+  }
+
+  function onDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault();
+    if (dragFromIndex.current !== null && dragFromIndex.current !== index) {
+      setDragOverIndex(index);
+    }
+  }
+
+  function onDragLeave() {
+    setDragOverIndex(null);
+  }
+
+  async function onDrop(dropIndex: number) {
+    setDragOverIndex(null);
+    const fromIndex = dragFromIndex.current;
+    dragFromIndex.current = null;
+    if (fromIndex === null || fromIndex === dropIndex) return;
 
     const reordered = [...providerRows];
-    const [moved] = reordered.splice(index, 1);
-    reordered.splice(newIndex, 0, moved);
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(dropIndex, 0, moved);
 
     const orderedIds = reordered.map((p) => p.providerId);
     try {
@@ -62,7 +114,7 @@ export default function ProvidersScreen() {
       setMessage(null);
     } else {
       setEditing(true);
-      setMessage("Drag or use arrows to reorder providers.");
+      setMessage("Drag the handle to reorder providers.");
     }
   }
 
@@ -107,26 +159,25 @@ export default function ProvidersScreen() {
         ) : providerRows.length ? (
           providerRows.map((provider, index) => {
             const isRefreshing = refreshingProviderId === provider.providerId;
+            const isDragOver = dragOverIndex === index;
             return (
-              <Animated.View key={provider.providerId} style={styles.providerItem}>
+              <Animated.View
+                key={provider.providerId}
+                style={[styles.providerItem, isDragOver && styles.dragOverBorder]}
+              >
+                <DropZone
+                  onDragOver={(e: React.DragEvent) => onDragOver(e, index)}
+                  onDragLeave={onDragLeave}
+                  onDrop={() => onDrop(index)}
+                  style={styles.dragZone}
+                >
                 <View style={styles.providerRow}>
                   {editing && (
-                    <View style={styles.reorderControls}>
-                      <Pressable
-                        disabled={index === 0}
-                        onPress={() => moveProvider(index, -1)}
-                        style={({ pressed }) => [styles.arrowButton, index === 0 && styles.arrowDisabled, pressed && styles.pressed]}
-                      >
-                        <Text style={[styles.arrowText, index === 0 && styles.arrowTextDisabled]}>▲</Text>
-                      </Pressable>
-                      <Pressable
-                        disabled={index === providerRows.length - 1}
-                        onPress={() => moveProvider(index, 1)}
-                        style={({ pressed }) => [styles.arrowButton, index === providerRows.length - 1 && styles.arrowDisabled, pressed && styles.pressed]}
-                      >
-                        <Text style={[styles.arrowText, index === providerRows.length - 1 && styles.arrowTextDisabled]}>▼</Text>
-                      </Pressable>
-                    </View>
+                    <DragHandle onDragStart={() => onDragStart(index)}>
+                      <View style={styles.gripDot} />
+                      <View style={styles.gripDot} />
+                      <View style={styles.gripDot} />
+                    </DragHandle>
                   )}
                   <View style={styles.providerCardWrapper}>
                     <ProviderUsageRow provider={provider} onPress={() => openProvider(provider.providerId)} index={index} />
@@ -137,6 +188,7 @@ export default function ProvidersScreen() {
                     <Text style={styles.refreshButtonText}>{isRefreshing ? "Refreshing..." : "Refresh provider"}</Text>
                   </Pressable>
                 )}
+                </DropZone>
               </Animated.View>
             );
           })
@@ -174,14 +226,27 @@ const styles = StyleSheet.create({
   editButtonText: { color: "#e4e4e7", fontSize: 14, fontWeight: "800" },
   subtitle: { color: "#8b8b91", fontSize: 14, lineHeight: 20, marginBottom: 6 },
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" },
-  providerItem: { gap: 8 },
-  providerRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  providerItem: { gap: 8, borderRadius: 8 },
+  dragOverBorder: { borderColor: "#22c55e", borderWidth: 2, borderRadius: 8 },
+  dragZone: { gap: 8 },
+  providerRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   providerCardWrapper: { flex: 1 },
-  reorderControls: { gap: 4, alignItems: "center", justifyContent: "center" },
-  arrowButton: { width: 28, height: 28, borderRadius: 6, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  arrowDisabled: { opacity: 0.3 },
-  arrowText: { color: "#e4e4e7", fontSize: 12, fontWeight: "900" },
-  arrowTextDisabled: { color: "#52525b" },
+  dragHandle: {
+    width: 24,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 3,
+    // @ts-expect-error web cursor
+    cursor: "grab",
+    paddingVertical: 6
+  },
+  gripDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#52525b"
+  },
   refreshButton: { minHeight: 38, borderRadius: 7, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, alignItems: "center", justifyContent: "center" },
   refreshButtonText: { color: "#e4e4e7", fontSize: 13, fontWeight: "900" },
   disabled: { opacity: 0.45 },
