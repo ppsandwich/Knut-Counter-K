@@ -3,6 +3,8 @@ import { upsertProviderAccountWithCredentials } from "@knut/db";
 import { requireUser } from "../../apiUtils/auth";
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
+const CLIENT_SECRET = "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";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
@@ -27,13 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Missing authorization code" });
     }
 
-    const clientId = process.env.GOOGLE_CLOUDCODE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLOUDCODE_CLIENT_SECRET;
     const redirectUri = process.env.GOOGLE_CLOUDCODE_REDIRECT_URI ?? `https://${req.headers.host}/api/antigravity/callback`;
-
-    if (!clientId || !clientSecret) {
-      return res.status(500).json({ error: "Google OAuth is not configured on the server." });
-    }
 
     let userId: string;
     try {
@@ -49,8 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           code,
-          client_id: clientId,
-          client_secret: clientSecret,
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
           redirect_uri: redirectUri,
           grant_type: "authorization_code"
         })
