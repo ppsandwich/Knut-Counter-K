@@ -45,7 +45,6 @@ export default function AlertsScreen() {
         {!isRefreshing && !alerts.length ? (
           <AnimatedCard index={2}>
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Everything looks boring. Excellent.</Text>
               <Text style={styles.body}>No active alerts yet. Run a check after adding usage, budgets, or synced provider data.</Text>
             </View>
           </AnimatedCard>
