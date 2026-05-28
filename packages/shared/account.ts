@@ -68,6 +68,13 @@ export type AccountProviderSummary = {
   tokenQuotaCap: number | null;
   tokenQuotaUsed: number | null;
   tokenQuotaConfidence: string | null;
+  modelQuotas: ModelQuotaInfo[];
+};
+
+export type ModelQuotaInfo = {
+  label: string;
+  remainingPercent: number;
+  isExhausted: boolean;
 };
 
 export type DashboardModelPick = {

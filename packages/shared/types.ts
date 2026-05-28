@@ -30,7 +30,14 @@ export interface ProviderUsageSummary {
   resetCountdown: string;
   lastSyncedAt: string;
   sparklineData: number[];
+  modelMetrics?: ModelMetric[];
 }
+
+export type ModelMetric = {
+  label: string;
+  value: string;
+  exhausted: boolean;
+};
 
 export interface DashboardSummary {
   monthlySpend: number;

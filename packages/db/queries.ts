@@ -530,6 +530,7 @@ export async function upsertProviderAccountWithCredentials(userId: string, provi
       .set({
         encryptedCredentials: encrypted,
         authType,
+        isActive: true,
         lastSyncAt: new Date(),
         syncStatus: "idle",
         updatedAt: new Date()
@@ -950,6 +951,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     .select({
       providerAccountId: usageCaps.providerAccountId,
       capType: usageCaps.capType,
+      capLabel: usageCaps.capLabel,
       capAmount: usageCaps.capAmount,
       usedAmount: usageCaps.usedAmount,
       confidence: usageCaps.confidence
@@ -977,6 +979,24 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     return acc;
   }, {});
 
+  const modelQuotasByAccount = creditCaps.reduce<Record<string, Array<{ label: string; remainingPercent: number; isExhausted: boolean }>>>((acc, cap) => {
+    if (cap.capType !== "token_quota") return acc;
+    const capAmount = numberFromDecimal(cap.capAmount);
+    const usedAmount = numberFromDecimal(cap.usedAmount);
+    if (capAmount <= 0) return acc;
+    const remaining = capAmount === 100
+      ? Math.max(0, 100 - usedAmount)
+      : Math.round((1 - usedAmount / capAmount) * 10000) / 100;
+    const existing = acc[cap.providerAccountId] ?? [];
+    existing.push({
+      label: cap.capLabel ?? "Unknown",
+      remainingPercent: remaining,
+      isExhausted: remaining <= 0
+    });
+    acc[cap.providerAccountId] = existing;
+    return acc;
+  }, {});
+
   return rows.map((row) => ({
     ...(() => {
       const usage = usageByAccount[row.id] ?? { spend: 0, tokens: 0, records: 0, last24hSpend: 0, last24hTokens: 0, last7dSpend: 0, last7dTokens: 0, sparklineData: Array.from({ length: bucketCount }, () => 0) };
@@ -997,7 +1017,8 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
         creditConfidence: credit?.confidence ?? null,
         tokenQuotaCap: tokenQuota?.capAmount ?? null,
         tokenQuotaUsed: tokenQuota?.usedAmount ?? null,
-        tokenQuotaConfidence: tokenQuota?.confidence ?? null
+        tokenQuotaConfidence: tokenQuota?.confidence ?? null,
+        modelQuotas: modelQuotasByAccount[row.id] ?? []
       };
     })(),
     id: row.id,

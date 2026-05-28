@@ -14,6 +14,19 @@ const lineColors = {
   stale: colors.muted
 };
 
+function ModelMetricsGrid({ metrics }: { metrics: NonNullable<ProviderUsageSummary["modelMetrics"]> }) {
+  return (
+    <View style={styles.modelGrid}>
+      {metrics.map((m, i) => (
+        <View key={i} style={styles.modelItem}>
+          <Text style={[styles.modelValue, m.exhausted && styles.modelExhausted]} numberOfLines={1}>{m.value}</Text>
+          <Text style={styles.modelLabel} numberOfLines={1}>{m.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummary; onPress?: () => void; index?: number; refreshing?: boolean }>(
   function ProviderUsageRow({ provider, onPress, index = 0, refreshing = false }, ref) {
     const { style: animStyle } = useStaggeredAnimation(index, { staggerDelay: 60, baseDelay: 200 });
@@ -55,8 +68,14 @@ export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummar
             <Text style={styles.confidence} numberOfLines={1}>{confidenceLabels[provider.confidence]}</Text>
           </View>
           <View style={styles.spark}>
-            <Sparkline values={provider.sparklineData} color={lineColors[provider.status]} />
-            <Text style={styles.windowMetrics} numberOfLines={1}>{provider.last24hMetric ?? "24h --"} · {provider.last7dMetric ?? "7d --"}</Text>
+            {provider.modelMetrics?.length ? (
+              <ModelMetricsGrid metrics={provider.modelMetrics} />
+            ) : (
+              <>
+                <Sparkline values={provider.sparklineData} color={lineColors[provider.status]} />
+                <Text style={styles.windowMetrics} numberOfLines={1}>{provider.last24hMetric ?? "24h --"} · {provider.last7dMetric ?? "7d --"}</Text>
+              </>
+            )}
           </View>
           <View style={styles.right}>
             <Text style={styles.metric} numberOfLines={1}>{provider.primaryMetric}</Text>
@@ -92,5 +111,10 @@ const styles = StyleSheet.create({
   confidence: { color: colors.dim, fontSize: 11, fontWeight: "800", marginTop: 6 },
   windowMetrics: { color: colors.dim, fontSize: 10, fontWeight: "800", textAlign: "center" },
   metric: { color: colors.text, fontSize: 18, fontWeight: "900", textAlign: "right" },
-  reset: { color: colors.muted, fontSize: 11, fontWeight: "700", textAlign: "right" }
+  reset: { color: colors.muted, fontSize: 11, fontWeight: "700", textAlign: "right" },
+  modelGrid: { flexDirection: "row", flexWrap: "wrap", gap: 2, justifyContent: "center", alignItems: "center" },
+  modelItem: { alignItems: "center", minWidth: 32 },
+  modelValue: { color: colors.green, fontSize: 11, fontWeight: "900" },
+  modelExhausted: { color: colors.red },
+  modelLabel: { color: colors.dim, fontSize: 8, fontWeight: "700", textAlign: "center" }
 });

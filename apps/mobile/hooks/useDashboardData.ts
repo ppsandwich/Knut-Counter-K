@@ -8,42 +8,55 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
   const hasUsage = provider.currentMonthRecords > 0;
   const hasCreditData = provider.creditUsedAmount != null && provider.creditBalanceAmount != null;
   const hasTokenQuota = provider.tokenQuotaCap != null && provider.tokenQuotaUsed != null && provider.tokenQuotaCap > 0;
+  const hasModelQuotas = provider.modelQuotas.length > 0;
 
   const tokenQuotaPercent = hasTokenQuota
     ? Math.round((1 - provider.tokenQuotaUsed! / provider.tokenQuotaCap!) * 10000) / 100
     : null;
 
+  const modelMetrics = hasModelQuotas
+    ? provider.modelQuotas.map((q) => ({
+        label: q.label.length > 20 ? q.label.slice(0, 18) + "…" : q.label,
+        value: `${q.remainingPercent}%`,
+        exhausted: q.isExhausted
+      }))
+    : undefined;
+
   return {
     providerId: provider.id,
     providerName: provider.providerName,
     accountDisplayName: provider.displayName,
-    primaryMetric: hasTokenQuota
-      ? `${tokenQuotaPercent}%`
-      : hasUsage
-        ? formatCurrency(provider.currentMonthSpend, currency)
-        : hasCreditData
-          ? formatCurrency(provider.creditUsedAmount ?? 0, currency)
-          : "Unknown",
-    secondaryMetric: hasTokenQuota
-      ? `${formatCompactNumber(provider.tokenQuotaUsed!)} / ${formatCompactNumber(provider.tokenQuotaCap!)} tokens`
-      : hasUsage
-        ? `${formatCompactNumber(provider.currentMonthTokens)} tokens`
-        : hasCreditData
-          ? `${formatCurrency(provider.creditBalanceAmount ?? 0, currency)} credits left`
-          : (provider.planName ?? provider.authType.replaceAll("_", " ")),
-    last24hMetric: hasTokenQuota
+    primaryMetric: hasModelQuotas
+      ? `${provider.modelQuotas.filter((q) => !q.isExhausted).length}/${provider.modelQuotas.length}`
+      : hasTokenQuota
+        ? `${tokenQuotaPercent}%`
+        : hasUsage
+          ? formatCurrency(provider.currentMonthSpend, currency)
+          : hasCreditData
+            ? formatCurrency(provider.creditUsedAmount ?? 0, currency)
+            : "Unknown",
+    secondaryMetric: hasModelQuotas
+      ? "models remaining"
+      : hasTokenQuota
+        ? `${formatCompactNumber(provider.tokenQuotaUsed!)} / ${formatCompactNumber(provider.tokenQuotaCap!)} tokens`
+        : hasUsage
+          ? `${formatCompactNumber(provider.currentMonthTokens)} tokens`
+          : hasCreditData
+            ? `${formatCurrency(provider.creditBalanceAmount ?? 0, currency)} credits left`
+            : (provider.planName ?? provider.authType.replaceAll("_", " ")),
+    last24hMetric: hasTokenQuota || hasModelQuotas
       ? ""
       : hasUsage
         ? `24h ${formatCurrency(provider.last24hSpend, currency)}`
         : "24h no records",
-    last7dMetric: hasTokenQuota
+    last7dMetric: hasTokenQuota || hasModelQuotas
       ? ""
       : hasUsage
         ? `7d ${formatCurrency(provider.last7dSpend, currency)}`
         : "7d no records",
     statusBadge: provider.hasCredentials || isManual ? "Ready" : "No key",
     status: provider.hasCredentials || isManual ? "healthy" : "warning",
-    confidence: hasTokenQuota
+    confidence: hasTokenQuota || hasModelQuotas
       ? (provider.tokenQuotaConfidence as DataConfidence ?? "provider_reported")
       : hasUsage
         ? (isManual ? "manual" : "provider_reported")
@@ -52,7 +65,8 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
           : "unknown",
     resetCountdown: provider.resetRule ?? "no reset",
     lastSyncedAt: provider.lastSyncAt ?? "",
-    sparklineData: hasTokenQuota ? [] : provider.sparklineData
+    sparklineData: hasTokenQuota || hasModelQuotas ? [] : provider.sparklineData,
+    modelMetrics
   };
 }
 
