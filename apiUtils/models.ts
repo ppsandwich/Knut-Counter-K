@@ -268,6 +268,8 @@ function normaliseModelMatchKey(value: string) {
     .replace(/^~/, "")
     .replace(/:.+$/, "")
     .replace(/^(openai|anthropic|google|x-ai|xai|deepseek|mistralai|mistral|cohere|groq|perplexity|openrouter|qwen|qwenlm)[/:_-]+/, "")
+    .replace(/(?:^|[-_])20\d{6,8}$/, "")
+    .replace(/(?:nonreasoning|reasoning|thinking|adaptive|max|xhigh|high|medium|low|minimal|preview|fast|free)$/g, "")
     .replace(/[^a-z0-9]+/g, "");
 }
 
