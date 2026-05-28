@@ -42,5 +42,6 @@ providers:
   - { provider_id: vercel_ai_gateway, name: "Vercel AI Gateway", connector_type: gateway_usage_capture, connector_status: planned, supports_response_usage_metadata: true, supports_manual_import: true, priority: 3 }
   - { provider_id: litellm_proxy, name: "LiteLLM Proxy", connector_type: gateway_usage_capture, connector_status: planned, supports_response_usage_metadata: true, supports_manual_import: true, priority: 3 }
   - { provider_id: xiaomimimo, name: "Xiaomi MiMo", connector_type: usage_api, connector_status: live_api_connector, supports_account_usage_api: true, supports_manual_import: true, priority: 2 }
+  - { provider_id: chatgpt_plus, name: "ChatGPT Plus", connector_type: usage_api, connector_status: live_api_connector, supports_account_usage_api: true, supports_manual_import: true, priority: 1 }
   - { provider_id: antigravity, name: "Antigravity", connector_type: "usage_api + oauth", connector_status: live_api_connector, supports_account_usage_api: true, supports_manual_import: true, priority: 2 }
   - { provider_id: other_custom, name: "Other / Custom", connector_type: manual_tracking, connector_status: manual_import_supported, supports_manual_import: true, priority: 99 }

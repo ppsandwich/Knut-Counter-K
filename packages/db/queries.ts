@@ -1,4 +1,4 @@
-import { anthropicConnector, antigravityConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, antigravityConnector, chatgptPlusConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, ne, or } from "drizzle-orm";
@@ -866,6 +866,19 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       });
       capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
       messages.push(`${account.displayName} refreshed Antigravity quota.`);
+    } else if (account.providerId === "chatgpt_plus") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs a session token before ChatGPT Plus can refresh.`);
+        continue;
+      }
+
+      const sessionToken = decryptCredential(account.encryptedCredentials);
+      const caps = await chatgptPlusConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey: sessionToken }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+      messages.push(`${account.displayName} refreshed ChatGPT Plus rate limits.`);
     } else {
       messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
     }
