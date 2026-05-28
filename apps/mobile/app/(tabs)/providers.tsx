@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { createElement, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,33 +12,33 @@ function DropZone({ onDragOver, onDragLeave, onDrop, style, children }: {
   onDragOver?: (e: React.DragEvent) => void;
   onDragLeave?: () => void;
   onDrop?: () => void;
-  style?: unknown;
+  style?: CSSProperties;
   children: ReactNode;
 }) {
-  const WebDropZone = View as any;
-  return (
-    <WebDropZone
-      style={style}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-    >
-      {children}
-    </WebDropZone>
-  );
+  return createElement("div", {
+    style: { ...style, display: "flex", flexDirection: "column" },
+    onDragOver,
+    onDragLeave,
+    onDrop
+  }, children);
 }
 
 function DragHandle({ onDragStart, children }: { onDragStart?: () => void; children: ReactNode }) {
-  const WebDraggable = View as any;
-  return (
-    <WebDraggable
-      draggable
-      onDragStart={onDragStart}
-      style={styles.dragHandle}
-    >
-      {children}
-    </WebDraggable>
-  );
+  return createElement("div", {
+    draggable: true,
+    onDragStart,
+    style: {
+      width: 24,
+      height: 44,
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 3,
+      cursor: "grab",
+      padding: "6px 0"
+    }
+  }, children);
 }
 
 export default function ProvidersScreen() {
@@ -169,14 +169,14 @@ export default function ProvidersScreen() {
                   onDragOver={(e: React.DragEvent) => onDragOver(e, index)}
                   onDragLeave={onDragLeave}
                   onDrop={() => onDrop(index)}
-                  style={styles.dragZone}
+                  style={{ gap: 8 }}
                 >
                 <View style={styles.providerRow}>
                   {editing && (
                     <DragHandle onDragStart={() => onDragStart(index)}>
-                      <View style={styles.gripDot} />
-                      <View style={styles.gripDot} />
-                      <View style={styles.gripDot} />
+                      <span style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#52525b" }} />
+                      <span style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#52525b" }} />
+                      <span style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "#52525b" }} />
                     </DragHandle>
                   )}
                   <View style={styles.providerCardWrapper}>
@@ -228,25 +228,8 @@ const styles = StyleSheet.create({
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" },
   providerItem: { gap: 8, borderRadius: 8 },
   dragOverBorder: { borderColor: "#22c55e", borderWidth: 2, borderRadius: 8 },
-  dragZone: { gap: 8 },
   providerRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   providerCardWrapper: { flex: 1 },
-  dragHandle: {
-    width: 24,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 3,
-    // @ts-expect-error web cursor
-    cursor: "grab",
-    paddingVertical: 6
-  },
-  gripDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#52525b"
-  },
   refreshButton: { minHeight: 38, borderRadius: 7, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, alignItems: "center", justifyContent: "center" },
   refreshButtonText: { color: "#e4e4e7", fontSize: 13, fontWeight: "900" },
   disabled: { opacity: 0.45 },
