@@ -8,14 +8,14 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
   const hasUsage = provider.currentMonthRecords > 0;
   const hasCreditData = provider.creditUsedAmount != null && provider.creditBalanceAmount != null;
   const hasTokenQuota = provider.tokenQuotaCap != null && provider.tokenQuotaUsed != null && provider.tokenQuotaCap > 0;
-  const hasModelQuotas = provider.modelQuotas.length > 0;
+  const hasModelQuotas = (provider.modelQuotas?.length ?? 0) > 0;
 
   const tokenQuotaPercent = hasTokenQuota
     ? Math.round((1 - provider.tokenQuotaUsed! / provider.tokenQuotaCap!) * 10000) / 100
     : null;
 
   const modelMetrics = hasModelQuotas
-    ? provider.modelQuotas.map((q) => ({
+    ? provider.modelQuotas!.map((q) => ({
         label: q.label.length > 20 ? q.label.slice(0, 18) + "…" : q.label,
         value: `${q.remainingPercent}%`,
         exhausted: q.isExhausted
@@ -27,7 +27,7 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
     providerName: provider.providerName,
     accountDisplayName: provider.displayName,
     primaryMetric: hasModelQuotas
-      ? `${provider.modelQuotas.filter((q) => !q.isExhausted).length}/${provider.modelQuotas.length}`
+      ? `${provider.modelQuotas!.filter((q) => !q.isExhausted).length}/${provider.modelQuotas!.length}`
       : hasTokenQuota
         ? `${tokenQuotaPercent}%`
         : hasUsage
