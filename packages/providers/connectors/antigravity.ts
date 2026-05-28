@@ -21,6 +21,10 @@ type LoadCodeAssistResponse = {
     id?: string;
     name?: string;
   };
+  paidTier?: {
+    id?: string;
+  };
+  allowedTiers?: Array<{ id?: string; isDefault?: boolean }>;
 };
 
 type ModelInfo = {
@@ -117,6 +121,51 @@ async function cloudcodePost<T>(accessToken: string, endpoint: string, body?: un
   return response.json() as Promise<T>;
 }
 
+async function onboardUser(accessToken: string, tierId: string): Promise<void> {
+  await fetch(`${CLOUDCODE_BASE}/v1internal:onboardUser`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "User-Agent": "antigravity"
+    },
+    body: JSON.stringify({
+      tierId,
+      metadata: { ideType: "ANTIGRAVITY", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" }
+    })
+  });
+}
+
+async function resolveProjectId(accessToken: string, loadResponse: LoadCodeAssistResponse): Promise<string | undefined> {
+  const projectId = typeof loadResponse.cloudaicompanionProject === "string"
+    ? loadResponse.cloudaicompanionProject
+    : loadResponse.cloudaicompanionProject?.id;
+
+  if (projectId) return projectId;
+
+  const tierId = loadResponse.allowedTiers?.find((t) => t.isDefault)?.id
+    ?? loadResponse.paidTier?.id
+    ?? loadResponse.currentTier?.id
+    ?? loadResponse.allowedTiers?.[0]?.id;
+
+  if (!tierId) return undefined;
+
+  await onboardUser(accessToken, tierId);
+
+  for (let i = 0; i < 3; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const retry = await cloudcodePost<LoadCodeAssistResponse>(accessToken, "/v1internal:loadCodeAssist", {
+      metadata: { ideType: "ANTIGRAVITY", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" }
+    });
+    const retryProjectId = typeof retry.cloudaicompanionProject === "string"
+      ? retry.cloudaicompanionProject
+      : retry.cloudaicompanionProject?.id;
+    if (retryProjectId) return retryProjectId;
+  }
+
+  return undefined;
+}
+
 export const antigravityConnector: ProviderConnector = {
   providerId: "antigravity",
   displayName: "Antigravity",
@@ -128,9 +177,10 @@ export const antigravityConnector: ProviderConnector = {
 
     try {
       const { accessToken } = await getValidAccessToken(input.apiKey);
-      await cloudcodePost<LoadCodeAssistResponse>(accessToken, "/v1internal:loadCodeAssist", {
+      const loadResponse = await cloudcodePost<LoadCodeAssistResponse>(accessToken, "/v1internal:loadCodeAssist", {
         metadata: { ideType: "ANTIGRAVITY", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" }
       });
+      await resolveProjectId(accessToken, loadResponse);
       return { ok: true, message: "Antigravity session is valid." };
     } catch (error) {
       return {
@@ -151,9 +201,7 @@ export const antigravityConnector: ProviderConnector = {
       metadata: { ideType: "ANTIGRAVITY", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" }
     });
 
-    const projectId = typeof loadResponse.cloudaicompanionProject === "string"
-      ? loadResponse.cloudaicompanionProject
-      : loadResponse.cloudaicompanionProject?.id;
+    const projectId = await resolveProjectId(accessToken, loadResponse);
 
     const modelsResponse = await cloudcodePost<FetchModelsResponse>(
       accessToken,
@@ -206,9 +254,7 @@ export const antigravityConnector: ProviderConnector = {
       metadata: { ideType: "ANTIGRAVITY", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" }
     });
 
-    const projectId = typeof loadResponse.cloudaicompanionProject === "string"
-      ? loadResponse.cloudaicompanionProject
-      : loadResponse.cloudaicompanionProject?.id;
+    const projectId = await resolveProjectId(accessToken, loadResponse);
 
     const modelsResponse = await cloudcodePost<FetchModelsResponse>(
       accessToken,
