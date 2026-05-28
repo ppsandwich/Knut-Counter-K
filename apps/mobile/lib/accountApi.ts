@@ -66,10 +66,9 @@ export async function updateAccountProvider(input: ProviderAccountUpdateInput) {
 }
 
 export async function deleteAccountProvider(providerAccountId: string) {
-  const response = await fetch(getApiUrl("/api/provider-accounts"), {
+  const response = await fetch(getApiUrl(`/api/provider-accounts?action=delete&providerAccountId=${encodeURIComponent(providerAccountId)}`), {
     method: "DELETE",
-    headers: await authHeaders(),
-    body: JSON.stringify({ providerAccountId })
+    headers: await authHeaders()
   });
 
   if (!response.ok) {
@@ -80,10 +79,9 @@ export async function deleteAccountProvider(providerAccountId: string) {
 }
 
 export async function removeProviderCredentials(providerAccountId: string) {
-  const response = await fetch(getApiUrl("/api/provider-accounts/credentials"), {
+  const response = await fetch(getApiUrl(`/api/provider-accounts?action=credentials&providerAccountId=${encodeURIComponent(providerAccountId)}`), {
     method: "DELETE",
-    headers: await authHeaders(),
-    body: JSON.stringify({ providerAccountId })
+    headers: await authHeaders()
   });
 
   if (!response.ok) {
