@@ -35,7 +35,7 @@ export interface ProviderUsageSummary {
   resetProgress?: number | null;
   tokenQuotaUsed?: number | null;
   tokenQuotaCap?: number | null;
-  resetDaysLeft?: number | null;
+  resetDaysLeft?: string | null;
   hideQuotaText?: boolean;
   displayOrder: number;
 }

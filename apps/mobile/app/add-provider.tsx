@@ -99,7 +99,7 @@ export default function AddProviderScreen() {
             <Text style={styles.errorText}>{registry.error}</Text>
           ) : registry.providers.length ? (
             <View style={styles.providerList}>
-              {registry.providers.map((provider) => (
+              {registry.providers.filter((p) => p.providerId !== "antigravity").map((provider) => (
                 <Pressable
                   key={provider.providerId}
                   onPress={() => selectProvider(provider.providerId, provider.providerName)}

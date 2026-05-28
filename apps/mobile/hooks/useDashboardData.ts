@@ -96,11 +96,21 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
     tokenQuotaCap: provider.tokenQuotaCap,
     hideQuotaText: provider.tokenQuotaUnit != null && provider.tokenQuotaUnit !== "tokens",
     resetDaysLeft: hasTokenQuota
-      ? provider.tokenQuotaResetAt
-        ? Math.max(0, Math.ceil((new Date(provider.tokenQuotaResetAt).getTime() - Date.now()) / 86_400_000))
-        : provider.resetRule
-          ? (() => { const m = provider.resetRule.match(/(\d+)d/); return m ? parseInt(m[1], 10) : null; })()
-          : null
+      ? (() => {
+          if (provider.tokenQuotaResetAt) {
+            const msLeft = Math.max(0, new Date(provider.tokenQuotaResetAt).getTime() - Date.now());
+            const totalHours = Math.floor(msLeft / 3_600_000);
+            const days = Math.floor(totalHours / 24);
+            const hours = totalHours % 24;
+            if (days > 0) return `${days} day${days !== 1 ? "s" : ""} ${hours}h`;
+            return `${hours}h`;
+          }
+          if (provider.resetRule) {
+            const m = provider.resetRule.match(/(\d+)d/);
+            return m ? `${m[1]} days` : null;
+          }
+          return null;
+        })()
       : null
   };
 }
