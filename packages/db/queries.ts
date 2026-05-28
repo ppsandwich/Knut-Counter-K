@@ -1,4 +1,4 @@
-import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, antigravityConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, ne, or } from "drizzle-orm";
@@ -514,6 +514,46 @@ export async function createProviderAccount(userId: string, input: ProviderAccou
   };
 }
 
+export async function upsertProviderAccountWithCredentials(userId: string, providerId: string, displayName: string, authType: string, credentials: string) {
+  const encrypted = encryptCredential(credentials);
+  const db = getDb();
+
+  const existing = await db
+    .select({ id: providerAccounts.id })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.providerId, providerId)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(providerAccounts)
+      .set({
+        encryptedCredentials: encrypted,
+        authType,
+        lastSyncAt: new Date(),
+        syncStatus: "idle",
+        updatedAt: new Date()
+      })
+      .where(eq(providerAccounts.id, existing[0].id));
+    return { id: existing[0].id, created: false };
+  }
+
+  const [account] = await db
+    .insert(providerAccounts)
+    .values({
+      userId,
+      providerId,
+      displayName,
+      authType,
+      encryptedCredentials: encrypted,
+      isActive: true,
+      syncStatus: "idle"
+    })
+    .returning({ id: providerAccounts.id });
+
+  return { id: account.id, created: true };
+}
+
 export async function deleteProviderCredentials(userId: string, providerAccountId: string) {
   const [account] = await getDb()
     .update(providerAccounts)
@@ -813,6 +853,18 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       });
       capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
       messages.push(`${account.displayName} refreshed MiMo token usage.`);
+    } else if (account.providerId === "antigravity") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs Google OAuth before Antigravity can refresh. Reconnect from the provider page.`);
+        continue;
+      }
+
+      const caps = await antigravityConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey: account.encryptedCredentials }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+      messages.push(`${account.displayName} refreshed Antigravity quota.`);
     } else {
       messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
     }

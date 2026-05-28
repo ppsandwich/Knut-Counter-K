@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BackButton } from "../components/BackButton";
 import { useAuthSession } from "../hooks/useAuthSession";
 import { useProviderRegistry } from "../hooks/useProviderRegistry";
 import { createAccountProvider } from "../lib/accountApi";
 
-type ConnectionMethod = "api_key" | "manual" | "csv_json_import";
+type ConnectionMethod = "api_key" | "manual" | "csv_json_import" | "oauth";
 type ConnectionOption = [ConnectionMethod, string];
 
 const CUSTOM_PROVIDER_ID = "other_custom";
@@ -50,8 +50,10 @@ export default function AddProviderScreen() {
 
   const selectedProvider = registry.providers.find((provider) => provider.providerId === providerId) ?? registry.providers[0];
   const isCustomProvider = providerId === CUSTOM_PROVIDER_ID;
+  const isAntigravity = providerId === "antigravity";
   const connectionOptions = useMemo<ConnectionOption[]>(() => selectedProvider
     ? ([
+        isAntigravity ? ["oauth", "Google OAuth"] : null,
         selectedProvider.supportsAccountUsageApi || selectedProvider.supportsResponseUsageMetadata ? ["api_key", "API key"] : null,
         selectedProvider.supportsManualImport ? ["manual", "Manual tracking"] : null,
         selectedProvider.supportsCsvImport || selectedProvider.supportsJsonImport ? ["csv_json_import", "CSV/JSON import"] : null
@@ -60,7 +62,7 @@ export default function AddProviderScreen() {
         ["api_key", "API key"],
         ["manual", "Manual tracking"],
         ["csv_json_import", "CSV/JSON import"]
-      ], [selectedProvider]);
+      ], [selectedProvider, isAntigravity]);
 
   useEffect(() => {
     if (!connectionOptions.some(([value]) => value === authType) && connectionOptions[0]) {
@@ -148,6 +150,20 @@ export default function AddProviderScreen() {
               value={apiKey}
             />
           ) : null}
+          {authType === "oauth" ? (
+            <Pressable
+              disabled={!auth.user}
+              onPress={() => {
+                const clientId = process.env.EXPO_PUBLIC_GOOGLE_CLOUDCODE_CLIENT_ID;
+                const redirectUri = `${typeof window !== "undefined" ? window.location.origin : ""}/api/antigravity/callback`;
+                const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent("https://www.googleapis.com/auth/cloudcode")}&access_type=offline&prompt=consent`;
+                Linking.openURL(url);
+              }}
+              style={({ pressed }) => [styles.oauthButton, !auth.user && styles.disabled, pressed && styles.pressed]}
+            >
+              <Text style={styles.oauthButtonText}>Connect with Google</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -187,6 +203,8 @@ const styles = StyleSheet.create({
   optionText: { color: "#f4f4f5", fontSize: 15, fontWeight: "800" },
   saveButton: { minHeight: 46, borderRadius: 7, backgroundColor: "#22c55e", alignItems: "center", justifyContent: "center" },
   saveButtonText: { color: "#041006", fontSize: 15, fontWeight: "900" },
+  oauthButton: { minHeight: 46, borderRadius: 7, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  oauthButtonText: { color: "#1f1f1f", fontSize: 15, fontWeight: "900" },
   disabled: { opacity: 0.42 },
   pressed: { opacity: 0.72 },
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" }

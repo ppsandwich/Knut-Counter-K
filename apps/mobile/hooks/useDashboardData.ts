@@ -10,7 +10,7 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
   const hasTokenQuota = provider.tokenQuotaCap != null && provider.tokenQuotaUsed != null && provider.tokenQuotaCap > 0;
 
   const tokenQuotaPercent = hasTokenQuota
-    ? Math.round((provider.tokenQuotaUsed! / provider.tokenQuotaCap!) * 10000) / 100
+    ? Math.round((1 - provider.tokenQuotaUsed! / provider.tokenQuotaCap!) * 10000) / 100
     : null;
 
   return {

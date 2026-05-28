@@ -331,3 +331,17 @@ export async function clearAlerts(): Promise<{ ok: boolean; cleared: number; ale
 
   return response.json() as Promise<{ ok: boolean; cleared: number; alerts: AccountAlert[] }>;
 }
+
+export async function exchangeAntigravityCode(code: string): Promise<{ ok: boolean }> {
+  const response = await fetch(getApiUrl("/api/antigravity/callback"), {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ code })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean }>;
+}
