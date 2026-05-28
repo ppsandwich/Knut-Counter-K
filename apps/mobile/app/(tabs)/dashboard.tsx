@@ -89,7 +89,7 @@ export default function DashboardScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.title}>Knut Counter</Text>
-              <Text style={styles.subtitle}>Today{dashboard.loading ? " · syncing..." : ""}</Text>
+              <Text style={styles.subtitle}>{dashboard.loading ? "Syncing..." : ""}</Text>
             </View>
             <View style={styles.headerActions}>
               <Text style={styles.currency}>Prices in {currency}</Text>

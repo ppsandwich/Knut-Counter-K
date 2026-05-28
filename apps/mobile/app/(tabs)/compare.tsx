@@ -90,24 +90,15 @@ export default function CompareScreen() {
             </Pressable>
             {isTaskMenuOpen ? (
               <Animated.View style={styles.menu}>
-                {taskPresets.map((task, index) => {
-                  const isSelected = task.label === selectedTask.label;
-                  const { style: itemStyle } = useStaggeredAnimation(index, { staggerDelay: 30, baseDelay: 0 });
-                  return (
-                    <Animated.View key={task.label} style={itemStyle}>
-                      <Pressable onPress={() => selectTask(task)} style={[styles.menuItem, isSelected && styles.menuItemActive]}>
-                        <View style={styles.selectTextBlock}>
-                          <View style={styles.taskTitleRow}>
-                            <Text style={styles.menuItemTitle}>{task.label}</Text>
-                            <BenchmarkTag label={task.benchmarkType} />
-                          </View>
-                          <Text style={styles.menuItemMeta}>{task.inputTokens.toLocaleString()} input · {task.outputTokens.toLocaleString()} output</Text>
-                        </View>
-                        <Text style={styles.menuItemCheck}>{isSelected ? "Selected" : ""}</Text>
-                      </Pressable>
-                    </Animated.View>
-                  );
-                })}
+                {taskPresets.map((task, index) => (
+                  <TaskMenuItem
+                    key={task.label}
+                    task={task}
+                    index={index}
+                    isSelected={task.label === selectedTask.label}
+                    onSelect={selectTask}
+                  />
+                ))}
               </Animated.View>
             ) : null}
             <PreferenceSlider value={qualityPreference} onChange={setQualityPreference} />
@@ -185,6 +176,25 @@ function BenchmarkTag({ label }: { label: string }) {
     <View style={styles.benchmarkTag}>
       <Text style={styles.benchmarkTagText}>{label}</Text>
     </View>
+  );
+}
+
+function TaskMenuItem({ task, index, isSelected, onSelect }: { task: typeof taskPresets[number]; index: number; isSelected: boolean; onSelect: (task: typeof taskPresets[number]) => void }) {
+  const { style: itemStyle } = useStaggeredAnimation(index, { staggerDelay: 30, baseDelay: 0 });
+
+  return (
+    <Animated.View style={itemStyle}>
+      <Pressable onPress={() => onSelect(task)} style={[styles.menuItem, isSelected && styles.menuItemActive]}>
+        <View style={styles.selectTextBlock}>
+          <View style={styles.taskTitleRow}>
+            <Text style={styles.menuItemTitle}>{task.label}</Text>
+            <BenchmarkTag label={task.benchmarkType} />
+          </View>
+          <Text style={styles.menuItemMeta}>{task.inputTokens.toLocaleString()} input · {task.outputTokens.toLocaleString()} output</Text>
+        </View>
+        <Text style={styles.menuItemCheck}>{isSelected ? "Selected" : ""}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
