@@ -12,9 +12,8 @@ type MetricRanges = {
   intelligence: MetricRange | null;
   coding: MetricRange | null;
   speed: MetricRange | null;
-  price: MetricRange | null;
 };
-type SortKey = "popularity" | "inputCost" | "outputCost" | "intelligence" | "coding" | "speed" | "price";
+type SortKey = "popularity" | "inputCost" | "outputCost" | "intelligence" | "coding" | "speed";
 type SortDirection = "desc" | "asc";
 type BenchmarkSource = "aa" | "blm";
 
@@ -23,8 +22,7 @@ const metricColumns: Array<{ key: Exclude<SortKey, "popularity">; label: string;
   { key: "outputCost", label: "Out", higherIsBetter: false },
   { key: "intelligence", label: "Intel", higherIsBetter: true },
   { key: "coding", label: "Code", higherIsBetter: true },
-  { key: "speed", label: "Speed", higherIsBetter: true },
-  { key: "price", label: "Price", higherIsBetter: true }
+  { key: "speed", label: "Speed", higherIsBetter: true }
 ];
 
 function formatCost(value: number | null, currency = "USD") {
@@ -73,8 +71,7 @@ function metricRangesFor(models: PopularModel[]): MetricRanges {
     outputCost: rangeFor(models, (model) => model.outputCostPer1mUsd),
     intelligence: rangeFor(models, (model) => model.artificialAnalysisIntelligenceIndex),
     coding: rangeFor(models, (model) => model.artificialAnalysisCodingIndex),
-    speed: rangeFor(models, (model) => model.speedScore),
-    price: rangeFor(models, (model) => model.priceScore)
+    speed: rangeFor(models, (model) => model.speedScore)
   };
 }
 
@@ -84,8 +81,7 @@ function valueForSort(model: PopularModel, sortKey: SortKey) {
   if (sortKey === "outputCost") return model.outputCostPer1mUsd;
   if (sortKey === "intelligence") return model.artificialAnalysisIntelligenceIndex;
   if (sortKey === "coding") return model.artificialAnalysisCodingIndex;
-  if (sortKey === "speed") return model.speedScore;
-  return model.priceScore;
+  return model.speedScore;
 }
 
 function valueForMetric(model: PopularModel, metric: Exclude<SortKey, "popularity">) {
@@ -97,8 +93,7 @@ function formatMetric(model: PopularModel, metric: Exclude<SortKey, "popularity"
   if (metric === "outputCost") return formatCost(model.outputCostPer1mUsd, currency);
   if (metric === "intelligence") return formatScore(model.artificialAnalysisIntelligenceIndex);
   if (metric === "coding") return formatScore(model.artificialAnalysisCodingIndex);
-  if (metric === "speed") return formatScore(model.speedScore);
-  return formatScore(model.priceScore);
+  return formatScore(model.speedScore);
 }
 
 function rangeForMetric(ranges: MetricRanges, metric: Exclude<SortKey, "popularity">) {
@@ -106,8 +101,7 @@ function rangeForMetric(ranges: MetricRanges, metric: Exclude<SortKey, "populari
   if (metric === "outputCost") return ranges.outputCost;
   if (metric === "intelligence") return ranges.intelligence;
   if (metric === "coding") return ranges.coding;
-  if (metric === "speed") return ranges.speed;
-  return ranges.price;
+  return ranges.speed;
 }
 
 function colorForMetric(value: number | null, range: MetricRange | null, higherIsBetter: boolean) {
