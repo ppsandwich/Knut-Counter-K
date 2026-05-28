@@ -40,9 +40,6 @@ type FetchModelsResponse = {
 
 function parseStoredTokens(raw: string): StoredTokens {
   const parsed = JSON.parse(raw);
-  if (!parsed.refresh_token) {
-    throw new Error("No refresh token found in stored credentials.");
-  }
   return parsed as StoredTokens;
 }
 
@@ -84,6 +81,10 @@ async function getValidAccessToken(raw: string): Promise<{ accessToken: string; 
   const tokens = parseStoredTokens(raw);
 
   if (tokens.expires_at > Date.now() + 60_000) {
+    return { accessToken: tokens.access_token, updatedRaw: raw };
+  }
+
+  if (!tokens.refresh_token) {
     return { accessToken: tokens.access_token, updatedRaw: raw };
   }
 

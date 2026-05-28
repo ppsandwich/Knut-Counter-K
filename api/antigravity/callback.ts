@@ -63,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const tokens = (await tokenResponse.json()) as {
         access_token: string;
-        refresh_token: string;
+        refresh_token?: string;
         expires_in: number;
       };
 
