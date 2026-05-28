@@ -1,7 +1,8 @@
 import { RefreshControl, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Animated from "react-native-reanimated";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, Easing } from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AlertSummary, MonthlyDamageCard, ProviderUsageRow, Sparkline, SyncStatusStrip, FadeInView, SlideUpView, AnimatedCard, usePulse } from "@knut/ui";
 import { formatCurrency, type AccountAlert, type DashboardModelPick, type PriceIndexSummary } from "@knut/shared";
 import { useDashboardData } from "../../hooks/useDashboardData";
@@ -35,6 +36,8 @@ function formatModelScore(value: number | null) {
   return value == null ? "-" : String(Math.round(value));
 }
 
+const LAST_SYNC_KEY = "knut-last-dashboard-sync";
+
 export default function DashboardScreen() {
   const dashboard = useDashboardData();
   const providerRows = dashboard.providerRows;
@@ -44,6 +47,15 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<AccountAlert[]>([]);
+  const hasAutoSynced = useRef(false);
+
+  const syncScale = useSharedValue(1);
+  const syncBorderColor = useSharedValue(0);
+  const syncButtonAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: syncScale.value }],
+    borderColor: syncBorderColor.value > 0.5 ? "#22c55e" : "#3f3f46",
+    borderWidth: syncBorderColor.value > 0.5 ? 2 : 1,
+  }));
 
   async function refreshAlerts() {
     if (!signedIn) {
@@ -62,20 +74,52 @@ export default function DashboardScreen() {
     void refreshAlerts();
   }, [signedIn]);
 
+  // Auto-sync on first load of the day
+  useEffect(() => {
+    if (!signedIn || hasAutoSynced.current) return;
+    hasAutoSynced.current = true;
+
+    (async () => {
+      try {
+        const lastSync = await AsyncStorage.getItem(LAST_SYNC_KEY);
+        const today = new Date().toISOString().slice(0, 10);
+        if (lastSync !== today) {
+          await refreshUsage();
+          await AsyncStorage.setItem(LAST_SYNC_KEY, today);
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    })();
+  }, [signedIn]);
+
   async function refreshUsage() {
     if (!signedIn || refreshing) return;
 
     setRefreshing(true);
     setRefreshMessage(null);
+    syncScale.value = withRepeat(
+      withSequence(
+        withTiming(1.06, { duration: 500, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: 500, easing: Easing.inOut(Easing.quad) })
+      ),
+      -1,
+      true
+    );
+    syncBorderColor.value = withTiming(1, { duration: 300 });
     try {
       const result = await syncProviders();
       await dashboard.refresh();
       await refreshAlerts();
+      const today = new Date().toISOString().slice(0, 10);
+      await AsyncStorage.setItem(LAST_SYNC_KEY, today);
       setRefreshMessage(result.synced ? `Refreshed ${result.synced} provider${result.synced === 1 ? "" : "s"}.` : "No active providers to refresh.");
     } catch (error) {
       setRefreshMessage(error instanceof Error ? error.message : "Refresh failed.");
     } finally {
       setRefreshing(false);
+      syncScale.value = withTiming(1, { duration: 200 });
+      syncBorderColor.value = withTiming(0, { duration: 300 });
     }
   }
 
@@ -94,9 +138,11 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.headerActions}>
               <Text style={styles.currency}>Prices in {currency}</Text>
-              <Pressable disabled={!signedIn || refreshing} onPress={refreshUsage} style={({ pressed }) => [styles.refreshButton, (!signedIn || refreshing) && styles.disabled, pressed && styles.pressed]}>
-                <Text style={styles.refreshButtonText}>{refreshing ? "Syncing..." : "Refresh"}</Text>
-              </Pressable>
+              <Animated.View style={[styles.refreshButton, (!signedIn || refreshing) && styles.disabled, syncButtonAnimStyle]}>
+                <Pressable disabled={!signedIn || refreshing} onPress={refreshUsage} style={({ pressed }) => [styles.refreshButtonInner, pressed && styles.pressed]}>
+                  <Text style={styles.refreshButtonText}>{refreshing ? "Syncing..." : "Refresh"}</Text>
+                </Pressable>
+              </Animated.View>
             </View>
           </View>
         </FadeInView>
@@ -219,7 +265,8 @@ const styles = StyleSheet.create({
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800", letterSpacing: 0 },
   subtitle: { color: "#8b8b91", fontSize: 15, marginTop: 2 },
   currency: { color: "#a1a1aa", fontSize: 12, fontWeight: "700", paddingBottom: 6 },
-  refreshButton: { minHeight: 34, borderRadius: 7, backgroundColor: "#3f3f46", paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  refreshButton: { minHeight: 34, borderRadius: 7, backgroundColor: "#3f3f46", borderColor: "#3f3f46", borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  refreshButtonInner: { paddingHorizontal: 12, alignItems: "center", justifyContent: "center", minHeight: 34 },
   refreshButtonText: { color: "#e4e4e7", fontSize: 13, fontWeight: "900" },
   refreshMessage: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" },
   disabled: { opacity: 0.45 },
