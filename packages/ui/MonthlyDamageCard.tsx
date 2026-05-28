@@ -61,7 +61,6 @@ export function MonthlyDamageCard({ summary, refreshing = false }: { summary: Da
       </View>
       <View style={styles.moneyRow}>
         <Text style={styles.amount}>{spendLabel}</Text>
-        <Text style={styles.projected}>{formatCurrency(summary.projectedSpend, currency)} projected</Text>
       </View>
       <View style={styles.bars}>
         {budgetPercent != null && (
@@ -83,7 +82,6 @@ const styles = StyleSheet.create({
   syncing: { color: colors.green, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },
   moneyRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 8 },
   amount: { color: colors.text, fontSize: 38, fontWeight: "900" },
-  projected: { color: colors.muted, fontSize: 12, fontWeight: "800", paddingBottom: 7 },
   bars: { gap: 6, marginTop: 10 },
   barTrack: { height: 10, backgroundColor: "#27272a", borderRadius: 5, overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 5 },
