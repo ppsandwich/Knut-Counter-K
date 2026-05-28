@@ -54,7 +54,7 @@ const providers: ProviderUsageSummary[] = [
     sparklineData: [2, 2, 3, 2, 4, 3, 5, 4, 6, 6, 5, 7]
   },
   {
-    providerId: "xiaomi_mimo_singapore",
+    providerId: "xiaomimimo",
     providerName: "MiMo",
     accountDisplayName: "Singapore token plan",
     primaryMetric: "43%",

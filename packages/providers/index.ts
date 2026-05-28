@@ -5,4 +5,5 @@ export * from "./connectors/manual";
 export * from "./connectors/openai";
 export * from "./connectors/openrouter";
 export * from "./connectors/xai";
+export * from "./connectors/xiaomimimo";
 export * from "./types";

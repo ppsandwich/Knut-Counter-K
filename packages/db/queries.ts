@@ -1,4 +1,4 @@
-import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, ne, or } from "drizzle-orm";
@@ -800,6 +800,19 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       });
       capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
       messages.push(`${account.displayName} refreshed DeepSeek balance. Paste response JSON to import exact token usage.`);
+    } else if (account.providerId === "xiaomimimo") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs a session cookie before MiMo can refresh.`);
+        continue;
+      }
+
+      const cookie = decryptCredential(account.encryptedCredentials);
+      const caps = await xiaomimimoConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey: cookie }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+      messages.push(`${account.displayName} refreshed MiMo token usage.`);
     } else {
       messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
     }
