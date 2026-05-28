@@ -1,6 +1,6 @@
 import { anthropicConnector, antigravityConnector, chatgptPlusConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
-import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationDataStats, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, ne, or, sql } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
@@ -2346,6 +2346,43 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     quality: toRecommendation(qualityCandidate, "quality", "Best quality"),
     balanced: toRecommendation(balancedCandidate, "balanced", "Best balance"),
     stats
+  };
+}
+
+export async function getCoverageStats(): Promise<RecommendationDataStats> {
+  const db = getDb();
+
+  const [priceRows, benchmarkRows] = await Promise.all([
+    db.select({
+      providerId: pricingSnapshots.providerId,
+      modelId: pricingSnapshots.modelId
+    }).from(pricingSnapshots).limit(10_000),
+    db.select({
+      providerId: modelBenchmarkSnapshots.providerId,
+      modelId: modelBenchmarkSnapshots.modelId,
+      evaluations: modelBenchmarkSnapshots.evaluations
+    }).from(modelBenchmarkSnapshots).limit(10_000)
+  ]);
+
+  const pricedProviderIds = new Set(priceRows.map((r) => r.providerId));
+  const pricedModelKeys = new Set(priceRows.map((r) => `${r.providerId}:${r.modelId}`));
+
+  const tokenEfficiencyModelKeys = new Set<string>();
+  const tokenEfficiencyProviderIds = new Set<string>();
+  for (const row of benchmarkRows) {
+    const hasEfficiency = nestedPositiveNumber(row.evaluations, "artificial_analysis_token_efficiency", "token_efficiency", "token_efficiency_index", "tokenizer_efficiency") != null
+      || nestedPositiveNumber(row.evaluations, "artificial_analysis_output_tokens_used", "output_tokens_used") != null;
+    if (hasEfficiency) {
+      tokenEfficiencyProviderIds.add(row.providerId);
+      tokenEfficiencyModelKeys.add(`${row.providerId}:${row.modelId}`);
+    }
+  }
+
+  return {
+    pricedProviderCount: pricedProviderIds.size,
+    pricedModelCount: pricedModelKeys.size,
+    tokenEfficiencyProviderCount: tokenEfficiencyProviderIds.size,
+    tokenEfficiencyModelCount: tokenEfficiencyModelKeys.size
   };
 }
 

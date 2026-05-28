@@ -203,8 +203,8 @@ const styles = StyleSheet.create({
   optionText: { color: "#f4f4f5", fontSize: 15, fontWeight: "800" },
   saveButton: { minHeight: 46, borderRadius: 7, backgroundColor: "#22c55e", alignItems: "center", justifyContent: "center" },
   saveButtonText: { color: "#041006", fontSize: 15, fontWeight: "900" },
-  oauthButton: { minHeight: 46, borderRadius: 7, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
-  oauthButtonText: { color: "#1f1f1f", fontSize: 15, fontWeight: "900" },
+  oauthButton: { minHeight: 46, borderRadius: 7, backgroundColor: "#3f3f46", alignItems: "center", justifyContent: "center" },
+  oauthButtonText: { color: "#e4e4e7", fontSize: 15, fontWeight: "900" },
   disabled: { opacity: 0.42 },
   pressed: { opacity: 0.72 },
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" }

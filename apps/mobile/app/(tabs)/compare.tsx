@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
-import { formatCurrency, type RecommendationBundle, type RecommendationResult } from "@knut/shared";
+import { useEffect, useRef, useState } from "react";
+import { formatCurrency, type RecommendationBundle, type RecommendationDataStats, type RecommendationResult } from "@knut/shared";
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated from "react-native-reanimated";
 import { FadeInView, SlideUpView, AnimatedCard, usePulse, useSlideUp, useStaggeredAnimation } from "@knut/ui";
-import { recommendProvider } from "../../lib/accountApi";
+import { fetchCoverageStats, recommendProvider } from "../../lib/accountApi";
 
 const taskPresets = [
   { label: "Quick question / explanation", inputTokens: 300, outputTokens: 500, benchmarkType: "General" },
@@ -30,11 +30,18 @@ const preferenceStops = [0, 0.25, 0.5, 0.75, 1];
 
 export default function CompareScreen() {
   const [selectedTask, setSelectedTask] = useState(taskPresets[1]);
-  const [qualityPreference, setQualityPreference] = useState(0.5);
+  const [qualityPreference, setQualityPreference] = useState(0.75);
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
   const [recommendations, setRecommendations] = useState<RecommendationBundle | null>(null);
+  const [coverageStats, setCoverageStats] = useState<RecommendationDataStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchCoverageStats()
+      .then(setCoverageStats)
+      .catch(() => {});
+  }, []);
 
   function selectTask(task: typeof taskPresets[number]) {
     setSelectedTask(task);
@@ -109,11 +116,6 @@ export default function CompareScreen() {
             </Pressable>
           </View>
         </SlideUpView>
-        {recommendations?.stats ? (
-          <AnimatedCard index={2}>
-            <DataCoverageWidget stats={recommendations.stats} />
-          </AnimatedCard>
-        ) : null}
         {error ? (
           <AnimatedCard index={2}>
             <View style={styles.errorBox}>
@@ -141,6 +143,11 @@ export default function CompareScreen() {
             </View>
           </AnimatedCard>
         )}
+        {(recommendations?.stats ?? coverageStats) ? (
+          <AnimatedCard index={3}>
+            <DataCoverageWidget stats={recommendations?.stats ?? coverageStats!} />
+          </AnimatedCard>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -308,10 +315,10 @@ const styles = StyleSheet.create({
   sliderRail: { position: "absolute", left: 0, right: 0, height: 6, borderRadius: 6, backgroundColor: "#29292d" },
   sliderFill: { position: "absolute", left: 0, height: 6, borderRadius: 6, backgroundColor: "#22c55e" },
   sliderStop: { position: "absolute", width: 10, height: 10, marginLeft: -5, borderRadius: 5, backgroundColor: "#050506", borderColor: "#59625c", borderWidth: 2 },
-  sliderThumb: { position: "absolute", width: 22, height: 22, marginLeft: -11, borderRadius: 11, backgroundColor: "#f4f4f5", borderColor: "#22c55e", borderWidth: 3 },
-  button: { backgroundColor: "#f4f4f5", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  sliderThumb: { position: "absolute", width: 22, height: 22, marginLeft: -11, borderRadius: 11, backgroundColor: "#3f3f46", borderColor: "#22c55e", borderWidth: 3 },
+  button: { backgroundColor: "#3f3f46", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#050506", fontSize: 15, fontWeight: "900" },
+  buttonText: { color: "#e4e4e7", fontSize: 15, fontWeight: "900" },
   coverage: { backgroundColor: "#0f0f11", borderColor: "#29292d", borderWidth: 1, borderRadius: 8, padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 10 },
   coverageItem: { flexGrow: 1, flexBasis: "45%", minWidth: 132 },
   coverageValue: { color: "#e5e7eb", fontSize: 20, fontWeight: "900" },

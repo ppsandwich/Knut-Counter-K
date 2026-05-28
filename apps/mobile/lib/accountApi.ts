@@ -1,4 +1,4 @@
-import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, DeepSeekResponseImportInput, ImportUsageInput, ManualUsageInput, OpenRouterGenerationImportInput, PopularModelsPayload, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, XaiResponseImportInput } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, DeepSeekResponseImportInput, ImportUsageInput, ManualUsageInput, OpenRouterGenerationImportInput, PopularModelsPayload, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationDataStats, RecommendationInput, XaiResponseImportInput } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -282,6 +282,20 @@ export async function recommendProvider(input: RecommendationInput): Promise<Rec
 
   const data = await response.json() as { recommendations: RecommendationBundle };
   return data.recommendations;
+}
+
+export async function fetchCoverageStats(): Promise<RecommendationDataStats> {
+  const response = await fetch(getApiUrl("/api/recommend"), {
+    method: "GET",
+    headers: await authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const data = await response.json() as { stats: RecommendationDataStats };
+  return data.stats;
 }
 
 export async function fetchPopularModels(refresh = false, benchmarkSource: "aa" | "blm" = "aa"): Promise<PopularModelsPayload> {

@@ -87,7 +87,7 @@ export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummar
             <>
               <View style={styles.bars}>
                 <HorizontalBar percent={provider.usedPercent!} color={getUsageColor(provider.usedPercent!)} />
-                <HorizontalBar percent={provider.resetProgress ?? 0} color={colors.blue} trackColor="rgba(56,189,248,0.12)" />
+                <HorizontalBar percent={provider.resetProgress ?? 0} color="#52525b" trackColor="rgba(82,82,91,0.15)" />
                 {provider.hideQuotaText ? (
                   provider.resetDaysLeft != null && (
                     <Text style={styles.quotaText} numberOfLines={1}>Resets in {provider.resetDaysLeft} days</Text>

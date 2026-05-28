@@ -92,10 +92,10 @@ export default function DashboardScreen() {
               <Text style={styles.subtitle}>Today{dashboard.loading ? " · syncing..." : ""}</Text>
             </View>
             <View style={styles.headerActions}>
+              <Text style={styles.currency}>Prices in {currency}</Text>
               <Pressable disabled={!signedIn || refreshing} onPress={refreshUsage} style={({ pressed }) => [styles.refreshButton, (!signedIn || refreshing) && styles.disabled, pressed && styles.pressed]}>
                 <Text style={styles.refreshButtonText}>{refreshing ? "Syncing..." : "Refresh"}</Text>
               </Pressable>
-              <Text style={styles.currency}>{currency}</Text>
             </View>
           </View>
         </FadeInView>
@@ -220,12 +220,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
   content: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 28, gap: 10 },
   header: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 },
-  headerActions: { alignItems: "flex-end", gap: 6 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800", letterSpacing: 0 },
   subtitle: { color: "#8b8b91", fontSize: 15, marginTop: 2 },
   currency: { color: "#a1a1aa", fontSize: 12, fontWeight: "700", paddingBottom: 6 },
-  refreshButton: { minHeight: 34, borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
-  refreshButtonText: { color: "#050506", fontSize: 13, fontWeight: "900" },
+  refreshButton: { minHeight: 34, borderRadius: 7, backgroundColor: "#3f3f46", paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  refreshButtonText: { color: "#e4e4e7", fontSize: 13, fontWeight: "900" },
   refreshMessage: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },

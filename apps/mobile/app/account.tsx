@@ -267,8 +267,8 @@ const styles = StyleSheet.create({
   divider: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 4 },
   dividerLine: { flex: 1, height: 1, backgroundColor: "#29292d" },
   dividerText: { color: "#63636a", fontSize: 12, fontWeight: "700" },
-  googleButton: { minHeight: 44, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
-  googleButtonText: { color: "#1f1f1f", fontSize: 15, fontWeight: "900" },
+  googleButton: { minHeight: 44, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "#3f3f46" },
+  googleButtonText: { color: "#e4e4e7", fontSize: 15, fontWeight: "900" },
   pressed: { opacity: 0.72 },
   disabled: { opacity: 0.42 },
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" }

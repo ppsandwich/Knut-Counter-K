@@ -2,6 +2,7 @@
  * Models store with local persistence
  * 
  * Caches models data locally so it persists between sessions.
+ * Loads from cache immediately, then refreshes in background if stale.
  */
 
 import { create } from "zustand";
@@ -10,26 +11,25 @@ import type { PopularModelsPayload } from "@knut/shared";
 import { fetchPopularModels } from "./accountApi";
 
 const STORAGE_KEY = "knut-models-cache";
+const STALE_MS = 5 * 60 * 1000; // 5 minutes
 
 type BenchmarkSource = "aa" | "blm";
 
 type ModelsState = {
-  /** Cached models data by benchmark source */
   dataBySource: Record<BenchmarkSource, PopularModelsPayload | null>;
-  /** ISO timestamp of last successful fetch by source */
   lastFetchedAtBySource: Record<BenchmarkSource, string | null>;
-  /** Whether a refresh is in progress */
   isRefreshing: boolean;
-  /** Last error message */
   error: string | null;
 
-  /** Load models for a given source, using cache if available */
   loadModels: (source: BenchmarkSource) => Promise<void>;
-  /** Force refresh models for a given source */
   refresh: (source: BenchmarkSource) => Promise<void>;
-  /** Clear cache (on logout) */
   clear: () => void;
 };
+
+function isStale(lastFetchedAt: string | null): boolean {
+  if (!lastFetchedAt) return true;
+  return Date.now() - new Date(lastFetchedAt).getTime() > STALE_MS;
+}
 
 export const useModelsStore = create<ModelsState>()((set, get) => ({
   dataBySource: { aa: null, blm: null },
@@ -39,28 +39,34 @@ export const useModelsStore = create<ModelsState>()((set, get) => ({
 
   loadModels: async (source: BenchmarkSource) => {
     const state = get();
-    
-    // If we have cached data, use it
-    if (state.dataBySource[source]) {
+
+    // If we have fresh in-memory data, nothing to do
+    if (state.dataBySource[source] && !isStale(state.lastFetchedAtBySource[source])) {
       return;
     }
 
-    // Try loading from AsyncStorage first
+    // Try loading from AsyncStorage
     try {
       const cached = await AsyncStorage.getItem(`${STORAGE_KEY}-${source}`);
       if (cached) {
         const parsed = JSON.parse(cached);
+        const lastFetchedAt = parsed.lastFetchedAt ?? null;
         set({
           dataBySource: { ...get().dataBySource, [source]: parsed.data },
-          lastFetchedAtBySource: { ...get().lastFetchedAtBySource, [source]: parsed.lastFetchedAt },
+          lastFetchedAtBySource: { ...get().lastFetchedAtBySource, [source]: lastFetchedAt },
         });
+
+        // If cache is stale, refresh in background
+        if (isStale(lastFetchedAt)) {
+          void get().refresh(source);
+        }
         return;
       }
     } catch {
       // Ignore cache errors
     }
 
-    // Otherwise fetch fresh data
+    // No cache at all — fetch fresh
     await get().refresh(source);
   },
 
@@ -74,7 +80,6 @@ export const useModelsStore = create<ModelsState>()((set, get) => ({
       const payload = await fetchPopularModels(false, source);
       const lastFetchedAt = new Date().toISOString();
       
-      // Save to cache
       await AsyncStorage.setItem(`${STORAGE_KEY}-${source}`, JSON.stringify({ data: payload, lastFetchedAt }));
       
       set({
