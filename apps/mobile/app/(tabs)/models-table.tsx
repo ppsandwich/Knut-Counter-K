@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { formatCurrency, type PopularModel, type PopularModelsPayload } from "@knut/shared";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuthSession } from "../../hooks/useAuthSession";
-import { fetchPopularModels } from "../../lib/accountApi";
+import { useModelsStore } from "../../lib/modelsStore";
 
 type MetricRange = { min: number; max: number };
 type MetricRanges = {
@@ -12,9 +12,8 @@ type MetricRanges = {
   intelligence: MetricRange | null;
   coding: MetricRange | null;
   speed: MetricRange | null;
-  price: MetricRange | null;
 };
-type SortKey = "popularity" | "inputCost" | "outputCost" | "intelligence" | "coding" | "speed" | "price";
+type SortKey = "popularity" | "inputCost" | "outputCost" | "intelligence" | "coding" | "speed";
 type SortDirection = "desc" | "asc";
 type BenchmarkSource = "aa" | "blm";
 
@@ -23,8 +22,7 @@ const metricColumns: Array<{ key: Exclude<SortKey, "popularity">; label: string;
   { key: "outputCost", label: "Out", higherIsBetter: false },
   { key: "intelligence", label: "Intel", higherIsBetter: true },
   { key: "coding", label: "Code", higherIsBetter: true },
-  { key: "speed", label: "Speed", higherIsBetter: true },
-  { key: "price", label: "Price", higherIsBetter: true }
+  { key: "speed", label: "Speed", higherIsBetter: true }
 ];
 
 function formatCost(value: number | null, currency = "USD") {
@@ -73,8 +71,7 @@ function metricRangesFor(models: PopularModel[]): MetricRanges {
     outputCost: rangeFor(models, (model) => model.outputCostPer1mUsd),
     intelligence: rangeFor(models, (model) => model.artificialAnalysisIntelligenceIndex),
     coding: rangeFor(models, (model) => model.artificialAnalysisCodingIndex),
-    speed: rangeFor(models, (model) => model.speedScore),
-    price: rangeFor(models, (model) => model.priceScore)
+    speed: rangeFor(models, (model) => model.speedScore)
   };
 }
 
@@ -84,8 +81,7 @@ function valueForSort(model: PopularModel, sortKey: SortKey) {
   if (sortKey === "outputCost") return model.outputCostPer1mUsd;
   if (sortKey === "intelligence") return model.artificialAnalysisIntelligenceIndex;
   if (sortKey === "coding") return model.artificialAnalysisCodingIndex;
-  if (sortKey === "speed") return model.speedScore;
-  return model.priceScore;
+  return model.speedScore;
 }
 
 function valueForMetric(model: PopularModel, metric: Exclude<SortKey, "popularity">) {
@@ -97,8 +93,7 @@ function formatMetric(model: PopularModel, metric: Exclude<SortKey, "popularity"
   if (metric === "outputCost") return formatCost(model.outputCostPer1mUsd, currency);
   if (metric === "intelligence") return formatScore(model.artificialAnalysisIntelligenceIndex);
   if (metric === "coding") return formatScore(model.artificialAnalysisCodingIndex);
-  if (metric === "speed") return formatScore(model.speedScore);
-  return formatScore(model.priceScore);
+  return formatScore(model.speedScore);
 }
 
 function rangeForMetric(ranges: MetricRanges, metric: Exclude<SortKey, "popularity">) {
@@ -106,8 +101,7 @@ function rangeForMetric(ranges: MetricRanges, metric: Exclude<SortKey, "populari
   if (metric === "outputCost") return ranges.outputCost;
   if (metric === "intelligence") return ranges.intelligence;
   if (metric === "coding") return ranges.coding;
-  if (metric === "speed") return ranges.speed;
-  return ranges.price;
+  return ranges.speed;
 }
 
 function colorForMetric(value: number | null, range: MetricRange | null, higherIsBetter: boolean) {
@@ -154,35 +148,24 @@ function MetricHeader({ sortKey, sortDirection, onChangeSort }: { sortKey: SortK
 
 export default function ModelsTableScreen() {
   const auth = useAuthSession();
-  const [payload, setPayload] = useState<PopularModelsPayload | null>(null);
+  const modelsStore = useModelsStore();
   const [benchmarkSource, setBenchmarkSource] = useState<BenchmarkSource>("aa");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("popularity");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  async function load(refresh = false) {
-    if (refresh) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
-    setError(null);
-
-    try {
-      setPayload(await fetchPopularModels(refresh, benchmarkSource));
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Model data could not load.");
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }
+  const payload = modelsStore.dataBySource[benchmarkSource];
+  const isLoading = !payload && modelsStore.isRefreshing;
+  const isRefreshing = modelsStore.isRefreshing;
+  const error = modelsStore.error;
 
   useEffect(() => {
-    void load(false);
-  }, [benchmarkSource]);
+    if (!auth.user) {
+      modelsStore.clear();
+      return;
+    }
+    // Load from cache or fetch fresh data
+    void modelsStore.loadModels(benchmarkSource);
+  }, [auth.user?.id, benchmarkSource]);
 
   const ranges = payload ? metricRangesFor(payload.models) : null;
   const visibleModels = payload ? sortedModels(payload.models, sortKey, sortDirection) : [];
@@ -200,24 +183,28 @@ export default function ModelsTableScreen() {
 
   function changeBenchmarkSource(nextSource: BenchmarkSource) {
     if (nextSource === benchmarkSource) return;
-    setPayload(null);
     setBenchmarkSource(nextSource);
     setSortKey("popularity");
     setSortDirection("desc");
   }
 
   const sourceName = benchmarkSource === "blm" ? "BenchLM" : "Artificial Analysis";
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 600;
 
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Models</Text>
-            <Text style={styles.subtitle}>Top 100 by OpenRouter usage. Scores from {sourceName}</Text>
-          </View>
+        <View style={isNarrow ? styles.headerStacked : styles.headerRow}>
+          <Text style={styles.title}>Models</Text>
+          <Text style={styles.subtitle}>Top 100 by OpenRouter usage. Scores from {sourceName}</Text>
           <View style={styles.headerActions}>
             <Text style={styles.lastUpdated}>{formatLastUpdated(payload?.refreshedAt)}</Text>
+            {sortKey !== "popularity" || sortDirection !== "desc" ? (
+              <Pressable onPress={() => { setSortKey("popularity"); setSortDirection("desc"); }} style={styles.resetSortButton}>
+                <Text style={styles.resetSortText}>Reset sort</Text>
+              </Pressable>
+            ) : null}
             <View style={styles.sourceToggle}>
               <Pressable onPress={() => changeBenchmarkSource("aa")} style={[styles.sourceOption, benchmarkSource === "aa" && styles.sourceOptionActive]}>
                 <Text style={[styles.sourceOptionText, benchmarkSource === "aa" && styles.sourceOptionTextActive]}>AA</Text>
@@ -227,7 +214,7 @@ export default function ModelsTableScreen() {
               </Pressable>
             </View>
             {auth.session ? (
-              <Pressable disabled={isRefreshing} onPress={() => load(true)} style={[styles.refreshButton, isRefreshing && styles.disabled]}>
+              <Pressable disabled={isRefreshing} onPress={() => modelsStore.refresh(benchmarkSource)} style={[styles.refreshButton, isRefreshing && styles.disabled]}>
                 <Text style={styles.refreshText}>{isRefreshing ? "Refreshing..." : "Refresh model data"}</Text>
               </Pressable>
             ) : null}
@@ -291,13 +278,15 @@ function ModelGroup({ model, ranges, currency }: { model: PopularModel; ranges: 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#050506" },
   content: { flex: 1, padding: 16 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
-  headerText: { flex: 1, minWidth: 0 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  headerStacked: { marginBottom: 12 },
+  headerActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   title: { color: "#f5f5f5", fontSize: 34, fontWeight: "800" },
   subtitle: { color: "#a1a1aa", fontSize: 12, fontWeight: "800", marginTop: 2, textTransform: "uppercase" },
-  refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#f4f4f5", paddingHorizontal: 12 },
-  refreshText: { color: "#050506", fontSize: 12, fontWeight: "900" },
+  refreshButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#3f3f46", paddingHorizontal: 12 },
+  refreshText: { color: "#e4e4e7", fontSize: 12, fontWeight: "900" },
+  resetSortButton: { minHeight: 38, justifyContent: "center", borderRadius: 7, backgroundColor: "#1f1f23", borderColor: "#34343a", borderWidth: 1, paddingHorizontal: 12 },
+  resetSortText: { color: "#a1a1aa", fontSize: 12, fontWeight: "900" },
   disabled: { opacity: 0.6 },
   lastUpdated: { color: "#8b8b91", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   sourceToggle: { width: 86, flexDirection: "row", backgroundColor: "#111113", borderColor: "#29292d", borderWidth: 1, borderRadius: 6, padding: 2 },

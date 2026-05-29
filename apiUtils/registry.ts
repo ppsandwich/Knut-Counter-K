@@ -1,8 +1,7 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { listProviderRegistryOptions } from "@knut/db";
-import { requireUser } from "../../apiUtils/auth";
+import { requireUser } from "./auth";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export async function handleRegistryRequest(req: any, res: any) {
   try {
     await requireUser(req);
 

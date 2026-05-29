@@ -47,6 +47,7 @@ export const providerAccounts = pgTable("provider_accounts", {
   billingCycleEnd: timestamp("billing_cycle_end", { withTimezone: true }),
   resetRule: text("reset_rule"),
   monthlyBudget: decimal("monthly_budget"),
+  displayOrder: integer("display_order").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
   syncStatus: text("sync_status").default("idle").notNull(),
@@ -171,4 +172,13 @@ export const importJobs = pgTable("import_jobs", {
   errorSummary: text("error_summary"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp("completed_at", { withTimezone: true })
+});
+
+export const companionTokens = pgTable("companion_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull().unique(),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
 });

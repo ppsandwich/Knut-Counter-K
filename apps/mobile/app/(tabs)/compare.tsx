@@ -1,8 +1,10 @@
-import { useRef, useState } from "react";
-import { formatCurrency, type RecommendationBundle, type RecommendationResult } from "@knut/shared";
+import { useEffect, useRef, useState } from "react";
+import { formatCurrency, type RecommendationBundle, type RecommendationDataStats, type RecommendationResult } from "@knut/shared";
 import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { recommendProvider } from "../../lib/accountApi";
+import Animated from "react-native-reanimated";
+import { FadeInView, SlideUpView, AnimatedCard, usePulse, useSlideUp, useStaggeredAnimation } from "@knut/ui";
+import { fetchCoverageStats, recommendProvider } from "../../lib/accountApi";
 
 const taskPresets = [
   { label: "Quick question / explanation", inputTokens: 300, outputTokens: 500, benchmarkType: "General" },
@@ -28,11 +30,18 @@ const preferenceStops = [0, 0.25, 0.5, 0.75, 1];
 
 export default function CompareScreen() {
   const [selectedTask, setSelectedTask] = useState(taskPresets[1]);
-  const [qualityPreference, setQualityPreference] = useState(0.5);
+  const [qualityPreference, setQualityPreference] = useState(0.75);
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
   const [recommendations, setRecommendations] = useState<RecommendationBundle | null>(null);
+  const [coverageStats, setCoverageStats] = useState<RecommendationDataStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchCoverageStats()
+      .then(setCoverageStats)
+      .catch(() => {});
+  }, []);
 
   function selectTask(task: typeof taskPresets[number]) {
     setSelectedTask(task);
@@ -63,63 +72,73 @@ export default function CompareScreen() {
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Compare</Text>
-        <View style={styles.panel}>
-          <Text style={styles.label}>Task</Text>
-          <Pressable onPress={() => setIsTaskMenuOpen((value) => !value)} style={styles.select}>
-            <View style={styles.selectTextBlock}>
-              <View style={styles.taskTitleRow}>
-                <Text style={styles.selectLabel}>{selectedTask.label}</Text>
-                <BenchmarkTag label={selectedTask.benchmarkType} />
+        <FadeInView delay={0}>
+          <Text style={styles.title}>Compare</Text>
+        </FadeInView>
+        <SlideUpView delay={100} distance={15}>
+          <View style={styles.panel}>
+            <Text style={styles.label}>Task</Text>
+            <Pressable onPress={() => setIsTaskMenuOpen((value) => !value)} style={styles.select}>
+              <View style={styles.selectTextBlock}>
+                <View style={styles.taskTitleRow}>
+                  <Text style={styles.selectLabel}>{selectedTask.label}</Text>
+                  <BenchmarkTag label={selectedTask.benchmarkType} />
+                </View>
+                <Text style={styles.selectMeta}>{selectedTask.inputTokens.toLocaleString()} in · {selectedTask.outputTokens.toLocaleString()} out</Text>
               </View>
-              <Text style={styles.selectMeta}>{selectedTask.inputTokens.toLocaleString()} in · {selectedTask.outputTokens.toLocaleString()} out</Text>
-            </View>
-            <Text style={styles.selectChevron}>{isTaskMenuOpen ? "Close" : "Choose"}</Text>
-          </Pressable>
-          {isTaskMenuOpen ? (
-            <View style={styles.menu}>
-              {taskPresets.map((task) => {
-                const isSelected = task.label === selectedTask.label;
-                return (
-                  <Pressable key={task.label} onPress={() => selectTask(task)} style={[styles.menuItem, isSelected && styles.menuItemActive]}>
-                    <View style={styles.selectTextBlock}>
-                      <View style={styles.taskTitleRow}>
-                        <Text style={styles.menuItemTitle}>{task.label}</Text>
-                        <BenchmarkTag label={task.benchmarkType} />
-                      </View>
-                      <Text style={styles.menuItemMeta}>{task.inputTokens.toLocaleString()} input · {task.outputTokens.toLocaleString()} output</Text>
-                    </View>
-                    <Text style={styles.menuItemCheck}>{isSelected ? "Selected" : ""}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-          <PreferenceSlider value={qualityPreference} onChange={setQualityPreference} />
-          <Pressable disabled={isLoading} onPress={handleRecommend} style={[styles.button, isLoading && styles.buttonDisabled]}>
-            <Text style={styles.buttonText}>{isLoading ? "Checking prices..." : "Compare options"}</Text>
-          </Pressable>
-        </View>
-        {recommendations?.stats ? <DataCoverageWidget stats={recommendations.stats} /> : null}
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorTitle}>No clean answer yet.</Text>
-            <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.selectChevron}>{isTaskMenuOpen ? "Close" : "Choose"}</Text>
+            </Pressable>
+            {isTaskMenuOpen ? (
+              <Animated.View style={styles.menu}>
+                {taskPresets.map((task, index) => (
+                  <TaskMenuItem
+                    key={task.label}
+                    task={task}
+                    index={index}
+                    isSelected={task.label === selectedTask.label}
+                    onSelect={selectTask}
+                  />
+                ))}
+              </Animated.View>
+            ) : null}
+            <PreferenceSlider value={qualityPreference} onChange={setQualityPreference} />
+            <Pressable disabled={isLoading} onPress={handleRecommend} style={[styles.button, isLoading && styles.buttonDisabled]}>
+              <Animated.Text style={[styles.buttonText, isLoading && loadingTextStyle]}>{isLoading ? "Checking prices..." : "Compare options"}</Animated.Text>
+            </Pressable>
           </View>
+        </SlideUpView>
+        {error ? (
+          <AnimatedCard index={2}>
+            <View style={styles.errorBox}>
+              <Text style={styles.errorTitle}>No clean answer yet.</Text>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          </AnimatedCard>
         ) : null}
-        {recommendations ? (
+        {isLoading ? (
+          <AnimatedCard index={2}>
+            <LoadingSkeleton />
+          </AnimatedCard>
+        ) : recommendations ? (
           <View style={styles.results}>
-            <RecommendationCard item={{ ...recommendations.balanced, label: "Recommended" }} tone="recommended" suppressBelowAverageScore={qualityPreference >= 0.5} />
-            <RecommendationCard item={recommendations.quality} tone="neutral" />
-            <RecommendationCard item={recommendations.cheapest} tone="neutral" />
+            <RecommendationCard item={{ ...recommendations.balanced, label: "Recommended" }} tone="recommended" suppressBelowAverageScore={qualityPreference >= 0.5} index={0} />
+            <RecommendationCard item={recommendations.quality} tone="neutral" index={1} />
+            <RecommendationCard item={recommendations.cheapest} tone="neutral" index={2} />
             <Text style={styles.attribution}>Benchmarks from Artificial Analysis</Text>
           </View>
         ) : (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Ask the price table.</Text>
-            <Text style={styles.emptyText}>Choose a task and preference, then Knut Counter will return cheapest, quality, and balanced picks from connected providers.</Text>
-          </View>
+          <AnimatedCard index={2}>
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>Ask the price table.</Text>
+              <Text style={styles.emptyText}>Choose a task and preference, then Knut Counter will return cheapest, quality, and balanced picks from connected providers.</Text>
+            </View>
+          </AnimatedCard>
         )}
+        {(recommendations?.stats ?? coverageStats) ? (
+          <AnimatedCard index={3}>
+            <DataCoverageWidget stats={recommendations?.stats ?? coverageStats!} />
+          </AnimatedCard>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -127,6 +146,23 @@ export default function CompareScreen() {
 
 function formatCost(value: number, currency = "USD") {
   return `~${formatCurrency(value, currency)}`;
+}
+
+const loadingTextStyle = { opacity: 0.7 } as const;
+
+function LoadingSkeleton() {
+  const { style: pulseStyle } = usePulse({ minOpacity: 0.3, maxOpacity: 0.7, duration: 1500 });
+
+  return (
+    <View style={styles.empty}>
+      <Animated.View style={[styles.skeletonLine, styles.skeletonLine60, pulseStyle]} />
+      <Animated.View style={[styles.skeletonLine, styles.skeletonLine80, pulseStyle]} />
+      <Animated.View style={[styles.skeletonLine, styles.skeletonLine40, pulseStyle]} />
+      <View style={styles.skeletonGap} />
+      <Animated.View style={[styles.skeletonLine, styles.skeletonLine70, pulseStyle]} />
+      <Animated.View style={[styles.skeletonLine, styles.skeletonLine50, pulseStyle]} />
+    </View>
+  );
 }
 
 function formatTokenBasis(value: number) {
@@ -140,6 +176,25 @@ function BenchmarkTag({ label }: { label: string }) {
     <View style={styles.benchmarkTag}>
       <Text style={styles.benchmarkTagText}>{label}</Text>
     </View>
+  );
+}
+
+function TaskMenuItem({ task, index, isSelected, onSelect }: { task: typeof taskPresets[number]; index: number; isSelected: boolean; onSelect: (task: typeof taskPresets[number]) => void }) {
+  const { style: itemStyle } = useStaggeredAnimation(index, { staggerDelay: 30, baseDelay: 0 });
+
+  return (
+    <Animated.View style={itemStyle}>
+      <Pressable onPress={() => onSelect(task)} style={[styles.menuItem, isSelected && styles.menuItemActive]}>
+        <View style={styles.selectTextBlock}>
+          <View style={styles.taskTitleRow}>
+            <Text style={styles.menuItemTitle}>{task.label}</Text>
+            <BenchmarkTag label={task.benchmarkType} />
+          </View>
+          <Text style={styles.menuItemMeta}>{task.inputTokens.toLocaleString()} input · {task.outputTokens.toLocaleString()} output</Text>
+        </View>
+        <Text style={styles.menuItemCheck}>{isSelected ? "Selected" : ""}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -214,14 +269,15 @@ function PreferenceSlider({ value, onChange }: { value: number; onChange: (value
   );
 }
 
-function RecommendationCard({ item, tone, suppressBelowAverageScore = false }: { item: RecommendationResult; tone: "recommended" | "neutral"; suppressBelowAverageScore?: boolean }) {
+function RecommendationCard({ item, tone, suppressBelowAverageScore = false, index = 0 }: { item: RecommendationResult; tone: "recommended" | "neutral"; suppressBelowAverageScore?: boolean; index?: number }) {
   const benchmarkLabel = item.intelligenceBenchmark
     ? `${item.intelligenceBenchmark} benchmark`
     : `${item.intelligenceSource} intelligence`;
   const isBelowTop20Average = !suppressBelowAverageScore && item.benchmarkTop20AverageScore != null && item.intelligenceScore < item.benchmarkTop20AverageScore;
+  const { style: cardStyle } = useStaggeredAnimation(index, { staggerDelay: 100, baseDelay: 300 });
 
   return (
-    <View style={[styles.reco, tone === "recommended" && styles.recoRecommended]}>
+    <Animated.View style={[styles.reco, tone === "recommended" && styles.recoRecommended, cardStyle]}>
       <View style={styles.recoHeader}>
         <Text style={[styles.kicker, tone === "neutral" && styles.kickerNeutral]}>{item.label}</Text>
         <View style={styles.scoreBlock}>
@@ -238,7 +294,7 @@ function RecommendationCard({ item, tone, suppressBelowAverageScore = false }: {
       {item.capWarning ? <Text style={styles.warning}>{item.capWarning}</Text> : null}
       <Text style={styles.reason}>{item.reason}</Text>
       <Text style={styles.meta}>{item.priceSource} · {item.priceConfidence} · intelligence {item.intelligenceSource}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -269,10 +325,10 @@ const styles = StyleSheet.create({
   sliderRail: { position: "absolute", left: 0, right: 0, height: 6, borderRadius: 6, backgroundColor: "#29292d" },
   sliderFill: { position: "absolute", left: 0, height: 6, borderRadius: 6, backgroundColor: "#22c55e" },
   sliderStop: { position: "absolute", width: 10, height: 10, marginLeft: -5, borderRadius: 5, backgroundColor: "#050506", borderColor: "#59625c", borderWidth: 2 },
-  sliderThumb: { position: "absolute", width: 22, height: 22, marginLeft: -11, borderRadius: 11, backgroundColor: "#f4f4f5", borderColor: "#22c55e", borderWidth: 3 },
-  button: { backgroundColor: "#f4f4f5", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  sliderThumb: { position: "absolute", width: 22, height: 22, marginLeft: -11, borderRadius: 11, backgroundColor: "#3f3f46", borderColor: "#22c55e", borderWidth: 3 },
+  button: { backgroundColor: "#3f3f46", borderRadius: 7, minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 2 },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#050506", fontSize: 15, fontWeight: "900" },
+  buttonText: { color: "#e4e4e7", fontSize: 15, fontWeight: "900" },
   coverage: { backgroundColor: "#0f0f11", borderColor: "#29292d", borderWidth: 1, borderRadius: 8, padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 10 },
   coverageItem: { flexGrow: 1, flexBasis: "45%", minWidth: 132 },
   coverageValue: { color: "#e5e7eb", fontSize: 20, fontWeight: "900" },
@@ -302,5 +358,12 @@ const styles = StyleSheet.create({
   emptyText: { color: "#a1a1aa", fontSize: 14, lineHeight: 20, marginTop: 4 },
   errorBox: { backgroundColor: "#241314", borderColor: "#7f1d1d", borderWidth: 1, borderRadius: 8, padding: 14 },
   errorTitle: { color: "#fecaca", fontSize: 16, fontWeight: "900" },
-  errorText: { color: "#fca5a5", fontSize: 13, lineHeight: 18, marginTop: 4 }
+  errorText: { color: "#fca5a5", fontSize: 13, lineHeight: 18, marginTop: 4 },
+  skeletonLine: { height: 16, backgroundColor: "#1a1a1f", borderRadius: 4 },
+  skeletonLine40: { width: "40%" },
+  skeletonLine50: { width: "50%" },
+  skeletonLine60: { width: "60%" },
+  skeletonLine70: { width: "70%" },
+  skeletonLine80: { width: "80%" },
+  skeletonGap: { height: 12 },
 });

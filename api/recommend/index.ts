@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getUserProfile, recommendProviderForUser } from "@knut/db";
+import { getUserProfile, recommendProviderForUser, getCoverageStats } from "@knut/db";
 import type { RecommendationInput } from "@knut/shared";
 import { requireUser } from "../../apiUtils/auth";
 import { convertRecommendationBundle } from "../../apiUtils/currency";
@@ -11,11 +11,17 @@ function numberFromBody(value: unknown) {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
+    const user = await requireUser(req);
+
+    // GET /api/recommend — return coverage stats only
+    if (req.method === "GET") {
+      const stats = await getCoverageStats();
+      return res.status(200).json({ ok: true, stats });
+    }
+
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
-
-    const user = await requireUser(req);
     const qualityPreference = req.body?.qualityPreference ?? req.body?.quality_preference;
     const input: RecommendationInput = {
       taskType: String(req.body?.taskType ?? req.body?.task_type ?? "general"),

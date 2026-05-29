@@ -6,3 +6,4 @@ export * from "./Sparkline";
 export * from "./StatusBadge";
 export * from "./SyncStatusStrip";
 export * from "./theme";
+export * from "./animations";

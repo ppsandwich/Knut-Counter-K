@@ -50,6 +50,7 @@ export type AccountProviderSummary = {
   planName: string | null;
   monthlyBudget: number | null;
   resetRule: string | null;
+  displayOrder: number;
   syncStatus: string;
   lastSyncAt: string | null;
   hasCredentials: boolean;
@@ -65,6 +66,19 @@ export type AccountProviderSummary = {
   creditUsedAmount: number | null;
   creditBalanceAmount: number | null;
   creditConfidence: string | null;
+  tokenQuotaCap: number | null;
+  tokenQuotaUsed: number | null;
+  tokenQuotaUnit: string | null;
+  tokenQuotaConfidence: string | null;
+  tokenQuotaResetAt: string | null;
+  tokenQuotaResetCadence: string | null;
+  modelQuotas: ModelQuotaInfo[];
+};
+
+export type ModelQuotaInfo = {
+  label: string;
+  remainingPercent: number;
+  isExhausted: boolean;
 };
 
 export type DashboardModelPick = {

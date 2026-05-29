@@ -27,10 +27,25 @@ export interface ProviderUsageSummary {
   statusBadge: string;
   status: ProviderStatus;
   confidence: DataConfidence;
+  metricLabel: string;
   resetCountdown: string;
   lastSyncedAt: string;
   sparklineData: number[];
+  modelMetrics?: ModelMetric[];
+  usedPercent?: number | null;
+  resetProgress?: number | null;
+  tokenQuotaUsed?: number | null;
+  tokenQuotaCap?: number | null;
+  resetDaysLeft?: string | null;
+  hideQuotaText?: boolean;
+  displayOrder: number;
 }
+
+export type ModelMetric = {
+  label: string;
+  value: string;
+  exhausted: boolean;
+};
 
 export interface DashboardSummary {
   monthlySpend: number;
@@ -40,6 +55,7 @@ export interface DashboardSummary {
   currency?: string;
   status: ProviderStatus;
   statusText: string;
+  subscriptionUsageAvg: number | null;
 }
 
 export interface Recommendation {

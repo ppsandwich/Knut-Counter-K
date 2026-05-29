@@ -10,9 +10,11 @@ const providers: ProviderUsageSummary[] = [
     statusBadge: "+18%",
     status: "warning",
     confidence: "api_captured",
+    metricLabel: "Actual spend",
     resetCountdown: "9d left",
     lastSyncedAt: "2026-05-24T08:05:00+10:00",
-    sparklineData: [7, 9, 8, 10, 12, 11, 15, 17, 16, 21, 20, 24]
+    sparklineData: [7, 9, 8, 10, 12, 11, 15, 17, 16, 21, 20, 24],
+    displayOrder: 0
   },
   {
     providerId: "anthropic_api",
@@ -23,9 +25,13 @@ const providers: ProviderUsageSummary[] = [
     statusBadge: "Crispy",
     status: "danger",
     confidence: "estimated",
+    metricLabel: "Monthly usage limit",
     resetCountdown: "2d left",
     lastSyncedAt: "2026-05-24T07:20:00+10:00",
-    sparklineData: [4, 5, 7, 6, 8, 11, 13, 15, 16, 19, 22, 25]
+    sparklineData: [4, 5, 7, 6, 8, 11, 13, 15, 16, 19, 22, 25],
+    usedPercent: 82,
+    resetProgress: 93,
+    displayOrder: 1
   },
   {
     providerId: "google_gemini_api",
@@ -36,9 +42,11 @@ const providers: ProviderUsageSummary[] = [
     statusBadge: "Cheap",
     status: "healthy",
     confidence: "api_captured",
+    metricLabel: "Actual spend",
     resetCountdown: "15d left",
     lastSyncedAt: "2026-05-24T08:00:00+10:00",
-    sparklineData: [12, 9, 8, 8, 7, 8, 6, 7, 7, 6, 5, 6]
+    sparklineData: [12, 9, 8, 8, 7, 8, 6, 7, 7, 6, 5, 6],
+    displayOrder: 2
   },
   {
     providerId: "openrouter",
@@ -49,12 +57,14 @@ const providers: ProviderUsageSummary[] = [
     statusBadge: "OK",
     status: "healthy",
     confidence: "exact",
+    metricLabel: "Credit balance",
     resetCountdown: "no reset",
     lastSyncedAt: "2026-05-24T08:04:00+10:00",
-    sparklineData: [2, 2, 3, 2, 4, 3, 5, 4, 6, 6, 5, 7]
+    sparklineData: [2, 2, 3, 2, 4, 3, 5, 4, 6, 6, 5, 7],
+    displayOrder: 3
   },
   {
-    providerId: "xiaomi_mimo_singapore",
+    providerId: "xiaomimimo",
     providerName: "MiMo",
     accountDisplayName: "Singapore token plan",
     primaryMetric: "43%",
@@ -62,9 +72,13 @@ const providers: ProviderUsageSummary[] = [
     statusBadge: "Stale",
     status: "stale",
     confidence: "manual",
+    metricLabel: "Weekly usage limit",
     resetCountdown: "18d left",
     lastSyncedAt: "2026-05-21T08:00:00+10:00",
-    sparklineData: [4, 4, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7]
+    sparklineData: [4, 4, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7],
+    usedPercent: 43,
+    resetProgress: 40,
+    displayOrder: 4
   }
 ];
 
@@ -74,7 +88,8 @@ const summary: DashboardSummary = {
   totalTokens: 12_800_000,
   projectedSpend: 89.4,
   status: "warning",
-  statusText: "Claude is getting crispy."
+  statusText: "Claude is getting crispy.",
+  subscriptionUsageAvg: 62
 };
 
 const recommendation: Recommendation = {

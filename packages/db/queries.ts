@@ -1,7 +1,7 @@
-import { anthropicConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, antigravityConnector, chatgptPlusConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
-import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, RecommendationResult } from "@knut/shared";
-import { and, asc, desc, eq, gte, inArray, ne, or } from "drizzle-orm";
+import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationDataStats, RecommendationInput, RecommendationResult } from "@knut/shared";
+import { and, asc, desc, eq, gte, inArray, ne, or, sql } from "drizzle-orm";
 import { getDb } from "./client";
 import { decryptCredential, encryptCredential } from "./security/credentials";
 import { alerts, importJobs, modelBenchmarkSnapshots, pricingSnapshots, providerAccounts, providerRegistry, usageCaps, usageRecords, users } from "./schema";
@@ -482,8 +482,16 @@ export async function exportAccountData(userId: string): Promise<AccountExportPa
 
 export async function createProviderAccount(userId: string, input: ProviderAccountInput) {
   const encryptedCredentials = input.apiKey ? encryptCredential(input.apiKey) : null;
+  const db = getDb();
 
-  const [account] = await getDb()
+  const maxOrder = await db
+    .select({ max: sql<number>`coalesce(max(${providerAccounts.displayOrder}), -1)` })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)));
+
+  const nextOrder = (maxOrder[0]?.max ?? -1) + 1;
+
+  const [account] = await db
     .insert(providerAccounts)
     .values({
       userId,
@@ -495,6 +503,7 @@ export async function createProviderAccount(userId: string, input: ProviderAccou
       billingCurrency: input.billingCurrency ?? null,
       monthlyBudget: input.monthlyBudget == null ? null : String(input.monthlyBudget),
       resetRule: input.resetRule ?? null,
+      displayOrder: nextOrder,
       syncStatus: "idle"
     })
     .returning({
@@ -512,6 +521,47 @@ export async function createProviderAccount(userId: string, input: ProviderAccou
     ...account,
     hasCredentials: Boolean(encryptedCredentials)
   };
+}
+
+export async function upsertProviderAccountWithCredentials(userId: string, providerId: string, displayName: string, authType: string, credentials: string) {
+  const encrypted = encryptCredential(credentials);
+  const db = getDb();
+
+  const existing = await db
+    .select({ id: providerAccounts.id })
+    .from(providerAccounts)
+    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.providerId, providerId)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(providerAccounts)
+      .set({
+        encryptedCredentials: encrypted,
+        authType,
+        isActive: true,
+        lastSyncAt: new Date(),
+        syncStatus: "idle",
+        updatedAt: new Date()
+      })
+      .where(eq(providerAccounts.id, existing[0].id));
+    return { id: existing[0].id, created: false };
+  }
+
+  const [account] = await db
+    .insert(providerAccounts)
+    .values({
+      userId,
+      providerId,
+      displayName,
+      authType,
+      encryptedCredentials: encrypted,
+      isActive: true,
+      syncStatus: "idle"
+    })
+    .returning({ id: providerAccounts.id });
+
+  return { id: account.id, created: true };
 }
 
 export async function deleteProviderCredentials(userId: string, providerAccountId: string) {
@@ -604,6 +654,19 @@ export async function softDeleteProviderAccount(userId: string, providerAccountI
   };
 }
 
+export async function reorderProviderAccounts(userId: string, orderedIds: string[]) {
+  const db = getDb();
+
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db
+      .update(providerAccounts)
+      .set({ displayOrder: i, updatedAt: new Date() })
+      .where(and(eq(providerAccounts.id, orderedIds[i]), eq(providerAccounts.userId, userId)));
+  }
+
+  return { updated: orderedIds.length };
+}
+
 async function upsertUsageCapsForAccount(userId: string, providerAccountId: string, caps: UsageCap[]) {
   let processed = 0;
 
@@ -622,7 +685,7 @@ async function upsertUsageCapsForAccount(userId: string, providerAccountId: stri
       capUnit: cap.capUnit,
       usedAmount: String(cap.usedAmount),
       resetAt: cap.resetAt ? new Date(cap.resetAt) : null,
-      resetCadence: null,
+      resetCadence: cap.resetCadence ?? null,
       confidence: cap.confidence,
       updatedAt: new Date()
     };
@@ -800,6 +863,45 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       });
       capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
       messages.push(`${account.displayName} refreshed DeepSeek balance. Paste response JSON to import exact token usage.`);
+    } else if (account.providerId === "xiaomimimo") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs a session cookie before MiMo can refresh.`);
+        continue;
+      }
+
+      const cookie = decryptCredential(account.encryptedCredentials);
+      const caps = await xiaomimimoConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey: cookie }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+      messages.push(`${account.displayName} refreshed MiMo token usage.`);
+    } else if (account.providerId === "antigravity") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs Google OAuth before Antigravity can refresh. Reconnect from the provider page.`);
+        continue;
+      }
+
+      const oauthTokens = decryptCredential(account.encryptedCredentials);
+      const caps = await antigravityConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey: oauthTokens }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+      messages.push(`${account.displayName} refreshed Antigravity quota.`);
+    } else if (account.providerId === "chatgpt_plus") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs a session token before ChatGPT Plus can refresh.`);
+        continue;
+      }
+
+      const sessionToken = decryptCredential(account.encryptedCredentials);
+      const caps = await chatgptPlusConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey: sessionToken }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+      messages.push(`${account.displayName} refreshed ChatGPT Plus rate limits.`);
     } else {
       messages.push(`${account.displayName} is manual/import only until its live connector is implemented.`);
     }
@@ -836,13 +938,15 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
       planName: providerAccounts.planName,
       monthlyBudget: providerAccounts.monthlyBudget,
       resetRule: providerAccounts.resetRule,
+      displayOrder: providerAccounts.displayOrder,
       syncStatus: providerAccounts.syncStatus,
       lastSyncAt: providerAccounts.lastSyncAt,
       encryptedCredentials: providerAccounts.encryptedCredentials
     })
     .from(providerAccounts)
     .leftJoin(providerRegistry, eq(providerAccounts.providerId, providerRegistry.providerId))
-    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)));
+    .where(and(eq(providerAccounts.userId, userId), eq(providerAccounts.isActive, true)))
+    .orderBy(providerAccounts.displayOrder, providerAccounts.createdAt);
 
   const currentMonthUsage = await db
     .select({
@@ -884,14 +988,20 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
   const creditCaps = await db
     .select({
       providerAccountId: usageCaps.providerAccountId,
+      capType: usageCaps.capType,
+      capLabel: usageCaps.capLabel,
       capAmount: usageCaps.capAmount,
+      capUnit: usageCaps.capUnit,
       usedAmount: usageCaps.usedAmount,
+      resetAt: usageCaps.resetAt,
+      resetCadence: usageCaps.resetCadence,
       confidence: usageCaps.confidence
     })
     .from(usageCaps)
-    .where(eq(usageCaps.capType, "credit_balance"));
+    .where(or(eq(usageCaps.capType, "credit_balance"), eq(usageCaps.capType, "token_quota")));
 
   const creditByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; confidence: string }>>((acc, cap) => {
+    if (cap.capType !== "credit_balance") return acc;
     acc[cap.providerAccountId] = {
       capAmount: numberFromDecimal(cap.capAmount),
       usedAmount: numberFromDecimal(cap.usedAmount),
@@ -900,10 +1010,42 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     return acc;
   }, {});
 
+  const tokenQuotaByAccount = creditCaps.reduce<Record<string, { capAmount: number; usedAmount: number; capUnit: string; confidence: string; resetAt: string | null; resetCadence: string | null }>>((acc, cap) => {
+    if (cap.capType !== "token_quota") return acc;
+    acc[cap.providerAccountId] = {
+      capAmount: numberFromDecimal(cap.capAmount),
+      usedAmount: numberFromDecimal(cap.usedAmount),
+      capUnit: cap.capUnit,
+      confidence: cap.confidence,
+      resetAt: cap.resetAt?.toISOString() ?? null,
+      resetCadence: cap.resetCadence ?? null
+    };
+    return acc;
+  }, {});
+
+  const modelQuotasByAccount = creditCaps.reduce<Record<string, Array<{ label: string; remainingPercent: number; isExhausted: boolean }>>>((acc, cap) => {
+    if (cap.capType !== "token_quota") return acc;
+    const capAmount = numberFromDecimal(cap.capAmount);
+    const usedAmount = numberFromDecimal(cap.usedAmount);
+    if (capAmount <= 0) return acc;
+    const remaining = capAmount === 100
+      ? Math.max(0, 100 - usedAmount)
+      : Math.round((1 - usedAmount / capAmount) * 10000) / 100;
+    const existing = acc[cap.providerAccountId] ?? [];
+    existing.push({
+      label: cap.capLabel ?? "Unknown",
+      remainingPercent: remaining,
+      isExhausted: remaining <= 0
+    });
+    acc[cap.providerAccountId] = existing;
+    return acc;
+  }, {});
+
   return rows.map((row) => ({
     ...(() => {
       const usage = usageByAccount[row.id] ?? { spend: 0, tokens: 0, records: 0, last24hSpend: 0, last24hTokens: 0, last7dSpend: 0, last7dTokens: 0, sparklineData: Array.from({ length: bucketCount }, () => 0) };
       const credit = creditByAccount[row.id] ?? null;
+      const tokenQuota = tokenQuotaByAccount[row.id] ?? null;
       return {
         currentMonthSpend: usage.spend,
         currentMonthTokens: usage.tokens,
@@ -916,7 +1058,14 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
         creditCapAmount: credit?.capAmount ?? null,
         creditUsedAmount: credit?.usedAmount ?? null,
         creditBalanceAmount: credit ? Math.max(0, credit.capAmount - credit.usedAmount) : null,
-        creditConfidence: credit?.confidence ?? null
+        creditConfidence: credit?.confidence ?? null,
+        tokenQuotaCap: tokenQuota?.capAmount ?? null,
+        tokenQuotaUsed: tokenQuota?.usedAmount ?? null,
+        tokenQuotaUnit: tokenQuota?.capUnit ?? null,
+        tokenQuotaConfidence: tokenQuota?.confidence ?? null,
+        tokenQuotaResetAt: tokenQuota?.resetAt ?? null,
+        tokenQuotaResetCadence: tokenQuota?.resetCadence ?? null,
+        modelQuotas: modelQuotasByAccount[row.id] ?? []
       };
     })(),
     id: row.id,
@@ -927,6 +1076,7 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     planName: row.planName,
     monthlyBudget: row.monthlyBudget == null ? null : Number(row.monthlyBudget),
     resetRule: row.resetRule,
+    displayOrder: row.displayOrder,
     syncStatus: row.syncStatus,
     lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
     hasCredentials: Boolean(row.encryptedCredentials)
@@ -954,6 +1104,10 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
       usedAmount: usageCaps.usedAmount
     })
     .from(usageCaps)
+    .innerJoin(providerAccounts, and(
+      eq(usageCaps.providerAccountId, providerAccounts.id),
+      eq(providerAccounts.isActive, true)
+    ))
     .where(and(eq(usageCaps.userId, userId), eq(usageCaps.capType, "credit_balance")));
   const creditSpendFallback = creditCaps.reduce((total, cap) => {
     if ((spendByAccount[cap.providerAccountId] ?? 0) > 0) return total;
@@ -968,18 +1122,42 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
   const projectedSpend = records.length ? monthlySpend / dayOfMonth * daysInMonth : 0;
   const budgetRatio = monthlyBudget > 0 ? monthlySpend / monthlyBudget : 0;
 
+  const tokenQuotaCaps = await db
+    .select({
+      capAmount: usageCaps.capAmount,
+      usedAmount: usageCaps.usedAmount
+    })
+    .from(usageCaps)
+    .innerJoin(providerAccounts, and(
+      eq(usageCaps.providerAccountId, providerAccounts.id),
+      eq(providerAccounts.isActive, true)
+    ))
+    .where(and(eq(usageCaps.userId, userId), eq(usageCaps.capType, "token_quota")));
+
+  const subscriptionPercents = tokenQuotaCaps
+    .map((cap) => {
+      const capAmount = numberFromDecimal(cap.capAmount);
+      const usedAmount = numberFromDecimal(cap.usedAmount);
+      return capAmount > 0 ? Math.min(100, Math.round((usedAmount / capAmount) * 10000) / 100) : null;
+    })
+    .filter((p): p is number => p != null);
+  const subscriptionUsageAvg = subscriptionPercents.length
+    ? Math.round(subscriptionPercents.reduce((sum, p) => sum + p, 0) / subscriptionPercents.length)
+    : null;
+
   return {
     monthlySpend,
     monthlyBudget,
     totalTokens,
     projectedSpend,
+    subscriptionUsageAvg,
     status: budgetRatio >= 1 ? "danger" : budgetRatio >= 0.75 ? "warning" : "healthy",
     statusText: records.length
       ? budgetRatio >= 1
         ? "Budget is officially making noises."
         : budgetRatio >= 0.75
           ? "Spend is getting a little crispy."
-          : "Everything looks boring. Excellent."
+          : ""
       : "No usage records yet. The meter is waiting politely."
   };
 }
@@ -1342,6 +1520,7 @@ export async function getDashboardModelPicks(): Promise<DashboardModelPicks> {
         fetchedAt: pricingSnapshots.fetchedAt
       })
       .from(pricingSnapshots)
+      .where(eq(pricingSnapshots.providerId, "openrouter"))
       .orderBy(asc(pricingSnapshots.sourcePriority), desc(pricingSnapshots.fetchedAt))
       .limit(10_000),
     getDb()
@@ -2196,6 +2375,43 @@ export async function recommendProviderForUser(userId: string, input: Recommenda
     quality: toRecommendation(qualityCandidate, "quality", "Best quality"),
     balanced: toRecommendation(balancedCandidate, "balanced", "Best balance"),
     stats
+  };
+}
+
+export async function getCoverageStats(): Promise<RecommendationDataStats> {
+  const db = getDb();
+
+  const [priceRows, benchmarkRows] = await Promise.all([
+    db.select({
+      providerId: pricingSnapshots.providerId,
+      modelId: pricingSnapshots.modelId
+    }).from(pricingSnapshots).limit(10_000),
+    db.select({
+      providerId: modelBenchmarkSnapshots.providerId,
+      modelId: modelBenchmarkSnapshots.modelId,
+      evaluations: modelBenchmarkSnapshots.evaluations
+    }).from(modelBenchmarkSnapshots).limit(10_000)
+  ]);
+
+  const pricedProviderIds = new Set(priceRows.map((r) => r.providerId));
+  const pricedModelKeys = new Set(priceRows.map((r) => `${r.providerId}:${r.modelId}`));
+
+  const tokenEfficiencyModelKeys = new Set<string>();
+  const tokenEfficiencyProviderIds = new Set<string>();
+  for (const row of benchmarkRows) {
+    const hasEfficiency = nestedPositiveNumber(row.evaluations, "artificial_analysis_token_efficiency", "token_efficiency", "token_efficiency_index", "tokenizer_efficiency") != null
+      || nestedPositiveNumber(row.evaluations, "artificial_analysis_output_tokens_used", "output_tokens_used") != null;
+    if (hasEfficiency) {
+      tokenEfficiencyProviderIds.add(row.providerId);
+      tokenEfficiencyModelKeys.add(`${row.providerId}:${row.modelId}`);
+    }
+  }
+
+  return {
+    pricedProviderCount: pricedProviderIds.size,
+    pricedModelCount: pricedModelKeys.size,
+    tokenEfficiencyProviderCount: tokenEfficiencyProviderIds.size,
+    tokenEfficiencyModelCount: tokenEfficiencyModelKeys.size
   };
 }
 

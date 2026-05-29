@@ -1,4 +1,4 @@
-import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, DeepSeekResponseImportInput, ImportUsageInput, ManualUsageInput, OpenRouterGenerationImportInput, PopularModelsPayload, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationInput, XaiResponseImportInput } from "@knut/shared";
+import type { AccountAlert, AccountExportPayload, AccountSettingsInput, AlertEvaluationResult, DashboardPayload, DeepSeekResponseImportInput, ImportUsageInput, ManualUsageInput, OpenRouterGenerationImportInput, PopularModelsPayload, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationDataStats, RecommendationInput, XaiResponseImportInput } from "@knut/shared";
 import { supabase } from "./supabase";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "";
@@ -66,10 +66,9 @@ export async function updateAccountProvider(input: ProviderAccountUpdateInput) {
 }
 
 export async function deleteAccountProvider(providerAccountId: string) {
-  const response = await fetch(getApiUrl("/api/provider-accounts"), {
+  const response = await fetch(getApiUrl(`/api/provider-accounts?action=delete&providerAccountId=${encodeURIComponent(providerAccountId)}`), {
     method: "DELETE",
-    headers: await authHeaders(),
-    body: JSON.stringify({ providerAccountId })
+    headers: await authHeaders()
   });
 
   if (!response.ok) {
@@ -80,10 +79,9 @@ export async function deleteAccountProvider(providerAccountId: string) {
 }
 
 export async function removeProviderCredentials(providerAccountId: string) {
-  const response = await fetch(getApiUrl("/api/provider-accounts/credentials"), {
+  const response = await fetch(getApiUrl(`/api/provider-accounts?action=credentials&providerAccountId=${encodeURIComponent(providerAccountId)}`), {
     method: "DELETE",
-    headers: await authHeaders(),
-    body: JSON.stringify({ providerAccountId })
+    headers: await authHeaders()
   });
 
   if (!response.ok) {
@@ -91,6 +89,20 @@ export async function removeProviderCredentials(providerAccountId: string) {
   }
 
   return response.json() as Promise<{ ok: boolean; providerAccountId: string; hasCredentials: boolean }>;
+}
+
+export async function reorderProviders(orderedIds: string[]) {
+  const response = await fetch(getApiUrl("/api/provider-accounts?action=reorder"), {
+    method: "PATCH",
+    headers: await authHeaders(),
+    body: JSON.stringify({ orderedIds })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json() as Promise<{ ok: boolean; updated: number }>;
 }
 
 export async function syncAccountProfile() {
@@ -151,7 +163,7 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
 }
 
 export async function syncProviders(providerAccountId?: string): Promise<{ ok: boolean; synced: number; message: string }> {
-  const response = await fetch(getApiUrl("/api/providers/sync"), {
+  const response = await fetch(getApiUrl("/api/providers?action=sync"), {
     method: "POST",
     headers: await authHeaders(),
     body: JSON.stringify({ providerAccountId })
@@ -165,7 +177,7 @@ export async function syncProviders(providerAccountId?: string): Promise<{ ok: b
 }
 
 export async function fetchProviderRegistry(): Promise<ProviderRegistryOption[]> {
-  const response = await fetch(getApiUrl("/api/providers/registry"), {
+  const response = await fetch(getApiUrl("/api/providers?action=registry"), {
     method: "GET",
     headers: await authHeaders()
   });
@@ -272,6 +284,20 @@ export async function recommendProvider(input: RecommendationInput): Promise<Rec
   return data.recommendations;
 }
 
+export async function fetchCoverageStats(): Promise<RecommendationDataStats> {
+  const response = await fetch(getApiUrl("/api/recommend"), {
+    method: "GET",
+    headers: await authHeaders()
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const data = await response.json() as { stats: RecommendationDataStats };
+  return data.stats;
+}
+
 export async function fetchPopularModels(refresh = false, benchmarkSource: "aa" | "blm" = "aa"): Promise<PopularModelsPayload> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -330,4 +356,19 @@ export async function clearAlerts(): Promise<{ ok: boolean; cleared: number; ale
   }
 
   return response.json() as Promise<{ ok: boolean; cleared: number; alerts: AccountAlert[] }>;
+}
+
+export async function exchangeAntigravityCode(code: string): Promise<{ ok: boolean; accountId?: string; created?: boolean }> {
+  const response = await fetch(getApiUrl("/api/antigravity/callback"), {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ code })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text);
+  }
+
+  return response.json() as Promise<{ ok: boolean; accountId?: string; created?: boolean }>;
 }

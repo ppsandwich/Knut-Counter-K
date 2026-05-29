@@ -57,6 +57,17 @@ export default function SettingsScreen() {
             <Text style={styles.rowText}>{row}</Text>
           </View>
         ))}
+        
+        <Link href="/companion" asChild>
+          <Pressable style={({ pressed }) => [styles.companionCard, pressed && styles.pressed]}>
+            <View style={styles.companionContent}>
+              <Text style={styles.companionLabel}>Companion App</Text>
+              <Text style={styles.companionTitle}>Knut Sync</Text>
+              <Text style={styles.companionBody}>Connect the desktop app to automatically track subscription usage from Claude, ChatGPT, Cursor, and more.</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </Pressable>
+        </Link>
       </ScrollView>
     </SafeAreaView>
   );
@@ -73,5 +84,10 @@ const styles = StyleSheet.create({
   chevron: { color: "#71717a", fontSize: 28, fontWeight: "500", alignSelf: "center" },
   pressed: { opacity: 0.72 },
   row: { minHeight: 54, justifyContent: "center", borderBottomColor: "#222225", borderBottomWidth: 1 },
-  rowText: { color: "#e4e4e7", fontSize: 16, fontWeight: "600" }
+  rowText: { color: "#e4e4e7", fontSize: 16, fontWeight: "600" },
+  companionCard: { minHeight: 92, backgroundColor: "#111113", borderColor: "#1f4d2a", borderWidth: 1, borderRadius: 8, padding: 14, flexDirection: "row", justifyContent: "space-between", gap: 10 },
+  companionContent: { flex: 1 },
+  companionLabel: { color: "#22c55e", fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
+  companionTitle: { color: "#f4f4f5", fontSize: 18, fontWeight: "900", marginTop: 5 },
+  companionBody: { color: "#a1a1aa", fontSize: 13, lineHeight: 18, marginTop: 4 }
 });

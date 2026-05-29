@@ -157,6 +157,17 @@ export default function AccountScreen() {
                 <Text style={styles.secondaryButtonText}>Create account</Text>
               </Pressable>
             </View>
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            <Pressable onPress={async () => {
+              const result = await auth.signInWithGoogle();
+              setMessage(result.error ?? "Redirecting to Google...");
+            }} style={({ pressed }) => [styles.googleButton, pressed && styles.pressed]}>
+              <Text style={styles.googleButtonText}>Sign in with Google</Text>
+            </Pressable>
           </View>
         )}
 
@@ -253,6 +264,11 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: "#f4f4f5", fontSize: 15, fontWeight: "900" },
   dangerButton: { minHeight: 44, borderRadius: 7, alignItems: "center", justifyContent: "center", borderColor: "#7f1d1d", borderWidth: 1, marginTop: 4 },
   dangerButtonText: { color: "#fca5a5", fontSize: 15, fontWeight: "900" },
+  divider: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 4 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#29292d" },
+  dividerText: { color: "#63636a", fontSize: 12, fontWeight: "700" },
+  googleButton: { minHeight: 44, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "#3f3f46" },
+  googleButtonText: { color: "#e4e4e7", fontSize: 15, fontWeight: "900" },
   pressed: { opacity: 0.72 },
   disabled: { opacity: 0.42 },
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700" }

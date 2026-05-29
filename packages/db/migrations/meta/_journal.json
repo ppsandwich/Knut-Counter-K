@@ -22,6 +22,13 @@
       "when": 1779865600000,
       "tag": "0002_openrouter_weekly_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779921379751,
+      "tag": "0003_cultured_chamber",
+      "breakpoints": true
     }
   ]
 }

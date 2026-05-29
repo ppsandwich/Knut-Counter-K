@@ -1,7 +1,8 @@
-const CACHE_NAME = "knut-counter-v12";
+const CACHE_NAME = "knut-counter-v14";
 const APP_SHELL_CACHE_KEY = "/__app-shell";
 const STATIC_PATHS = [
   "/manifest.json",
+  "/favicon.png",
   "/logo192.png",
   "/logo512.png",
   "/apple-touch-icon.png",
