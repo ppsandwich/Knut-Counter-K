@@ -81,7 +81,7 @@ export const ProviderUsageRow = forwardRef<View, { provider: ProviderUsageSummar
           <View style={styles.left}>
             <Text style={styles.name} numberOfLines={1}>{provider.providerName}</Text>
             <Text style={styles.account} numberOfLines={1}>{provider.accountDisplayName}</Text>
-            <Text style={styles.confidence} numberOfLines={1}>{confidenceLabels[provider.confidence]}</Text>
+            <Text style={styles.confidence} numberOfLines={1}>{provider.metricLabel}</Text>
           </View>
           {isSubscription ? (
             <>

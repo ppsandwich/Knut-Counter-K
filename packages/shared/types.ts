@@ -27,6 +27,7 @@ export interface ProviderUsageSummary {
   statusBadge: string;
   status: ProviderStatus;
   confidence: DataConfidence;
+  metricLabel: string;
   resetCountdown: string;
   lastSyncedAt: string;
   sparklineData: number[];

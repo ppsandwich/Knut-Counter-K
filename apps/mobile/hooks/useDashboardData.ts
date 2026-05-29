@@ -85,6 +85,20 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
         : hasCreditData
           ? "exact"
           : "unknown",
+    metricLabel: hasModelQuotas
+      ? "Model quotas"
+      : hasTokenQuota
+        ? (() => {
+            const cadence = provider.tokenQuotaResetCadence ?? provider.resetRule ?? "";
+            if (/7d/i.test(cadence)) return "Weekly usage limit";
+            if (/30d|1m|monthly/i.test(cadence)) return "Monthly usage limit";
+            return "Usage limit";
+          })()
+        : isManual
+          ? "Manual tracking"
+          : hasCreditData
+            ? "Credit balance"
+            : "Actual spend",
     resetCountdown: provider.resetRule ?? "no reset",
     lastSyncedAt: provider.lastSyncAt ?? "",
     sparklineData: hasTokenQuota || hasModelQuotas ? [] : provider.sparklineData,
