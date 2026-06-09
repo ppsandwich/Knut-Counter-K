@@ -52,7 +52,7 @@ export async function createAccountProvider(input: ProviderAccountInput) {
 }
 
 export async function updateAccountProvider(input: ProviderAccountUpdateInput) {
-  const response = await fetch(getApiUrl("/api/provider-accounts"), {
+  const response = await fetch(getApiUrl("/api/provider-accounts?action=update"), {
     method: "PATCH",
     headers: await authHeaders(),
     body: JSON.stringify(input)
