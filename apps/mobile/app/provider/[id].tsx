@@ -107,6 +107,9 @@ export default function ProviderDetailScreen() {
   const [accountSaving, setAccountSaving] = useState(false);
   const [credentialsRemoving, setCredentialsRemoving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [newCredential, setNewCredential] = useState("");
+  const [credentialSaving, setCredentialSaving] = useState(false);
+  const [credentialMessage, setCredentialMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!providerAccount) return;
@@ -378,6 +381,31 @@ export default function ProviderDetailScreen() {
     }
   }
 
+  async function saveCredentials() {
+    if (!providerAccount) return;
+
+    if (!newCredential.trim()) {
+      setCredentialMessage("Enter a value first.");
+      return;
+    }
+
+    setCredentialSaving(true);
+    setCredentialMessage(null);
+    try {
+      await updateAccountProvider({
+        providerAccountId: providerAccount.id,
+        apiKey: newCredential.trim()
+      });
+      setNewCredential("");
+      setCredentialMessage("Credentials updated.");
+      await dashboard.refresh();
+    } catch (error) {
+      setCredentialMessage(error instanceof Error ? error.message : "Credentials could not be saved.");
+    } finally {
+      setCredentialSaving(false);
+    }
+  }
+
   async function deleteProvider() {
     if (!providerAccount) return;
 
@@ -427,6 +455,26 @@ export default function ProviderDetailScreen() {
           </Pressable>
           {accountMessage ? <Text style={styles.message}>{accountMessage}</Text> : null}
         </View>
+
+        {providerAccount?.authType === "api_key" || providerAccount?.authType === "session_cookie" ? (
+          <View style={styles.card}>
+            <Text style={styles.label}>{providerAccount.authType === "session_cookie" ? "Session cookie" : "API key"}</Text>
+            <Text style={styles.body}>{providerAccount.hasCredentials ? "Credentials are saved. Enter a new value to replace them." : "No credentials saved yet."}</Text>
+            <TextInput
+              autoCapitalize="none"
+              onChangeText={setNewCredential}
+              placeholder={providerAccount.authType === "session_cookie" ? "New session cookie" : "New API key"}
+              placeholderTextColor="#63636a"
+              secureTextEntry
+              style={styles.input}
+              value={newCredential}
+            />
+            <Pressable disabled={credentialSaving || !providerAccount || !newCredential.trim()} onPress={saveCredentials} style={({ pressed }) => [styles.saveButton, (credentialSaving || !providerAccount || !newCredential.trim()) && styles.disabled, pressed && styles.pressed]}>
+              <Text style={styles.saveButtonText}>{credentialSaving ? "Saving..." : "Update credentials"}</Text>
+            </Pressable>
+            {credentialMessage ? <Text style={styles.message}>{credentialMessage}</Text> : null}
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.label}>Manual usage entry</Text>

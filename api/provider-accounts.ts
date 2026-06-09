@@ -44,6 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const account = await updateProviderAccount(user.id, {
         providerAccountId,
         displayName: req.body?.displayName === undefined ? undefined : String(req.body.displayName),
+        apiKey: req.body?.apiKey === undefined ? undefined : String(req.body.apiKey),
         planName: req.body?.planName === undefined ? undefined : req.body.planName == null ? null : String(req.body.planName),
         billingCurrency: req.body?.billingCurrency === undefined ? undefined : req.body.billingCurrency == null ? null : String(req.body.billingCurrency),
         monthlyBudget: req.body?.monthlyBudget === undefined ? undefined : req.body.monthlyBudget == null ? null : Number(req.body.monthlyBudget),

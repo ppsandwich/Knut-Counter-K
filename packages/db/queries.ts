@@ -593,6 +593,7 @@ export async function updateProviderAccount(userId: string, input: ProviderAccou
   };
 
   if (input.displayName !== undefined) updates.displayName = input.displayName;
+  if (input.apiKey !== undefined) updates.encryptedCredentials = input.apiKey ? encryptCredential(input.apiKey) : null;
   if (input.planName !== undefined) updates.planName = input.planName;
   if (input.billingCurrency !== undefined) updates.billingCurrency = input.billingCurrency;
   if (input.monthlyBudget !== undefined) updates.monthlyBudget = input.monthlyBudget == null ? null : String(input.monthlyBudget);

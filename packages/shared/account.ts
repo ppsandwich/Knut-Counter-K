@@ -28,6 +28,7 @@ export type ProviderAccountInput = {
 export type ProviderAccountUpdateInput = {
   providerAccountId: string;
   displayName?: string;
+  apiKey?: string;
   planName?: string | null;
   billingCurrency?: string | null;
   monthlyBudget?: number | null;
