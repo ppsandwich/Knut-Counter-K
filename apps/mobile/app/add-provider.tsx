@@ -6,7 +6,7 @@ import { useAuthSession } from "../hooks/useAuthSession";
 import { useProviderRegistry } from "../hooks/useProviderRegistry";
 import { createAccountProvider } from "../lib/accountApi";
 
-type ConnectionMethod = "api_key" | "manual" | "csv_json_import" | "oauth";
+type ConnectionMethod = "api_key" | "session_cookie" | "manual" | "csv_json_import" | "oauth";
 type ConnectionOption = [ConnectionMethod, string];
 
 const CUSTOM_PROVIDER_ID = "other_custom";
@@ -37,7 +37,7 @@ export default function AddProviderScreen() {
         providerId,
         displayName: trimmedDisplayName || selectedProviderName,
         authType,
-        apiKey: authType === "api_key" ? apiKey : undefined,
+        apiKey: authType === "api_key" || authType === "session_cookie" ? apiKey : undefined,
         monthlyBudget: monthlyBudget.trim() ? Number(monthlyBudget) : null,
         resetRule
       });
@@ -51,9 +51,11 @@ export default function AddProviderScreen() {
   const selectedProvider = registry.providers.find((provider) => provider.providerId === providerId) ?? registry.providers[0];
   const isCustomProvider = providerId === CUSTOM_PROVIDER_ID;
   const isAntigravity = providerId === "antigravity";
+  const isXiaomimimo = providerId === "xiaomimimo";
   const connectionOptions = useMemo<ConnectionOption[]>(() => selectedProvider
     ? ([
         isAntigravity ? ["oauth", "Google OAuth"] : null,
+        isXiaomimimo ? ["session_cookie", "Session cookie"] : null,
         selectedProvider.supportsAccountUsageApi || selectedProvider.supportsResponseUsageMetadata ? ["api_key", "API key"] : null,
         selectedProvider.supportsManualImport ? ["manual", "Manual tracking"] : null,
         selectedProvider.supportsCsvImport || selectedProvider.supportsJsonImport ? ["csv_json_import", "CSV/JSON import"] : null
@@ -62,7 +64,7 @@ export default function AddProviderScreen() {
         ["api_key", "API key"],
         ["manual", "Manual tracking"],
         ["csv_json_import", "CSV/JSON import"]
-      ], [selectedProvider, isAntigravity]);
+      ], [selectedProvider, isAntigravity, isXiaomimimo]);
 
   useEffect(() => {
     if (!connectionOptions.some(([value]) => value === authType) && connectionOptions[0]) {
@@ -139,11 +141,11 @@ export default function AddProviderScreen() {
               <Text style={styles.optionText}>{label}</Text>
             </Pressable>
           ))}
-          {authType === "api_key" ? (
+          {authType === "api_key" || authType === "session_cookie" ? (
             <TextInput
               autoCapitalize="none"
               onChangeText={setApiKey}
-              placeholder="API key"
+              placeholder={authType === "session_cookie" ? "Session cookie" : "API key"}
               placeholderTextColor="#63636a"
               secureTextEntry
               style={styles.input}

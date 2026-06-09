@@ -17,7 +17,7 @@ export type AccountSettingsInput = {
 export type ProviderAccountInput = {
   providerId: string;
   displayName: string;
-  authType: "api_key" | "oauth" | "manual" | "csv_json_import";
+  authType: "api_key" | "session_cookie" | "oauth" | "manual" | "csv_json_import";
   apiKey?: string;
   planName?: string;
   billingCurrency?: string;
