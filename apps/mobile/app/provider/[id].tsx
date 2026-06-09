@@ -1,7 +1,7 @@
 import type { ImportUsageRowInput } from "@knut/shared";
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ProviderUsageRow } from "@knut/ui";
 import { mockDashboard } from "@knut/shared";
@@ -9,6 +9,11 @@ import { BackButton } from "../../components/BackButton";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { createManualUsage, deleteAccountProvider, importDeepSeekResponses, importOpenRouterGenerations, importUsage, importXaiResponses, removeProviderCredentials, updateAccountProvider } from "../../lib/accountApi";
 import { blurActiveElement } from "../../lib/focus";
+
+const COOKIE_SOURCE_URLS: Record<string, string> = {
+  xiaomimimo: "https://platform.xiaomimimo.com/console/plan-manage",
+  chatgpt_plus: "https://chatgpt.com/codex/cloud/settings/analytics"
+};
 
 function todayForInput() {
   return new Date().toISOString().slice(0, 10);
@@ -459,6 +464,13 @@ export default function ProviderDetailScreen() {
         {providerAccount?.authType === "api_key" || providerAccount?.authType === "session_cookie" ? (
           <View style={styles.card}>
             <Text style={styles.label}>{providerAccount.authType === "session_cookie" ? "Session cookie" : "API key"}</Text>
+            {providerAccount.authType === "session_cookie" && COOKIE_SOURCE_URLS[providerAccount.providerId] ? (
+              <Text style={styles.body}>Get your cookie from:{" "}
+                <Text style={styles.link} onPress={() => Linking.openURL(COOKIE_SOURCE_URLS[providerAccount.providerId])}>
+                  {COOKIE_SOURCE_URLS[providerAccount.providerId]}
+                </Text>
+              </Text>
+            ) : null}
             <Text style={styles.body}>{providerAccount.hasCredentials ? "Credentials are saved. Enter a new value to replace them." : "No credentials saved yet."}</Text>
             <TextInput
               autoCapitalize="none"
@@ -620,5 +632,6 @@ const styles = StyleSheet.create({
   message: { color: "#a1a1aa", fontSize: 13, fontWeight: "700", marginTop: 8 },
   big: { color: "#f4f4f5", fontSize: 32, fontWeight: "900", marginTop: 8 },
   body: { color: "#a1a1aa", fontSize: 14, lineHeight: 20, marginTop: 6 },
+  link: { color: "#60a5fa", fontSize: 14, lineHeight: 20, textDecorationLine: "underline" },
   row: { color: "#e4e4e7", fontSize: 15, fontWeight: "700", paddingTop: 12 }
 });
