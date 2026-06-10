@@ -57,6 +57,7 @@ export default function AddProviderScreen() {
   const isAntigravity = providerId === "antigravity";
   const isXiaomimimo = providerId === "xiaomimimo";
   const isClaudePro = providerId === "claude_pro";
+  const isSubscriptionProvider = ["chatgpt_plus", "claude_pro", "xiaomimimo"].includes(providerId);
   const connectionOptions = useMemo<ConnectionOption[]>(() => selectedProvider
     ? ([
         isAntigravity ? ["oauth", "Google OAuth"] : null,
@@ -200,9 +201,9 @@ export default function AddProviderScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.label}>Caps and budget</Text>
-          <TextInput keyboardType="decimal-pad" onChangeText={setMonthlyBudget} style={styles.input} value={monthlyBudget} />
-          <TextInput autoCapitalize="none" onChangeText={setResetRule} style={styles.input} value={resetRule} />
+          <Text style={styles.label}>{isSubscriptionProvider ? "Caps and cost" : "Caps and budget"}</Text>
+          <TextInput keyboardType="decimal-pad" onChangeText={setMonthlyBudget} placeholder={isSubscriptionProvider ? "Monthly cost" : "Monthly budget"} placeholderTextColor="#63636a" style={styles.input} value={monthlyBudget} />
+          <TextInput autoCapitalize="none" onChangeText={setResetRule} placeholder="Reset rule (e.g. 30d)" placeholderTextColor="#63636a" style={styles.input} value={resetRule} />
         </View>
         <Pressable disabled={!auth.user} onPress={saveProvider} style={({ pressed }) => [styles.saveButton, !auth.user && styles.disabled, pressed && styles.pressed]}>
           <Text style={styles.saveButtonText}>Save provider</Text>

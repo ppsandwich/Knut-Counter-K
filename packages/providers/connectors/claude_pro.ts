@@ -106,20 +106,6 @@ export const claudeProConnector: ProviderConnector = {
         }
     }
 
-    // Always inject the flat rate subscription cost if there are no records, just to ensure it tracks the account
-    if (records.length === 0) {
-       records.push({
-          providerId: "claude_pro",
-          modelId: "subscription",
-          sourceType: "web_session_api",
-          sourceRef: `claude_pro:subscription:${new Date().toISOString().substring(0, 10)}`,
-          costAmount: 20, // $20 Pro plan
-          costCurrency: "USD",
-          confidence: "estimated",
-          observedAt: new Date().toISOString()
-       });
-    }
-
     return records;
   },
   async fetchCaps(input) {

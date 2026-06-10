@@ -1082,8 +1082,11 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
       const usage = usageByAccount[row.id] ?? { spend: 0, tokens: 0, records: 0, last24hSpend: 0, last24hTokens: 0, last7dSpend: 0, last7dTokens: 0, sparklineData: Array.from({ length: bucketCount }, () => 0) };
       const credit = creditByAccount[row.id] ?? null;
       const tokenQuota = tokenQuotaByAccount[row.id] ?? null;
+      const isSubscriptionProvider = ["chatgpt_plus", "claude_pro", "xiaomimimo"].includes(row.providerId);
+      const subscriptionCost = isSubscriptionProvider && row.monthlyBudget != null ? Number(row.monthlyBudget) : 0;
+      
       return {
-        currentMonthSpend: usage.spend,
+        currentMonthSpend: isSubscriptionProvider ? subscriptionCost : usage.spend,
         currentMonthTokens: usage.tokens,
         currentMonthRecords: usage.records,
         last24hSpend: usage.last24hSpend,
@@ -1150,7 +1153,24 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
     return total + numberFromDecimal(cap.usedAmount);
   }, 0);
 
-  const monthlySpend = records.reduce((total, record) => total + numberFromDecimal(record.costAmount), 0) + creditSpendFallback;
+  const subscriptionAccounts = await db
+    .select({
+      monthlyBudget: providerAccounts.monthlyBudget
+    })
+    .from(providerAccounts)
+    .where(
+      and(
+        eq(providerAccounts.userId, userId),
+        eq(providerAccounts.isActive, true),
+        inArray(providerAccounts.providerId, ["chatgpt_plus", "claude_pro", "xiaomimimo"])
+      )
+    );
+
+  const subscriptionSpend = subscriptionAccounts.reduce((total, acc) => {
+    return total + (acc.monthlyBudget ? numberFromDecimal(acc.monthlyBudget) : 0);
+  }, 0);
+
+  const monthlySpend = records.reduce((total, record) => total + numberFromDecimal(record.costAmount), 0) + creditSpendFallback + subscriptionSpend;
   const totalTokens = records.reduce((total, record) => total + (record.totalTokens ?? 0), 0);
   const monthlyBudget = profile?.monthlyAiBudget ?? 0;
   const dayOfMonth = Math.max(new Date().getUTCDate(), 1);

@@ -118,6 +118,8 @@ export default function ProviderDetailScreen() {
   const [credentialSaving, setCredentialSaving] = useState(false);
   const [credentialMessage, setCredentialMessage] = useState<string | null>(null);
 
+  const isSubscriptionProvider = ["chatgpt_plus", "claude_pro", "xiaomimimo"].includes(providerAccount?.providerId ?? "");
+
   useEffect(() => {
     if (!providerAccount) return;
     setDisplayName(providerAccount.displayName);
@@ -451,7 +453,7 @@ export default function ProviderDetailScreen() {
           <TextInput onChangeText={setDisplayName} placeholder="Display name" placeholderTextColor="#63636a" style={styles.input} value={displayName} />
           <TextInput onChangeText={setPlanName} placeholder="Plan name, optional" placeholderTextColor="#63636a" style={styles.input} value={planName} />
           <View style={styles.grid}>
-            <TextInput keyboardType="decimal-pad" onChangeText={setMonthlyBudget} placeholder="Monthly budget" placeholderTextColor="#63636a" style={[styles.input, styles.gridInput]} value={monthlyBudget} />
+            <TextInput keyboardType="decimal-pad" onChangeText={setMonthlyBudget} placeholder={isSubscriptionProvider ? "Monthly cost" : "Monthly budget"} placeholderTextColor="#63636a" style={[styles.input, styles.gridInput]} value={monthlyBudget} />
             <TextInput onChangeText={setResetRule} placeholder="Reset rule" placeholderTextColor="#63636a" style={[styles.input, styles.gridInput]} value={resetRule} />
           </View>
           <Text style={styles.body}>Credentials: {providerAccount?.hasCredentials ? "API key saved" : "No saved API key"}. Sync: {providerAccount?.syncStatus ?? "loading"}.</Text>
