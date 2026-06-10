@@ -153,7 +153,7 @@ export const claudeProConnector: ProviderConnector = {
     if (data?.seven_day) {
       return [
         {
-          capType: "message_quota",
+          capType: "token_quota",
           capLabel: "7-day Utilization",
           capAmount: 100,
           capUnit: "percent",
