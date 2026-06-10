@@ -47,7 +47,7 @@ type OpenRouterKeyResponse = {
 };
 
 async function fetchKeyData(apiKey: string) {
-  const response = await fetch("https://openrouter.ai/api/v1/auth/key", {
+  const response = await fetch("https://openrouter.ai/api/v1/key", {
     headers: {
       Authorization: `Bearer ${apiKey}`
     }
