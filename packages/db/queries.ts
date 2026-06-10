@@ -860,7 +860,14 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
         until: new Date().toISOString()
       });
       const inserted = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
-      messages.push(`${account.displayName} refreshed Claude Pro subscription status.`);
+      
+      const caps = await claudeProConnector.fetchCaps?.({
+        providerAccountId: account.id,
+        credentials: { apiKey: sessionKey, organizationId: orgId }
+      });
+      capsProcessed += await upsertUsageCapsForAccount(userId, account.id, caps ?? []);
+
+      messages.push(`${account.displayName} refreshed Claude Pro subscription status and utilization cap.`);
     } else if (account.providerId === "google_gemini_api") {
       if (!account.encryptedCredentials) {
         messages.push(`${account.displayName} needs an API key before Gemini can validate the connector.`);

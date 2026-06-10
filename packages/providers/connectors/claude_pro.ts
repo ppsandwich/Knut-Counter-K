@@ -121,5 +121,49 @@ export const claudeProConnector: ProviderConnector = {
     }
 
     return records;
+  },
+  async fetchCaps(input) {
+    let sessionKey = input.credentials?.apiKey;
+    const orgId = input.credentials?.organizationId;
+    
+    if (!sessionKey || !orgId) {
+      throw new Error("Claude sessionKey and Organization ID are required.");
+    }
+
+    if (sessionKey.includes("sessionKey=")) {
+      const match = sessionKey.match(/sessionKey=([^;]+)/);
+      if (match && match[1]) {
+        sessionKey = match[1];
+      }
+    }
+
+    const url = `https://claude.ai/api/organizations/${orgId}/usage`;
+    const response = await fetch(url, {
+      headers: {
+        "Cookie": `sessionKey=${sessionKey}`,
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Claude utilization caps: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data?.seven_day) {
+      return [
+        {
+          capType: "message_quota",
+          capLabel: "7-day Utilization",
+          capAmount: 100,
+          capUnit: "percent",
+          usedAmount: data.seven_day.utilization ?? 0,
+          confidence: "provider_reported",
+          resetAt: data.seven_day.resets_at
+        }
+      ];
+    }
+    
+    return [];
   }
 };
