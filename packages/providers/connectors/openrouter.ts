@@ -123,7 +123,7 @@ export const openRouterConnector: ProviderConnector = {
         capLabel: "Monthly spend",
         capAmount: 0,
         capUnit: "USD",
-        usedAmount: keyData.usage_monthly,
+        usedAmount: Number(keyData.usage_monthly),
         confidence: "exact"
       });
     }
