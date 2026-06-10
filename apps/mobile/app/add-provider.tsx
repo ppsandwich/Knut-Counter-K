@@ -19,6 +19,8 @@ export default function AddProviderScreen() {
   const [displayNameEdited, setDisplayNameEdited] = useState(false);
   const [authType, setAuthType] = useState<ConnectionMethod>("api_key");
   const [apiKey, setApiKey] = useState("");
+  const [claudeSessionKey, setClaudeSessionKey] = useState("");
+  const [claudeOrgId, setClaudeOrgId] = useState("");
   const [monthlyBudget, setMonthlyBudget] = useState("25");
   const [resetRule, setResetRule] = useState("monthly");
   const [message, setMessage] = useState<string | null>(null);
@@ -37,11 +39,13 @@ export default function AddProviderScreen() {
         providerId,
         displayName: trimmedDisplayName || selectedProviderName,
         authType,
-        apiKey: authType === "api_key" || authType === "session_cookie" ? apiKey : undefined,
+        apiKey: authType === "api_key" || authType === "session_cookie" ? (isClaudePro ? JSON.stringify({ sessionKey: claudeSessionKey, orgId: claudeOrgId }) : apiKey) : undefined,
         monthlyBudget: monthlyBudget.trim() ? Number(monthlyBudget) : null,
         resetRule
       });
       setApiKey("");
+      setClaudeSessionKey("");
+      setClaudeOrgId("");
       setMessage("Provider attached to your account.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Provider could not be saved.");
@@ -52,11 +56,12 @@ export default function AddProviderScreen() {
   const isCustomProvider = providerId === CUSTOM_PROVIDER_ID;
   const isAntigravity = providerId === "antigravity";
   const isXiaomimimo = providerId === "xiaomimimo";
+  const isClaudePro = providerId === "claude_pro";
   const connectionOptions = useMemo<ConnectionOption[]>(() => selectedProvider
     ? ([
         isAntigravity ? ["oauth", "Google OAuth"] : null,
-        isXiaomimimo ? ["session_cookie", "Session cookie"] : null,
-        selectedProvider.supportsAccountUsageApi || selectedProvider.supportsResponseUsageMetadata ? ["api_key", "API key"] : null,
+        isXiaomimimo || isClaudePro ? ["session_cookie", "Session cookie"] : null,
+        !isClaudePro && (selectedProvider.supportsAccountUsageApi || selectedProvider.supportsResponseUsageMetadata) ? ["api_key", "API key"] : null,
         selectedProvider.supportsManualImport ? ["manual", "Manual tracking"] : null,
         selectedProvider.supportsCsvImport || selectedProvider.supportsJsonImport ? ["csv_json_import", "CSV/JSON import"] : null
       ].filter(Boolean) as ConnectionOption[])
@@ -142,15 +147,37 @@ export default function AddProviderScreen() {
             </Pressable>
           ))}
           {authType === "api_key" || authType === "session_cookie" ? (
-            <TextInput
-              autoCapitalize="none"
-              onChangeText={setApiKey}
-              placeholder={authType === "session_cookie" ? "Session cookie" : "API key"}
-              placeholderTextColor="#63636a"
-              secureTextEntry
-              style={styles.input}
-              value={apiKey}
-            />
+            isClaudePro ? (
+              <>
+                <TextInput
+                  autoCapitalize="none"
+                  onChangeText={setClaudeSessionKey}
+                  placeholder="Session Cookie (sessionKey)"
+                  placeholderTextColor="#63636a"
+                  secureTextEntry
+                  style={styles.input}
+                  value={claudeSessionKey}
+                />
+                <TextInput
+                  autoCapitalize="none"
+                  onChangeText={setClaudeOrgId}
+                  placeholder="Organization ID"
+                  placeholderTextColor="#63636a"
+                  style={styles.input}
+                  value={claudeOrgId}
+                />
+              </>
+            ) : (
+              <TextInput
+                autoCapitalize="none"
+                onChangeText={setApiKey}
+                placeholder={authType === "session_cookie" ? "Session cookie" : "API key"}
+                placeholderTextColor="#63636a"
+                secureTextEntry
+                style={styles.input}
+                value={apiKey}
+              />
+            )
           ) : null}
           {authType === "oauth" ? (
             <Pressable

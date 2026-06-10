@@ -113,6 +113,8 @@ export default function ProviderDetailScreen() {
   const [credentialsRemoving, setCredentialsRemoving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [newCredential, setNewCredential] = useState("");
+  const [claudeSessionKey, setClaudeSessionKey] = useState("");
+  const [claudeOrgId, setClaudeOrgId] = useState("");
   const [credentialSaving, setCredentialSaving] = useState(false);
   const [credentialMessage, setCredentialMessage] = useState<string | null>(null);
 
@@ -389,7 +391,14 @@ export default function ProviderDetailScreen() {
   async function saveCredentials() {
     if (!providerAccount) return;
 
-    if (!newCredential.trim()) {
+    let credentialToSave = newCredential.trim();
+    if (providerAccount.providerId === "claude_pro") {
+      credentialToSave = JSON.stringify({ sessionKey: claudeSessionKey.trim(), orgId: claudeOrgId.trim() });
+      if (!claudeSessionKey.trim() || !claudeOrgId.trim()) {
+        setCredentialMessage("Both session cookie and organization ID are required.");
+        return;
+      }
+    } else if (!credentialToSave) {
       setCredentialMessage("Enter a value first.");
       return;
     }
@@ -399,9 +408,11 @@ export default function ProviderDetailScreen() {
     try {
       await updateAccountProvider({
         providerAccountId: providerAccount.id,
-        apiKey: newCredential.trim()
+        apiKey: credentialToSave
       });
       setNewCredential("");
+      setClaudeSessionKey("");
+      setClaudeOrgId("");
       setCredentialMessage("Credentials updated.");
       await dashboard.refresh();
     } catch (error) {
@@ -472,16 +483,38 @@ export default function ProviderDetailScreen() {
               </Text>
             ) : null}
             <Text style={styles.body}>{providerAccount.hasCredentials ? "Credentials are saved. Enter a new value to replace them." : "No credentials saved yet."}</Text>
-            <TextInput
-              autoCapitalize="none"
-              onChangeText={setNewCredential}
-              placeholder={providerAccount.authType === "session_cookie" ? "New session cookie" : "New API key"}
-              placeholderTextColor="#63636a"
-              secureTextEntry
-              style={styles.input}
-              value={newCredential}
-            />
-            <Pressable disabled={credentialSaving || !providerAccount || !newCredential.trim()} onPress={saveCredentials} style={({ pressed }) => [styles.saveButton, (credentialSaving || !providerAccount || !newCredential.trim()) && styles.disabled, pressed && styles.pressed]}>
+            {providerAccount.providerId === "claude_pro" ? (
+              <>
+                <TextInput
+                  autoCapitalize="none"
+                  onChangeText={setClaudeSessionKey}
+                  placeholder="New session cookie (sessionKey)"
+                  placeholderTextColor="#63636a"
+                  secureTextEntry
+                  style={styles.input}
+                  value={claudeSessionKey}
+                />
+                <TextInput
+                  autoCapitalize="none"
+                  onChangeText={setClaudeOrgId}
+                  placeholder="New Organization ID"
+                  placeholderTextColor="#63636a"
+                  style={styles.input}
+                  value={claudeOrgId}
+                />
+              </>
+            ) : (
+              <TextInput
+                autoCapitalize="none"
+                onChangeText={setNewCredential}
+                placeholder={providerAccount.authType === "session_cookie" ? "New session cookie" : "New API key"}
+                placeholderTextColor="#63636a"
+                secureTextEntry
+                style={styles.input}
+                value={newCredential}
+              />
+            )}
+            <Pressable disabled={credentialSaving || !providerAccount || (providerAccount.providerId === "claude_pro" ? (!claudeSessionKey.trim() || !claudeOrgId.trim()) : !newCredential.trim())} onPress={saveCredentials} style={({ pressed }) => [styles.saveButton, (credentialSaving || !providerAccount || (providerAccount.providerId === "claude_pro" ? (!claudeSessionKey.trim() || !claudeOrgId.trim()) : !newCredential.trim())) && styles.disabled, pressed && styles.pressed]}>
               <Text style={styles.saveButtonText}>{credentialSaving ? "Saving..." : "Update credentials"}</Text>
             </Pressable>
             {credentialMessage ? <Text style={styles.message}>{credentialMessage}</Text> : null}
