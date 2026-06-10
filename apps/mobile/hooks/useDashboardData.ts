@@ -52,11 +52,7 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
       ? `${provider.modelQuotas!.filter((q) => !q.isExhausted).length}/${provider.modelQuotas!.length}`
       : hasTokenQuota
         ? `${tokenQuotaPercent}%`
-        : hasUsage
-          ? formatCurrency(provider.currentMonthSpend, currency)
-          : hasCreditData
-            ? formatCurrency(provider.creditUsedAmount ?? 0, currency)
-            : "Unknown",
+        : formatCurrency(provider.currentMonthSpend, currency),
     secondaryMetric: hasModelQuotas
       ? "models remaining"
       : hasTokenQuota
@@ -96,9 +92,7 @@ export function providerAccountToUsageRow(provider: AccountProviderSummary, curr
           })()
         : isManual
           ? "Manual tracking"
-          : hasCreditData
-            ? "Credit balance"
-            : "Actual spend",
+          : "Actual spend",
     resetCountdown: provider.resetRule ?? "no reset",
     lastSyncedAt: provider.lastSyncAt ?? "",
     sparklineData: hasTokenQuota || hasModelQuotas ? [] : provider.sparklineData,
