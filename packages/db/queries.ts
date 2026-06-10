@@ -1077,6 +1077,19 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
     return acc;
   }, {});
 
+  const monthlySpendMetadataCaps = await db
+    .select({
+      providerAccountId: usageCaps.providerAccountId,
+      usedAmount: usageCaps.usedAmount
+    })
+    .from(usageCaps)
+    .where(eq(usageCaps.capType, "monthly_spend_metadata"));
+
+  const monthlySpendMetadataByAccount = monthlySpendMetadataCaps.reduce<Record<string, number>>((acc, cap) => {
+    acc[cap.providerAccountId] = numberFromDecimal(cap.usedAmount);
+    return acc;
+  }, {});
+
   return rows.map((row) => ({
     ...(() => {
       const usage = usageByAccount[row.id] ?? { spend: 0, tokens: 0, records: 0, last24hSpend: 0, last24hTokens: 0, last7dSpend: 0, last7dTokens: 0, sparklineData: Array.from({ length: bucketCount }, () => 0) };
@@ -1085,8 +1098,11 @@ export async function listProviderAccountsForUser(userId: string): Promise<Accou
       const isSubscriptionProvider = ["chatgpt_plus", "claude_pro", "xiaomimimo"].includes(row.providerId);
       const subscriptionCost = isSubscriptionProvider && row.monthlyBudget != null ? Number(row.monthlyBudget) : 0;
       
+      const metadataSpend = monthlySpendMetadataByAccount[row.id];
+      const fallbackSpend = metadataSpend !== undefined ? Math.max(usage.spend, metadataSpend) : usage.spend;
+      
       return {
-        currentMonthSpend: isSubscriptionProvider ? subscriptionCost : usage.spend,
+        currentMonthSpend: isSubscriptionProvider ? subscriptionCost : fallbackSpend,
         currentMonthTokens: usage.tokens,
         currentMonthRecords: usage.records,
         last24hSpend: usage.last24hSpend,
@@ -1137,7 +1153,7 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
     acc[record.providerAccountId] = (acc[record.providerAccountId] ?? 0) + numberFromDecimal(record.costAmount);
     return acc;
   }, {});
-  const creditCaps = await db
+  const monthlySpendMetadataCaps = await db
     .select({
       providerAccountId: usageCaps.providerAccountId,
       usedAmount: usageCaps.usedAmount
@@ -1147,10 +1163,13 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
       eq(usageCaps.providerAccountId, providerAccounts.id),
       eq(providerAccounts.isActive, true)
     ))
-    .where(and(eq(usageCaps.userId, userId), eq(usageCaps.capType, "credit_balance")));
-  const creditSpendFallback = creditCaps.reduce((total, cap) => {
-    if ((spendByAccount[cap.providerAccountId] ?? 0) > 0) return total;
-    return total + numberFromDecimal(cap.usedAmount);
+    .where(and(eq(usageCaps.userId, userId), eq(usageCaps.capType, "monthly_spend_metadata")));
+    
+  const metadataSpendFallback = monthlySpendMetadataCaps.reduce((total, cap) => {
+    const localSpend = spendByAccount[cap.providerAccountId] ?? 0;
+    const metadataSpend = numberFromDecimal(cap.usedAmount);
+    if (localSpend >= metadataSpend) return total;
+    return total + (metadataSpend - localSpend);
   }, 0);
 
   const subscriptionAccounts = await db
@@ -1170,7 +1189,7 @@ export async function getDashboardSummaryForUser(userId: string, profile: Accoun
     return total + (acc.monthlyBudget ? numberFromDecimal(acc.monthlyBudget) : 0);
   }, 0);
 
-  const monthlySpend = records.reduce((total, record) => total + numberFromDecimal(record.costAmount), 0) + creditSpendFallback + subscriptionSpend;
+  const monthlySpend = records.reduce((total, record) => total + numberFromDecimal(record.costAmount), 0) + metadataSpendFallback + subscriptionSpend;
   const totalTokens = records.reduce((total, record) => total + (record.totalTokens ?? 0), 0);
   const monthlyBudget = profile?.monthlyAiBudget ?? 0;
   const dayOfMonth = Math.max(new Date().getUTCDate(), 1);

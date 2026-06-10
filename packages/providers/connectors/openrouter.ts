@@ -40,6 +40,23 @@ async function fetchCredits(apiKey: string) {
   };
 }
 
+type OpenRouterKeyResponse = {
+  data?: {
+    usage_monthly?: number;
+  };
+};
+
+async function fetchKeyData(apiKey: string) {
+  const response = await fetch("https://openrouter.ai/api/v1/auth/key", {
+    headers: {
+      Authorization: `Bearer ${apiKey}`
+    }
+  });
+  if (!response.ok) return null;
+  const json = await response.json() as OpenRouterKeyResponse;
+  return json.data;
+}
+
 async function fetchGeneration(apiKey: string, generationId: string) {
   const url = new URL("https://openrouter.ai/api/v1/generation");
   url.searchParams.set("id", generationId);
@@ -86,8 +103,12 @@ export const openRouterConnector: ProviderConnector = {
       throw new Error("OpenRouter API key is required.");
     }
 
-    const credits = await fetchCredits(apiKey);
-    return [{
+    const [credits, keyData] = await Promise.all([
+      fetchCredits(apiKey),
+      fetchKeyData(apiKey)
+    ]);
+    
+    const caps: any[] = [{
       capType: "credit_balance",
       capLabel: "OpenRouter credits",
       capAmount: credits.totalCredits,
@@ -95,6 +116,19 @@ export const openRouterConnector: ProviderConnector = {
       usedAmount: credits.totalUsage,
       confidence: "exact"
     }];
+
+    if (keyData?.usage_monthly !== undefined) {
+      caps.push({
+        capType: "monthly_spend_metadata",
+        capLabel: "Monthly spend",
+        capAmount: 0,
+        capUnit: "USD",
+        usedAmount: keyData.usage_monthly,
+        confidence: "exact"
+      });
+    }
+
+    return caps;
   },
   async fetchBalance(input) {
     const apiKey = input.credentials?.apiKey;
