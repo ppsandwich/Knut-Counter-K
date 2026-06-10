@@ -1,6 +1,7 @@
 providers:
   - { provider_id: openai_api, name: "OpenAI API", connector_type: "usage_api + response_usage_capture", connector_status: response_metadata_supported, supports_account_usage_api: true, supports_response_usage_metadata: true, supports_manual_import: true, priority: 1 }
   - { provider_id: anthropic_api, name: "Anthropic Claude API", connector_type: "usage_api + response_usage_capture", connector_status: response_metadata_supported, supports_account_usage_api: true, supports_response_usage_metadata: true, supports_manual_import: true, priority: 1 }
+  - { provider_id: claude_pro, name: "Claude Pro / Team", connector_type: web_session_api, connector_status: live_api_connector, supports_account_usage_api: true, supports_response_usage_metadata: false, supports_manual_import: false, priority: 1 }
   - { provider_id: google_gemini_api, name: "Google Gemini API", connector_type: response_usage_capture, connector_status: response_metadata_supported, supports_response_usage_metadata: true, supports_manual_import: true, priority: 1 }
   - { provider_id: google_vertex_ai, name: "Google Vertex AI", connector_type: "response_usage_capture + cloud_billing_optional", connector_status: planned, supports_response_usage_metadata: true, supports_manual_import: true, priority: 3 }
   - { provider_id: azure_openai, name: "Azure OpenAI", connector_type: "response_usage_capture + cloud_billing_optional", connector_status: planned, supports_response_usage_metadata: true, supports_manual_import: true, priority: 3 }

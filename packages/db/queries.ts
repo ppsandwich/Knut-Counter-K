@@ -1,4 +1,4 @@
-import { anthropicConnector, antigravityConnector, chatgptPlusConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, type UsageCap, type UsageRecord } from "@knut/providers";
+import { anthropicConnector, antigravityConnector, chatgptPlusConnector, deepSeekConnector, geminiConnector, openAiConnector, openRouterConnector, xaiConnector, xiaomimimoConnector, claudeProConnector, type UsageCap, type UsageRecord } from "@knut/providers";
 import type { ArtificialAnalysisBenchmark, NormalisedPrice } from "@knut/pricing";
 import type { AccountAlert, AccountExportPayload, AccountProfile, AccountProviderSummary, AccountSettingsInput, AlertEvaluationResult, DashboardModelPick, DashboardModelPicks, DashboardSummary, ImportUsageInput, ManualUsageInput, PopularModel, PriceIndexSummary, ProviderAccountInput, ProviderAccountUpdateInput, ProviderRegistryOption, RecommendationBundle, RecommendationDataStats, RecommendationInput, RecommendationResult } from "@knut/shared";
 import { and, asc, desc, eq, gte, inArray, ne, or, sql } from "drizzle-orm";
@@ -833,6 +833,34 @@ export async function markProviderAccountsSynced(userId: string, providerAccount
       });
       const inserted = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
       messages.push(`${account.displayName} pulled ${inserted.rowsProcessed} Anthropic usage/cost rows${inserted.rowsSkipped ? ` and skipped ${inserted.rowsSkipped} duplicates` : ""}.`);
+    } else if (account.providerId === "claude_pro") {
+      if (!account.encryptedCredentials) {
+        messages.push(`${account.displayName} needs a JSON credential containing sessionKey and orgId before Claude Pro can refresh.`);
+        continue;
+      }
+
+      const credentialsRaw = decryptCredential(account.encryptedCredentials);
+      let sessionKey = credentialsRaw;
+      let orgId = "";
+      
+      try {
+        if (credentialsRaw.trim().startsWith("{")) {
+          const parsed = JSON.parse(credentialsRaw);
+          sessionKey = parsed.sessionKey || parsed.apiKey;
+          orgId = parsed.orgId || parsed.organizationId;
+        }
+      } catch (e) {
+        // Fallback to assuming it's just the session key
+      }
+
+      const usage = await claudeProConnector.fetchUsage?.({
+        providerAccountId: account.id,
+        credentials: { apiKey: sessionKey, organizationId: orgId },
+        since: monthStart().toISOString(),
+        until: new Date().toISOString()
+      });
+      const inserted = await insertSyncedUsageRecords(userId, account.id, account.providerId, usage ?? []);
+      messages.push(`${account.displayName} refreshed Claude Pro subscription status.`);
     } else if (account.providerId === "google_gemini_api") {
       if (!account.encryptedCredentials) {
         messages.push(`${account.displayName} needs an API key before Gemini can validate the connector.`);

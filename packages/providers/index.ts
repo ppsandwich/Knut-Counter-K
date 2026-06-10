@@ -1,4 +1,5 @@
 export * from "./connectors/anthropic";
+export * from "./connectors/claude_pro";
 export * from "./connectors/antigravity";
 export * from "./connectors/chatgpt";
 export * from "./connectors/deepseek";
