@@ -12,11 +12,20 @@ export const claudeProConnector: ProviderConnector = {
       };
     }
 
+    let sessionKey = input.apiKey;
+    // If the user pasted their entire Cookie string, extract just the sessionKey part
+    if (sessionKey && sessionKey.includes("sessionKey=")) {
+      const match = sessionKey.match(/sessionKey=([^;]+)/);
+      if (match && match[1]) {
+        sessionKey = match[1];
+      }
+    }
+
     try {
       const url = `https://claude.ai/api/organizations/${input.organizationId}/usage`;
       const response = await fetch(url, {
         headers: {
-          "Cookie": `sessionKey=${input.apiKey}`,
+          "Cookie": `sessionKey=${sessionKey}`,
           "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
       });
@@ -41,11 +50,19 @@ export const claudeProConnector: ProviderConnector = {
     }
   },
   async fetchUsage(input) {
-    const sessionKey = input.credentials?.apiKey;
+    let sessionKey = input.credentials?.apiKey;
     const orgId = input.credentials?.organizationId;
     
     if (!sessionKey || !orgId) {
       throw new Error("Claude sessionKey and Organization ID are required.");
+    }
+
+    // If the user pasted their entire Cookie string, extract just the sessionKey part
+    if (sessionKey.includes("sessionKey=")) {
+      const match = sessionKey.match(/sessionKey=([^;]+)/);
+      if (match && match[1]) {
+        sessionKey = match[1];
+      }
     }
 
     const url = `https://claude.ai/api/organizations/${orgId}/usage`;
